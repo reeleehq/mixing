@@ -153,6 +153,10 @@ install.windows = "choco install ffmpeg -y --no-progress"
 [tool.wads.ci]
 project_name = "mixing"
 
+# The suite exercises mixing.audio / mixing.video, which need the media backends.
+[tool.wads.ci.install]
+extras = "media"
+
 [tool.wads.ci.commands]
 pre_test = []
 test = []
