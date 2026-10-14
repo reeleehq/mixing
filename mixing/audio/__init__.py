@@ -27,6 +27,10 @@ Examples:
     >>> paths = extract_segments("concert.wav", segs, output="songs/")  # doctest: +SKIP
 """
 
+from ..util import AUDIO_IMPORT_NAMES, require_media_extra
+
+require_media_extra("mixing.audio", modules=AUDIO_IMPORT_NAMES)
+
 from .audio_ops import (
     Audio,
     AudioSamples,

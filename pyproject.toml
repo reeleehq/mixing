@@ -15,32 +15,12 @@ authors = [
     { name = "Thor Whalen" },
 ]
 dependencies = [
-    "moviepy",
+    # Base install = the pure modules (srt, chapters, errors, util, egress,
+    # transcript, dubbing TTS): no media backend, no bundled ffmpeg binary.
+    # moviepy / opencv / scipy / pydub / burns live in the ``media`` extra.
     "config2py",
     "dol",
     "xdol",
-    # opencv-contrib-python (superset of opencv-python; MIT/Apache) is the single cv2 provider
-    # across the ecosystem — mediapipe + syncnet require it, so using it here avoids the
-    # unsupported double-install (both provide `cv2`) when muvid[scoring] is co-installed.
-    "opencv-contrib-python",
-    "pillow",
-    "pydub",
-    "numpy",
-    # scipy backs mixing.audio's cross-correlation alignment (find_audio_offset /
-    # find_audio_offset_detailed / align_clips_to_reference). It is imported lazily
-    # (require_package("scipy.signal")) so `import mixing` stays light, but it must be
-    # installed for alignment to run — a core mixing.audio capability, so base deps
-    # (documented as a mixing.audio dep in .claude/CLAUDE.md).
-    "scipy",
-    "burns",
-    # The geometry VOCABULARY (SOCIAL_SIZES, the fit/fill/stretch mode names,
-    # the social backdrop's blur sigma and dim factor) is owned by `looks` and
-    # imported by mixing.video.video_util — one place says what a "shorts" is.
-    # The implementations stay here: video_util resizes with moviepy, and the
-    # `social` branch is a composite, not a formula. `looks` declares no
-    # dependencies of its own, so this edge costs nothing. The floor is the
-    # first release carrying SOCIAL_SIZES / FitMode / DFLT_BACKDROP_*.
-    "looks>=0.0.11",
 ]
 
 [project.license]
@@ -50,8 +30,31 @@ text = "MIT"
 Homepage = "https://github.com/thorwhalen/mixing"
 
 [project.optional-dependencies]
+# The media backends: everything mixing.audio and mixing.video import.
+# Importing either without this extra raises an ImportError naming it.
+media = [
+    "moviepy",
+    # opencv-contrib-python (superset of opencv-python; MIT/Apache) is the single cv2 provider
+    # across the ecosystem — mediapipe + syncnet require it, so using it here avoids the
+    # unsupported double-install (both provide `cv2`) when muvid[scoring] is co-installed.
+    "opencv-contrib-python",
+    "pillow",
+    "pydub",
+    "numpy",
+    # scipy backs mixing.audio's cross-correlation alignment (find_audio_offset /
+    # find_audio_offset_detailed / align_clips_to_reference) and segmentation.
+    "scipy",
+    "burns",
+    # The geometry VOCABULARY (SOCIAL_SIZES, the fit/fill/stretch mode names,
+    # the social backdrop's blur sigma and dim factor) is owned by `looks` and
+    # imported by mixing.video.video_util — one place says what a "shorts" is.
+    # `looks` declares no dependencies of its own. The floor is the first
+    # release carrying SOCIAL_SIZES / FitMode / DFLT_BACKDROP_*.
+    "looks>=0.0.11",
+]
 testing = [
     "pytest",
+    "mixing[media]",
 ]
 clipboard = [
     "pyclip",
@@ -81,6 +84,7 @@ llm = [
 dev = [
     "pytest",
     "ruff",
+    "mixing[media]",
 ]
 
 [tool.ruff]

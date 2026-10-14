@@ -123,7 +123,14 @@ Use the helpers, don't reinvent them:
 
 ## Optional extras
 
-`pip install mixing[<extra>]`: `audio` (pydub/ffmpeg-python/soundfile),
+The base install carries only the pure modules (`srt`, `chapters`, `errors`,
+`util`, `egress`, `transcript`, TTS). **`media`** supplies the backends
+`mixing.audio` / `mixing.video` import (moviepy, opencv-contrib-python, scipy,
+pydub, numpy, pillow, burns, looks); importing either without it raises an
+`ImportError` naming `pip install 'mixing[media]'` (`util.require_media_extra`,
+called at the top of both package `__init__`s). Tests install it via `testing`.
+
+`pip install mixing[<extra>]`: `media` (see above), `audio` (ffmpeg-python/soundfile, on top of `media`),
 `widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for
 chapter titling + SRT translation), `clipboard` (`pyclip`), `beats` (`librosa`,
 for `mixing.audio.beats.beat_grid`), `dev`/`testing`.

@@ -3,6 +3,10 @@ Video tools
 
 """
 
+from mixing.util import VIDEO_IMPORT_NAMES, require_media_extra
+
+require_media_extra("mixing.video", modules=VIDEO_IMPORT_NAMES)
+
 from mixing.video.video_subtitles import (
     generate_subtitle_clips,
     to_srt_time,
