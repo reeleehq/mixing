@@ -83,7 +83,10 @@ with Video("clip.mp4") as v:
 
 ## Optional extras & keys
 
-- `pip install mixing[audio]` (pydub/soundfile), `[gen]` (Veo), `[llm]` (`aix`
+- `pip install 'mixing[media]'` is required for `mixing.audio` / `mixing.video`
+  (moviepy, opencv, scipy, pydub); the base install has only the pure modules
+  and the media modules raise an `ImportError` naming this extra.
+- `pip install mixing[audio]` (ffmpeg-python/soundfile), `[gen]` (Veo), `[llm]` (`aix`
   for chapter titles + SRT translation), `[widget]`, `[clipboard]`.
 - ElevenLabs features (`mixing.transcript`, `mixing.dubbing`) need
   `ELEVENLABS_API_KEY` (or pass `api_key=`). Responses are cached on disk, so a

@@ -2,6 +2,7 @@
 
 from typing import Literal
 import importlib
+import importlib.util
 import logging
 import shutil
 
@@ -58,9 +59,51 @@ def ffmpeg_exe() -> str:
         )
 
 
+MEDIA_EXTRA = "media"
+MEDIA_INSTALL_HINT = f"pip install 'mixing[{MEDIA_EXTRA}]'"
+
+# Import names (top-level) that the ``media`` extra provides, per media area.
+AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
+VIDEO_IMPORT_NAMES = ("numpy", "moviepy", "cv2", "PIL", "burns", "looks")
+# Everything the extra supplies; ``require_package`` uses it to pick its hint.
+MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES))
+
+
+def _is_importable(name: str) -> bool:
+    """True if top-level module ``name`` can be found, without importing it."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def require_media_extra(feature: str, *, modules: tuple[str, ...] = MEDIA_IMPORT_NAMES):
+    """Raise an informative ``ImportError`` if the ``media`` extra is not installed.
+
+    The base ``pip install mixing`` ships only the pure modules (``srt``,
+    ``chapters``, ``errors``, ``util``, ``egress``, ``transcript``, TTS); the
+    moviepy / opencv / scipy / pydub backends come with ``mixing[media]``.
+
+    >>> require_media_extra("demo", modules=("math",))
+    >>> require_media_extra("demo", modules=("no_such_module_xyz",))
+    Traceback (most recent call last):
+      ...
+    ImportError: demo requires the 'media' extra ...
+    """
+    missing = [name for name in modules if not _is_importable(name)]
+    if missing:
+        raise ImportError(
+            f"{feature} requires the {MEDIA_EXTRA!r} extra "
+            f"(missing: {', '.join(missing)}). Install it with "
+            f"{MEDIA_INSTALL_HINT}."
+        )
+
+
 def require_package(package_name: str):
     """
     Import a package, raising an informative error if not installed.
+
+    Packages supplied by the ``media`` extra get a hint naming that extra.
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
@@ -69,9 +112,13 @@ def require_package(package_name: str):
     try:
         return importlib.import_module(package_name)
     except ImportError as e:
+        if package_name.split(".")[0] in MEDIA_IMPORT_NAMES:
+            hint = MEDIA_INSTALL_HINT
+        else:
+            hint = f"pip install {package_name}"
         raise ImportError(
             f"Package '{package_name}' is required for this functionality. "
-            f"Please install it via 'pip install {package_name}'."
+            f"Please install it via '{hint}'."
         ) from e
 
 
