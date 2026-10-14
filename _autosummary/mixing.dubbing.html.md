@@ -13,7 +13,7 @@ Building blocks:
 > - [`list_voices()`](#mixing.dubbing.list_voices) / [`find_voice()`](#mixing.dubbing.find_voice) — discover account voices.
 > - [`parse_srt()`](#mixing.dubbing.parse_srt) / [`dump_srt()`](#mixing.dubbing.dump_srt) / [`translate_srt()`](#mixing.dubbing.translate_srt) — SRT I/O
 >   and LLM-backed translation.
-> - [`dub_video_from_srt()`](#mixing.dubbing.dub_video_from_srt) — the end-to-end pipeline.
+> - `dub_video_from_srt()` — the end-to-end pipeline.
 
 The HTTP clients use stdlib only (no `requests` / `elevenlabs` SDK), so
 this adds no required deps. Needs ffmpeg on PATH and an ElevenLabs API key
@@ -25,7 +25,7 @@ either the `aix` package (`pip install 'mixing[llm]'`) or a custom
 uses PEP 562 `__getattr__` so that the TTS / SRT building blocks
 ([`text_to_speech()`](#mixing.dubbing.text_to_speech), [`list_voices()`](#mixing.dubbing.list_voices), [`parse_srt()`](#mixing.dubbing.parse_srt),
 [`Cue`](#mixing.dubbing.Cue), …) import with **no** `moviepy` dependency. Only
-[`dub_video_from_srt()`](#mixing.dubbing.dub_video_from_srt) — the end-to-end pipeline that muxes audio over a
+`dub_video_from_srt()` — the end-to-end pipeline that muxes audio over a
 video — pulls `moviepy`, and only when it is first accessed.
 
 Quick start:
@@ -51,7 +51,6 @@ Quick start:
 | [`srt_time_to_seconds`](#mixing.dubbing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
 | [`translate_srt`](#mixing.dubbing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                     |
 | [`default_translate_fn`](#mixing.dubbing.default_translate_fn)(texts, target_language)       | LLM-backed translator (segment-count preserving) using `aix.chat`.                          |
-| [`dub_video_from_srt`](#mixing.dubbing.dub_video_from_srt)(video, srt, \*, voice_id)       | Replace `video`'s audio with TTS narration built from `srt`.                                |
 
 ### Classes
 
@@ -121,41 +120,6 @@ error if `aix` is not importable — pass your own `translate_fn` then.
 
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
-
-### mixing.dubbing.dub_video_from_srt(video, srt, , voice_id, output=None, api_key=None, model_id='eleven_multilingual_v2', output_format='mp3_44100_128', voice_settings=None, language_code=None, fit='speed', max_speedup=1.5, keep_original_audio=0.0, work_dir=None, keep_work=False, cache=True, synth_fn=None)
-
-Replace `video`’s audio with TTS narration built from `srt`.
-
-* **Parameters:**
-  * **video** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)) – Path to the source video.
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](mixing.srt.html.md#mixing.srt.Cue)]]) – An `.srt` file path, raw SRT text, or a list of [`Cue`](#mixing.dubbing.Cue).
-  * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs voice id for the narration.
-  * **output** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Output video path. Defaults to
-    `<video-stem>.<language_code or 'dub'>.mp4` next to the source.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (falls back to `ELEVENLABS_API_KEY`).
-  * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS model id (default `eleven_multilingual_v2`).
-  * **output_format** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS audio format for the per-cue clips.
-  * **voice_settings** ([`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Override default ElevenLabs voice settings.
-  * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional ISO-639-1 hint forwarded to the TTS model and
-    used in the default output filename.
-  * **fit** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"speed"` (default) time-compresses overlong lines (capped at
-    `max_speedup`) to hold sync; `"natural"` never changes speed.
-  * **max_speedup** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Maximum tempo factor when `fit="speed"` (clamped to
-    ffmpeg’s single-`atempo` ceiling of 2.0).
-  * **keep_original_audio** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Fraction (0..1) of the original audio to keep
-    mixed under the narration. `0.0` (default) replaces it entirely;
-    e.g. `0.15` keeps a little background music/ambience.
-  * **work_dir** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Directory for intermediate audio. Defaults to a temp dir.
-  * **keep_work** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Keep the intermediate per-cue clips and assembled track.
-  * **cache** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Cache TTS calls on disk (skips re-synthesis of identical lines).
-  * **synth_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)], [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]]) – Override the synthesizer `(text, out_path) -> path`. When
-    `None`, uses ElevenLabs via [`mixing.dubbing.tts.synthesize_to_file()`](mixing.dubbing.tts.html.md#mixing.dubbing.tts.synthesize_to_file).
-* **Return type:**
-  [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
-* **Returns:**
-  Path to the dubbed video.
-* **Raises:**
-  [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `fit` is not a recognized strategy.
 
 ### mixing.dubbing.dump_srt(cues)
 
@@ -307,7 +271,6 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 
 ### Modules
 
-| [`dub`](mixing.dubbing.dub.html.md#module-mixing.dubbing.dub)   | SRT-driven dubbing: replace a video's audio with TTS narration.                                                                     |
-|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| [`srt`](mixing.dubbing.srt.html.md#module-mixing.dubbing.srt)   | SRT translation for dubbing — built on the canonical [`mixing.srt`](mixing.srt.html.md#module-mixing.srt). |
-| [`tts`](mixing.dubbing.tts.html.md#module-mixing.dubbing.tts)   | ElevenLabs text-to-speech (TTS) HTTP client.                                                                                        |
+| [`srt`](mixing.dubbing.srt.html.md#module-mixing.dubbing.srt)   | SRT translation for dubbing — built on the canonical [`mixing.srt`](mixing.srt.html.md#module-mixing.srt).   |
+|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| [`tts`](mixing.dubbing.tts.html.md#module-mixing.dubbing.tts)   | ElevenLabs text-to-speech (TTS) HTTP client.                                                                                          |

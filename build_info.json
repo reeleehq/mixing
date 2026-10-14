@@ -1,41 +1,41 @@
 {
   "schema_version": 1,
-  "built_at": "2026-09-22T14:05:53Z",
+  "built_at": "2026-10-14T12:28:04Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.55",
+    "version": "0.0.56",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103",
-    "short_commit": "e937a1b",
+    "commit": "f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a",
+    "short_commit": "f4a0fb8",
     "branch": "main",
     "tags": [
-      "0.0.55"
+      "0.0.56"
     ],
     "dirty": false,
-    "remote_url": "https://github.com/thorwhalen/mixing",
-    "commit_url": "https://github.com/thorwhalen/mixing/commit/e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103",
+    "remote_url": "https://github.com/reeleehq/mixing",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a",
     "error": null
   },
   "ci": {
     "provider": "github",
-    "repository": "thorwhalen/mixing",
-    "sha": "56b2a4d5cf73f07aa37cc5f72e35833b73c6e10f",
+    "repository": "reeleehq/mixing",
+    "sha": "867c5cf986c886ff696b8e2de45d3f9446306380",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "35736841180",
-    "run_url": "https://github.com/thorwhalen/mixing/actions/runs/35736841180",
+    "run_id": "38563185960",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/38563185960",
     "server_url": "https://github.com"
   },
   "tools": {
-    "epythet": "0.2.12",
+    "epythet": "0.2.17",
     "sphinx": "9.1.0",
     "docutils": "0.22.4",
-    "python": "3.12.14"
+    "python": "3.12.15"
   },
   "config": {
     "theme": "auto",
@@ -57,16 +57,16 @@
     "docs_dir": "docsrc"
   },
   "site": {
-    "modules_documented": 30,
-    "objects_documented": 467
+    "modules_documented": 16,
+    "objects_documented": 138
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.55",
+    "latest": "0.0.56",
     "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/thorwhalen/mixing && cd mixing\ngit checkout e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103\npip install \"epythet==0.2.12\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a\npip install \"epythet==0.2.17\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": true,

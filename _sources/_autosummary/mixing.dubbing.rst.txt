@@ -20,7 +20,6 @@ mixing.dubbing
       srt_time_to_seconds
       translate_srt
       default_translate_fn
-      dub_video_from_srt
    
    .. rubric:: Classes
 

@@ -8,68 +8,25 @@
 
    .. autosummary::
    
-      assemble_audio_track
-      change_speed
-      concatenate_audio
-      concatenate_videos
-      crop_audio
-      crop_video
-      crossfade_overlap
-      crossfade_transition
       detect_chapters
-      dub_video_from_srt
-      duck_audio
       dump_srt
-      extract_segments
-      fade_in
-      fade_out
-      fade_through_black
-      find_audio_offset
-      find_segments
-      get_video_dimensions
       has_ffmpeg
-      ken_burns_film
-      ken_burns_video
-      loop_audio
-      loop_video
-      make_gif
-      make_thumbnail
-      max_overlap_for_clips
-      needs_crossfade_overlap
-      normalize_audio
-      normalize_video_dimensions
-      overlap_blend
-      overlay_ambient_bed
-      overlay_audio
       parse_srt
       remove_fillers
-      replace_audio
-      resize_to_dimensions
-      save_audio_clip
-      save_frame
       seconds_to_srt_time
-      slow_motion_blend
       srt_for_media
       srt_time_to_seconds
       text_to_speech
       transcribe
       translate_srt
-      trim_and_crossfade
-      trim_first_frame_from_subsequent_clips
-      write_subtitles_in_video
    
    .. rubric:: Classes
 
    .. autosummary::
    
-      Audio
-      AudioSamples
       Chapter
       Cue
       FillerRemovalResult
-      Segment
-      Video
-      VideoFrames
    
    .. rubric:: Exceptions
 
@@ -84,7 +41,6 @@
    :toctree:
    :recursive:
 
-   audio
    chapters
    dubbing
    egress
@@ -92,4 +48,5 @@
    srt
    transcript
    util
+   audio
    video

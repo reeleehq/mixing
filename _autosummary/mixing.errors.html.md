@@ -28,7 +28,7 @@ Bases: [`MixingError`](#mixing.errors.MixingError), [`ValueError`](https://docs.
 
 An explicit analysis window leaves a clip no second, independent look.
 
-Raised by [`mixing.audio.align_clips_to_reference()`](mixing.audio.html.md#mixing.audio.align_clips_to_reference) when the caller passes a
+Raised by `mixing.audio.align_clips_to_reference()` when the caller passes a
 `window_s` wider than [`max_window_s`](#mixing.errors.WindowTooWideForClip.max_window_s) — the length above which the clip holds
 no second INDEPENDENT window, so the consensus vote has nothing to arbitrate and
 `support` comes back `None`.

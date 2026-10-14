@@ -5,7 +5,7 @@ orphan: true
 
 # About this build
 
-This documentation was built on **2026-09-22 14:05 UTC** from commit <a href="https://github.com/thorwhalen/mixing/commit/e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103"><code>e937a1b</code></a> on branch <code>main</code>, for **mixing 0.0.55** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-14 12:28 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a"><code>f4a0fb8</code></a> on branch <code>main</code>, for **mixing 0.0.56** (from <code>pyproject.toml</code>).
 
 :::{note}
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -15,29 +15,29 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 | | |
 |---|---|
-| Commit | <a href="https://github.com/thorwhalen/mixing/commit/e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103"><code>e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103</code></a> |
+| Commit | <a href="https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a"><code>f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a</code></a> |
 | Branch | <code>main</code> |
-| Tags at this commit | <code>0.0.55</code> |
+| Tags at this commit | <code>0.0.56</code> |
 | Working tree | clean |
-| Remote | <code>https://github.com/thorwhalen/mixing</code> |
+| Remote | <code>https://github.com/reeleehq/mixing</code> |
 
 ## Continuous integration
 
 | | |
 |---|---|
-| Repository | <code>thorwhalen/mixing</code> |
-| Run | <a href="https://github.com/thorwhalen/mixing/actions/runs/35736841180">35736841180</a> |
+| Repository | <code>reeleehq/mixing</code> |
+| Run | <a href="https://github.com/reeleehq/mixing/actions/runs/38563185960">38563185960</a> |
 | Ref | <code>refs/heads/main</code> |
-| Event commit | <code>56b2a4d5cf73f07aa37cc5f72e35833b73c6e10f</code> (in the history of the built commit) |
+| Event commit | <code>867c5cf986c886ff696b8e2de45d3f9446306380</code> (in the history of the built commit) |
 
 ## Tools
 
 | | |
 |---|---|
-| epythet | 0.2.12 |
+| epythet | 0.2.17 |
 | Sphinx | 9.1.0 |
 | docutils | 0.22.4 |
-| Python | 3.12.14 |
+| Python | 3.12.15 |
 
 ## Configuration as resolved
 
@@ -53,14 +53,14 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.55/">0.0.55</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.56/">0.0.56</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
-git clone https://github.com/thorwhalen/mixing && cd mixing
-git checkout e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103
-pip install "epythet==0.2.12"
+git clone https://github.com/reeleehq/mixing && cd mixing
+git checkout f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a
+pip install "epythet==0.2.17"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
 

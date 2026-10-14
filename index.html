@@ -82,7 +82,6 @@
 <ul>
 <li class="toctree-l1" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="reference internal expandable" href="api.html">API reference<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul x-cloak="" x-show="expanded">
 <li class="toctree-l2" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="reference internal expandable" href="_autosummary/mixing.html">mixing<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul x-cloak="" x-show="expanded">
-<li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.audio.html">mixing.audio</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.chapters.html">mixing.chapters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.dubbing.html">mixing.dubbing</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.egress.html">mixing.egress</a></li>
@@ -90,7 +89,6 @@
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.util.html">mixing.util</a></li>
-<li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.video.html">mixing.video</a></li>
 </ul>
 </li>
 </ul>
@@ -115,9 +113,11 @@
 <p>Tools for <strong>video and audio editing</strong> in Python — slicing, fades, audio
 replace/mix, Ken Burns, thumbnails, subtitles, speech-to-text + filler removal,
 TTS dubbing, and chapter detection.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span>mixing
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'mixing[media]'</span><span class="w">   </span><span class="c1"># audio + video editing (moviepy, opencv, scipy, pydub)</span>
+</span><span id="line-2">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="w">            </span><span class="c1"># base: only the pure modules (srt, chapters, errors, util, egress, transcript, TTS)</span>
 </span></code></pre></div>
 </div>
+<p>The base install is light on purpose: it carries no media backend (and so no bundled ffmpeg binary). <code class="docutils literal notranslate"><span class="pre">mixing.audio</span></code> and <code class="docutils literal notranslate"><span class="pre">mixing.video</span></code> need the <code class="docutils literal notranslate"><span class="pre">media</span></code> extra; importing them without it raises an <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> that says so.</p>
 <hr class="docutils"/>
 <section id="ai-first-start-with-the-skills-agents">
 <h2>🤖 AI-first: start with the skills &amp; agents<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#ai-first-start-with-the-skills-agents" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#ai-first-start-with-the-skills-agents'">¶</a></h2>
@@ -238,12 +238,13 @@ re-runs are free and offline.</p></li>
 </ul>
 <section id="optional-extras">
 <h3>Optional extras<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#optional-extras" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#optional-extras'">¶</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>audio<span class="o">]</span><span class="w">      </span><span class="c1"># pydub / ffmpeg-python / soundfile</span>
-</span><span id="line-2">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>widget<span class="o">]</span><span class="w">     </span><span class="c1"># interactive Jupyter audio widget</span>
-</span><span id="line-3">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>gen<span class="o">]</span><span class="w">        </span><span class="c1"># Google Vertex AI Veo generation</span>
-</span><span id="line-4">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>llm<span class="o">]</span><span class="w">        </span><span class="c1"># aix — chapter titling + SRT translation</span>
-</span><span id="line-5">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>clipboard<span class="o">]</span><span class="w">  </span><span class="c1"># get file paths from the clipboard</span>
-</span><span id="line-6">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>beats<span class="o">]</span><span class="w">      </span><span class="c1"># librosa — beat/downbeat/onset analysis</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>media<span class="o">]</span><span class="w">      </span><span class="c1"># moviepy / opencv / scipy / pydub: mixing.audio + mixing.video</span>
+</span><span id="line-2">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>audio<span class="o">]</span><span class="w">      </span><span class="c1"># ffmpeg-python / soundfile (on top of media)</span>
+</span><span id="line-3">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>widget<span class="o">]</span><span class="w">     </span><span class="c1"># interactive Jupyter audio widget</span>
+</span><span id="line-4">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>gen<span class="o">]</span><span class="w">        </span><span class="c1"># Google Vertex AI Veo generation</span>
+</span><span id="line-5">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>llm<span class="o">]</span><span class="w">        </span><span class="c1"># aix — chapter titling + SRT translation</span>
+</span><span id="line-6">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>clipboard<span class="o">]</span><span class="w">  </span><span class="c1"># get file paths from the clipboard</span>
+</span><span id="line-7">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="o">[</span>beats<span class="o">]</span><span class="w">      </span><span class="c1"># librosa — beat/downbeat/onset analysis</span>
 </span></code></pre></div>
 </div>
 </section>
@@ -289,7 +290,7 @@ re-runs are free and offline.</p></li>
 
 </section>
 </section>
-<p class="epythet-provenance" style="font-size:.8em;opacity:.65;margin-top:2.5em;text-align:right">built 2026-09-22 14:05 UTC from <a href="https://github.com/thorwhalen/mixing/commit/e937a1be1ff027fc1e1dcb59eb0ff8b471bcc103">e937a1b</a> (main) · mixing 0.0.55 · <a href="about-this-build.html">about this build</a></p>
+<p class="epythet-provenance" style="font-size:.8em;opacity:.65;margin-top:2.5em;text-align:right">built 2026-10-14 12:28 UTC from <a href="https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a">f4a0fb8</a> (main) · mixing 0.0.56 · <a href="about-this-build.html">about this build</a></p>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
@@ -315,7 +316,7 @@ re-runs are free and offline.</p></li>
 </div>
 </footer>
 </div>
-<script src="_static/documentation_options.js?v=b87b3bc5"></script>
+<script src="_static/documentation_options.js?v=8f83b1af"></script>
 <script src="_static/doctools.js?v=fd6eb6e6"></script>
 <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="_static/clipboard.min.js?v=a7894cd8"></script>

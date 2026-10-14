@@ -8,14 +8,8 @@
 - [mixing](index.html.md): Tools for &#42;&#42;video and audio editing&#42;&#42; in Python — slicing, fades, audio
 - [API reference](api.html.md): | &#96;mixing&#96;   | Tools for video and audio editing.   |
 - [mixing](_autosummary/mixing.html.md): Tools for video and audio editing.
-- [mixing.audio](_autosummary/mixing.audio.html.md): Audio mixing and editing functionality.
-- [mixing.audio.audio_ops](_autosummary/mixing.audio.audio_ops.html.md): Audio editing via slicing interface.
-- [mixing.audio.audio_util](_autosummary/mixing.audio.audio_util.html.md): Audio utility functions.
-- [mixing.audio.beats](_autosummary/mixing.audio.beats.html.md): Beat / downbeat / onset analysis of an audio signal — the &#96;mixing&#91;beats&#93;&#96; primitive.
-- [mixing.audio.segmentation](_autosummary/mixing.audio.segmentation.html.md): Split a long audio into segments — for example, the individual songs in a
 - [mixing.chapters](_autosummary/mixing.chapters.html.md): Detect chapter markers from a transcript — platform-agnostic.
 - [mixing.dubbing](_autosummary/mixing.dubbing.html.md): Text-to-speech dubbing: re-voice or translate a video from its SRT.
-- [mixing.dubbing.dub](_autosummary/mixing.dubbing.dub.html.md): SRT-driven dubbing: replace a video’s audio with TTS narration.
 - [mixing.dubbing.srt](_autosummary/mixing.dubbing.srt.html.md): SRT translation for dubbing — built on the canonical &#96;mixing.srt&#96;.
 - [mixing.dubbing.tts](_autosummary/mixing.dubbing.tts.html.md): ElevenLabs text-to-speech (TTS) HTTP client.
 - [mixing.egress](_autosummary/mixing.egress.html.md): Canonical &#42;egress&#42;: route a produced result to its destination.
@@ -29,16 +23,8 @@
 - [mixing.transcript.pipeline](_autosummary/mixing.transcript.pipeline.html.md): High-level filler-removal pipeline.
 - [mixing.transcript.scribe](_autosummary/mixing.transcript.scribe.html.md): ElevenLabs Scribe (speech-to-text) HTTP client.
 - [mixing.util](_autosummary/mixing.util.html.md): General utilities for mixing video, audio, etc.
-- [mixing.video](_autosummary/mixing.video.html.md): Video tools
-- [mixing.video.genai](_autosummary/mixing.video.genai.html.md): AI Video Generation with Google Vertex AI Veo
-- [mixing.video.gif](_autosummary/mixing.video.gif.html.md): Animated-GIF export via ffmpeg’s two-pass palette pipeline.
-- [mixing.video.thumbnail](_autosummary/mixing.video.thumbnail.html.md): Thumbnail / cover-image generation from a video frame.
-- [mixing.video.video_concat](_autosummary/mixing.video.video_concat.html.md): Video concatenation utilities with smooth transitions.
-- [mixing.video.video_ops](_autosummary/mixing.video.video_ops.html.md): Video cropping via slicing interface.
-- [mixing.video.video_subtitles](_autosummary/mixing.video.video_subtitles.html.md): Video utilities for subtitle embedding and video processing.
-- [mixing.video.video_util](_autosummary/mixing.video.video_util.html.md): Video utils.
 - [For AI agents](ai-agents.html.md): &#96;mixing&#96; ships artifacts for coding agents alongside its code. This page lists
-- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-09-22 14:05 UTC&#42;&#42; from commit &lt;a href="https://github.com/tho...
+- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-10-14 12:28 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
 
 ## Optional
 

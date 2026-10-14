@@ -4,13 +4,14 @@ General utilities for mixing video, audio, etc.
 
 ### Functions
 
-| [`copy_to_clipboard`](#mixing.util.copy_to_clipboard)(data)           | Copy data to system clipboard.                                   |
-|------------------------------------------------------------------------------------|------------------------------------------------------------------|
-| [`ffmpeg_exe`](#mixing.util.ffmpeg_exe)()                      | Resolve an ffmpeg executable, preferring the pip-bundled binary. |
-| [`get_path_from_clipboard`](#mixing.util.get_path_from_clipboard)()         | Get file path from clipboard and validate it.                    |
-| [`has_ffmpeg`](#mixing.util.has_ffmpeg)()                      | Return True if the `ffmpeg` binary is available on `PATH`.       |
-| [`require_package`](#mixing.util.require_package)(package_name)     | Import a package, raising an informative error if not installed. |
-| [`to_seconds`](#mixing.util.to_seconds)(value, \*, unit, rate) | Convert time value to seconds based on unit.                     |
+| [`copy_to_clipboard`](#mixing.util.copy_to_clipboard)(data)                     | Copy data to system clipboard.                                            |
+|----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|
+| [`ffmpeg_exe`](#mixing.util.ffmpeg_exe)()                                | Resolve an ffmpeg executable, preferring the pip-bundled binary.          |
+| [`get_path_from_clipboard`](#mixing.util.get_path_from_clipboard)()                   | Get file path from clipboard and validate it.                             |
+| [`has_ffmpeg`](#mixing.util.has_ffmpeg)()                                | Return True if the `ffmpeg` binary is available on `PATH`.                |
+| [`require_media_extra`](#mixing.util.require_media_extra)(feature, \*[, modules]) | Raise an informative `ImportError` if the `media` extra is not installed. |
+| [`require_package`](#mixing.util.require_package)(package_name)               | Import a package, raising an informative error if not installed.          |
+| [`to_seconds`](#mixing.util.to_seconds)(value, \*, unit, rate)           | Convert time value to seconds based on unit.                              |
 
 ### mixing.util.copy_to_clipboard(data)
 
@@ -77,9 +78,27 @@ startup and refuse to run rather than emit broken media.
 True
 ```
 
+### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
+
+Raise an informative `ImportError` if the `media` extra is not installed.
+
+The base `pip install mixing` ships only the pure modules (`srt`,
+`chapters`, `errors`, `util`, `egress`, `transcript`, TTS); the
+moviepy / opencv / scipy / pydub backends come with `mixing[media]`.
+
+```pycon
+>>> require_media_extra("demo", modules=("math",))
+>>> require_media_extra("demo", modules=("no_such_module_xyz",))
+Traceback (most recent call last):
+  ...
+ImportError: demo requires the 'media' extra ...
+```
+
 ### mixing.util.require_package(package_name)
 
 Import a package, raising an informative error if not installed.
+
+Packages supplied by the `media` extra get a hint naming that extra.
 
 ```pycon
 >>> math = require_package('math')

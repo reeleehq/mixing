@@ -113,7 +113,6 @@
   <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../_autosummary/mixing.html">mixing</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.audio.html">mixing.audio</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.chapters.html">mixing.chapters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.dubbing.html">mixing.dubbing</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.egress.html">mixing.egress</a></li>
@@ -121,7 +120,6 @@
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.util.html">mixing.util</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.video.html">mixing.video</a></li>
 </ul>
 </li>
 </ul>
@@ -173,202 +171,252 @@
 </span><span id="line-2">
 </span><span id="line-3"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 </span><span id="line-4"><span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
-</span><span id="line-5"><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="line-6"><span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
-</span><span id="line-7">
-</span><span id="line-8"><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-</span><span id="line-9">
-</span><span id="line-10"><span class="n">TimeUnit</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"seconds"</span><span class="p">,</span> <span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"milliseconds"</span><span class="p">]</span>
-</span><span id="line-11"><span class="n">AudioTimeUnit</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"seconds"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">,</span> <span class="s2">"milliseconds"</span><span class="p">]</span>
-</span><span id="line-12">
+</span><span id="line-5"><span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
+</span><span id="line-6"><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="line-7"><span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+</span><span id="line-8">
+</span><span id="line-9"><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+</span><span id="line-10">
+</span><span id="line-11"><span class="n">TimeUnit</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"seconds"</span><span class="p">,</span> <span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"milliseconds"</span><span class="p">]</span>
+</span><span id="line-12"><span class="n">AudioTimeUnit</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"seconds"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">,</span> <span class="s2">"milliseconds"</span><span class="p">]</span>
 </span><span id="line-13">
+</span><span id="line-14">
 <div class="viewcode-block" id="has_ffmpeg">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.has_ffmpeg">[docs]</a>
-</span><span id="line-14"><span class="k">def</span><span class="w"> </span><span class="nf">has_ffmpeg</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-</span><span id="line-15"><span class="w">    </span><span class="sd">"""Return True if the ``ffmpeg`` binary is available on ``PATH``.</span>
-</span><span id="line-16">
-</span><span id="line-17"><span class="sd">    Most real video work in ``mixing`` (concatenation, trim/pad, dimension</span>
-</span><span id="line-18"><span class="sd">    normalization, audio replacement) shells out to ffmpeg via moviepy.</span>
-</span><span id="line-19"><span class="sd">    Without it, some operations degrade silently — producing wrong-duration</span>
-</span><span id="line-20"><span class="sd">    or lower-quality output instead of failing. Callers should check this at</span>
-</span><span id="line-21"><span class="sd">    startup and refuse to run rather than emit broken media.</span>
-</span><span id="line-22">
-</span><span id="line-23"><span class="sd">    &gt;&gt;&gt; isinstance(has_ffmpeg(), bool)</span>
-</span><span id="line-24"><span class="sd">    True</span>
-</span><span id="line-25"><span class="sd">    """</span>
-</span><span id="line-26">    <span class="k">return</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s2">"ffmpeg"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div>
+</span><span id="line-15"><span class="k">def</span><span class="w"> </span><span class="nf">has_ffmpeg</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="line-16"><span class="w">    </span><span class="sd">"""Return True if the ``ffmpeg`` binary is available on ``PATH``.</span>
+</span><span id="line-17">
+</span><span id="line-18"><span class="sd">    Most real video work in ``mixing`` (concatenation, trim/pad, dimension</span>
+</span><span id="line-19"><span class="sd">    normalization, audio replacement) shells out to ffmpeg via moviepy.</span>
+</span><span id="line-20"><span class="sd">    Without it, some operations degrade silently — producing wrong-duration</span>
+</span><span id="line-21"><span class="sd">    or lower-quality output instead of failing. Callers should check this at</span>
+</span><span id="line-22"><span class="sd">    startup and refuse to run rather than emit broken media.</span>
+</span><span id="line-23">
+</span><span id="line-24"><span class="sd">    &gt;&gt;&gt; isinstance(has_ffmpeg(), bool)</span>
+</span><span id="line-25"><span class="sd">    True</span>
+</span><span id="line-26"><span class="sd">    """</span>
+</span><span id="line-27">    <span class="k">return</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s2">"ffmpeg"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div>
 
-</span><span id="line-27">
 </span><span id="line-28">
+</span><span id="line-29">
 <div class="viewcode-block" id="ffmpeg_exe">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.ffmpeg_exe">[docs]</a>
-</span><span id="line-29"><span class="k">def</span><span class="w"> </span><span class="nf">ffmpeg_exe</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="line-30"><span class="w">    </span><span class="sd">"""Resolve an ffmpeg executable, preferring the pip-bundled binary.</span>
-</span><span id="line-31">
-</span><span id="line-32"><span class="sd">    Resolution order is ``imageio-ffmpeg`` (which itself honors the</span>
-</span><span id="line-33"><span class="sd">    ``IMAGEIO_FFMPEG_EXE`` env var, then its bundled static binary, then the</span>
-</span><span id="line-34"><span class="sd">    system ``PATH``) and finally a bare ``PATH`` lookup. This is what lets</span>
-</span><span id="line-35"><span class="sd">    subprocess-ffmpeg features work on a machine where only ``pip install``</span>
-</span><span id="line-36"><span class="sd">    ran — ``imageio-ffmpeg`` is a moviepy dependency, so it is present</span>
-</span><span id="line-37"><span class="sd">    wherever mixing's video stack is.</span>
-</span><span id="line-38">
-</span><span id="line-39"><span class="sd">    Raises:</span>
-</span><span id="line-40"><span class="sd">        RuntimeError: when no ffmpeg executable can be found, naming both</span>
-</span><span id="line-41"><span class="sd">            remedies (installing ``imageio-ffmpeg`` or a system ffmpeg).</span>
-</span><span id="line-42">
-</span><span id="line-43"><span class="sd">    &gt;&gt;&gt; isinstance(ffmpeg_exe(), str)  # doctest: +SKIP</span>
-</span><span id="line-44"><span class="sd">    True</span>
-</span><span id="line-45"><span class="sd">    """</span>
-</span><span id="line-46">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-47">        <span class="kn">import</span><span class="w"> </span><span class="nn">imageio_ffmpeg</span>
-</span><span id="line-48">
-</span><span id="line-49">        <span class="k">return</span> <span class="n">imageio_ffmpeg</span><span class="o">.</span><span class="n">get_ffmpeg_exe</span><span class="p">()</span>
-</span><span id="line-50">    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-</span><span id="line-51">        <span class="n">exe</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s2">"ffmpeg"</span><span class="p">)</span>
-</span><span id="line-52">        <span class="k">if</span> <span class="n">exe</span><span class="p">:</span>
-</span><span id="line-53">            <span class="k">return</span> <span class="n">exe</span>
-</span><span id="line-54">        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-</span><span id="line-55">            <span class="s2">"No ffmpeg executable found. Install the pip-bundled binary "</span>
-</span><span id="line-56">            <span class="s2">"(`pip install imageio-ffmpeg`) or a system ffmpeg "</span>
-</span><span id="line-57">            <span class="s2">"(https://ffmpeg.org/) and ensure it is on PATH."</span>
-</span><span id="line-58">        <span class="p">)</span></div>
+</span><span id="line-30"><span class="k">def</span><span class="w"> </span><span class="nf">ffmpeg_exe</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-31"><span class="w">    </span><span class="sd">"""Resolve an ffmpeg executable, preferring the pip-bundled binary.</span>
+</span><span id="line-32">
+</span><span id="line-33"><span class="sd">    Resolution order is ``imageio-ffmpeg`` (which itself honors the</span>
+</span><span id="line-34"><span class="sd">    ``IMAGEIO_FFMPEG_EXE`` env var, then its bundled static binary, then the</span>
+</span><span id="line-35"><span class="sd">    system ``PATH``) and finally a bare ``PATH`` lookup. This is what lets</span>
+</span><span id="line-36"><span class="sd">    subprocess-ffmpeg features work on a machine where only ``pip install``</span>
+</span><span id="line-37"><span class="sd">    ran — ``imageio-ffmpeg`` is a moviepy dependency, so it is present</span>
+</span><span id="line-38"><span class="sd">    wherever mixing's video stack is.</span>
+</span><span id="line-39">
+</span><span id="line-40"><span class="sd">    Raises:</span>
+</span><span id="line-41"><span class="sd">        RuntimeError: when no ffmpeg executable can be found, naming both</span>
+</span><span id="line-42"><span class="sd">            remedies (installing ``imageio-ffmpeg`` or a system ffmpeg).</span>
+</span><span id="line-43">
+</span><span id="line-44"><span class="sd">    &gt;&gt;&gt; isinstance(ffmpeg_exe(), str)  # doctest: +SKIP</span>
+</span><span id="line-45"><span class="sd">    True</span>
+</span><span id="line-46"><span class="sd">    """</span>
+</span><span id="line-47">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-48">        <span class="kn">import</span><span class="w"> </span><span class="nn">imageio_ffmpeg</span>
+</span><span id="line-49">
+</span><span id="line-50">        <span class="k">return</span> <span class="n">imageio_ffmpeg</span><span class="o">.</span><span class="n">get_ffmpeg_exe</span><span class="p">()</span>
+</span><span id="line-51">    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+</span><span id="line-52">        <span class="n">exe</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s2">"ffmpeg"</span><span class="p">)</span>
+</span><span id="line-53">        <span class="k">if</span> <span class="n">exe</span><span class="p">:</span>
+</span><span id="line-54">            <span class="k">return</span> <span class="n">exe</span>
+</span><span id="line-55">        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+</span><span id="line-56">            <span class="s2">"No ffmpeg executable found. Install the pip-bundled binary "</span>
+</span><span id="line-57">            <span class="s2">"(`pip install imageio-ffmpeg`) or a system ffmpeg "</span>
+</span><span id="line-58">            <span class="s2">"(https://ffmpeg.org/) and ensure it is on PATH."</span>
+</span><span id="line-59">        <span class="p">)</span></div>
 
-</span><span id="line-59">
 </span><span id="line-60">
+</span><span id="line-61">
+</span><span id="line-62"><span class="n">MEDIA_EXTRA</span> <span class="o">=</span> <span class="s2">"media"</span>
+</span><span id="line-63"><span class="n">MEDIA_INSTALL_HINT</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install 'mixing[</span><span class="si">{</span><span class="n">MEDIA_EXTRA</span><span class="si">}</span><span class="s2">]'"</span>
+</span><span id="line-64">
+</span><span id="line-65"><span class="c1"># Import names (top-level) that the ``media`` extra provides, per media area.</span>
+</span><span id="line-66"><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"pydub"</span><span class="p">,</span> <span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="line-67"><span class="n">VIDEO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"moviepy"</span><span class="p">,</span> <span class="s2">"cv2"</span><span class="p">,</span> <span class="s2">"PIL"</span><span class="p">,</span> <span class="s2">"burns"</span><span class="p">,</span> <span class="s2">"looks"</span><span class="p">)</span>
+</span><span id="line-68"><span class="c1"># Everything the extra supplies; ``require_package`` uses it to pick its hint.</span>
+</span><span id="line-69"><span class="n">MEDIA_IMPORT_NAMES</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">+</span> <span class="n">VIDEO_IMPORT_NAMES</span><span class="p">))</span>
+</span><span id="line-70">
+</span><span id="line-71">
+</span><span id="line-72"><span class="k">def</span><span class="w"> </span><span class="nf">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="line-73"><span class="w">    </span><span class="sd">"""True if top-level module ``name`` can be found, without importing it."""</span>
+</span><span id="line-74">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-75">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">find_spec</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="line-76">    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+</span><span id="line-77">        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="line-78">
+</span><span id="line-79">
+<div class="viewcode-block" id="require_media_extra">
+<a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_media_extra">[docs]</a>
+</span><span id="line-80"><span class="k">def</span><span class="w"> </span><span class="nf">require_media_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">):</span>
+</span><span id="line-81"><span class="w">    </span><span class="sd">"""Raise an informative ``ImportError`` if the ``media`` extra is not installed.</span>
+</span><span id="line-82">
+</span><span id="line-83"><span class="sd">    The base ``pip install mixing`` ships only the pure modules (``srt``,</span>
+</span><span id="line-84"><span class="sd">    ``chapters``, ``errors``, ``util``, ``egress``, ``transcript``, TTS); the</span>
+</span><span id="line-85"><span class="sd">    moviepy / opencv / scipy / pydub backends come with ``mixing[media]``.</span>
+</span><span id="line-86">
+</span><span id="line-87"><span class="sd">    &gt;&gt;&gt; require_media_extra("demo", modules=("math",))</span>
+</span><span id="line-88"><span class="sd">    &gt;&gt;&gt; require_media_extra("demo", modules=("no_such_module_xyz",))</span>
+</span><span id="line-89"><span class="sd">    Traceback (most recent call last):</span>
+</span><span id="line-90"><span class="sd">      ...</span>
+</span><span id="line-91"><span class="sd">    ImportError: demo requires the 'media' extra ...</span>
+</span><span id="line-92"><span class="sd">    """</span>
+</span><span id="line-93">    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">modules</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span>
+</span><span id="line-94">    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+</span><span id="line-95">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="line-96">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">feature</span><span class="si">}</span><span class="s2"> requires the </span><span class="si">{</span><span class="n">MEDIA_EXTRA</span><span class="si">!r}</span><span class="s2"> extra "</span>
+</span><span id="line-97">            <span class="sa">f</span><span class="s2">"(missing: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">). Install it with "</span>
+</span><span id="line-98">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MEDIA_INSTALL_HINT</span><span class="si">}</span><span class="s2">."</span>
+</span><span id="line-99">        <span class="p">)</span></div>
+
+</span><span id="line-100">
+</span><span id="line-101">
 <div class="viewcode-block" id="require_package">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_package">[docs]</a>
-</span><span id="line-61"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-62"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-63"><span class="sd">    Import a package, raising an informative error if not installed.</span>
-</span><span id="line-64">
-</span><span id="line-65"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
-</span><span id="line-66"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
-</span><span id="line-67"><span class="sd">    3.141592653589793</span>
-</span><span id="line-68"><span class="sd">    """</span>
-</span><span id="line-69">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-70">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
-</span><span id="line-71">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="line-72">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-</span><span id="line-73">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
-</span><span id="line-74">            <span class="sa">f</span><span class="s2">"Please install it via 'pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">'."</span>
-</span><span id="line-75">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
+</span><span id="line-102"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-103"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-104"><span class="sd">    Import a package, raising an informative error if not installed.</span>
+</span><span id="line-105">
+</span><span id="line-106"><span class="sd">    Packages supplied by the ``media`` extra get a hint naming that extra.</span>
+</span><span id="line-107">
+</span><span id="line-108"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
+</span><span id="line-109"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
+</span><span id="line-110"><span class="sd">    3.141592653589793</span>
+</span><span id="line-111"><span class="sd">    """</span>
+</span><span id="line-112">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-113">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
+</span><span id="line-114">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="line-115">        <span class="k">if</span> <span class="n">package_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">:</span>
+</span><span id="line-116">            <span class="n">hint</span> <span class="o">=</span> <span class="n">MEDIA_INSTALL_HINT</span>
+</span><span id="line-117">        <span class="k">else</span><span class="p">:</span>
+</span><span id="line-118">            <span class="n">hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-119">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="line-120">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
+</span><span id="line-121">            <span class="sa">f</span><span class="s2">"Please install it via '</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">'."</span>
+</span><span id="line-122">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
 
-</span><span id="line-76">
-</span><span id="line-77">
+</span><span id="line-123">
+</span><span id="line-124">
 <div class="viewcode-block" id="to_seconds">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.to_seconds">[docs]</a>
-</span><span id="line-78"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="line-79"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-80"><span class="sd">    Convert time value to seconds based on unit.</span>
-</span><span id="line-81">
-</span><span id="line-82"><span class="sd">    Args:</span>
-</span><span id="line-83"><span class="sd">        value: Time value to convert</span>
-</span><span id="line-84"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
-</span><span id="line-85"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
-</span><span id="line-86">
-</span><span id="line-87"><span class="sd">    Returns:</span>
-</span><span id="line-88"><span class="sd">        Time in seconds</span>
-</span><span id="line-89">
-</span><span id="line-90"><span class="sd">    Examples:</span>
-</span><span id="line-91"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-92"><span class="sd">        10.0</span>
-</span><span id="line-93"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-94"><span class="sd">        10.0</span>
-</span><span id="line-95"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-96"><span class="sd">        10.0</span>
-</span><span id="line-97"><span class="sd">    """</span>
-</span><span id="line-98">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
-</span><span id="line-99">        <span class="k">return</span> <span class="n">value</span>
-</span><span id="line-100">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
-</span><span id="line-101">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
-</span><span id="line-102">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
-</span><span id="line-103">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
-</span><span id="line-104">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-105">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+</span><span id="line-125"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="line-126"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-127"><span class="sd">    Convert time value to seconds based on unit.</span>
+</span><span id="line-128">
+</span><span id="line-129"><span class="sd">    Args:</span>
+</span><span id="line-130"><span class="sd">        value: Time value to convert</span>
+</span><span id="line-131"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
+</span><span id="line-132"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
+</span><span id="line-133">
+</span><span id="line-134"><span class="sd">    Returns:</span>
+</span><span id="line-135"><span class="sd">        Time in seconds</span>
+</span><span id="line-136">
+</span><span id="line-137"><span class="sd">    Examples:</span>
+</span><span id="line-138"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-139"><span class="sd">        10.0</span>
+</span><span id="line-140"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-141"><span class="sd">        10.0</span>
+</span><span id="line-142"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-143"><span class="sd">        10.0</span>
+</span><span id="line-144"><span class="sd">    """</span>
+</span><span id="line-145">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
+</span><span id="line-146">        <span class="k">return</span> <span class="n">value</span>
+</span><span id="line-147">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
+</span><span id="line-148">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
+</span><span id="line-149">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
+</span><span id="line-150">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
+</span><span id="line-151">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-152">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
-</span><span id="line-106">
-</span><span id="line-107">
+</span><span id="line-153">
+</span><span id="line-154">
 <div class="viewcode-block" id="get_path_from_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.get_path_from_clipboard">[docs]</a>
-</span><span id="line-108"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="line-109"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-110"><span class="sd">    Get file path from clipboard and validate it.</span>
-</span><span id="line-111">
-</span><span id="line-112"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
-</span><span id="line-113"><span class="sd">    - Direct file paths</span>
-</span><span id="line-114"><span class="sd">    - File paths within error messages or tracebacks</span>
-</span><span id="line-115"><span class="sd">    - Quoted paths</span>
-</span><span id="line-116"><span class="sd">    """</span>
-</span><span id="line-117">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-</span><span id="line-118">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-</span><span id="line-119">
-</span><span id="line-120">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
-</span><span id="line-121">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
-</span><span id="line-122">
-</span><span id="line-123">    <span class="c1"># Validate it's text, not binary data</span>
-</span><span id="line-124">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
-</span><span id="line-125">        <span class="k">try</span><span class="p">:</span>
-</span><span id="line-126">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
-</span><span id="line-127">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
-</span><span id="line-128">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-129">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
-</span><span id="line-130">                <span class="s2">"Expected a file path string."</span>
-</span><span id="line-131">            <span class="p">)</span>
-</span><span id="line-132">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-133">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
-</span><span id="line-134">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-135">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-136">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
-</span><span id="line-137">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-138">        <span class="p">)</span>
-</span><span id="line-139">
-</span><span id="line-140">    <span class="c1"># Clean up the path</span>
-</span><span id="line-141">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-142">
-</span><span id="line-143">    <span class="c1"># Try the path as-is first</span>
-</span><span id="line-144">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
-</span><span id="line-145">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
-</span><span id="line-146">        <span class="k">return</span> <span class="n">file_path</span>
-</span><span id="line-147">
-</span><span id="line-148">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
-</span><span id="line-149">    <span class="c1"># Look for quoted paths or paths in error messages</span>
-</span><span id="line-150">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="line-151">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
-</span><span id="line-152">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
-</span><span id="line-153">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
-</span><span id="line-154">    <span class="p">]</span>
-</span><span id="line-155">
-</span><span id="line-156">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
-</span><span id="line-157">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
-</span><span id="line-158">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
-</span><span id="line-159">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-160">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
-</span><span id="line-161">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-</span><span id="line-162">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
-</span><span id="line-163">                <span class="p">)</span>
-</span><span id="line-164">                <span class="k">return</span> <span class="n">candidate</span>
-</span><span id="line-165">
-</span><span id="line-166">    <span class="c1"># If still not found, give helpful error</span>
-</span><span id="line-167">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
-</span><span id="line-168">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
-</span><span id="line-169">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-170">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="line-171">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
-</span><span id="line-172">    <span class="p">)</span></div>
+</span><span id="line-155"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-156"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-157"><span class="sd">    Get file path from clipboard and validate it.</span>
+</span><span id="line-158">
+</span><span id="line-159"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
+</span><span id="line-160"><span class="sd">    - Direct file paths</span>
+</span><span id="line-161"><span class="sd">    - File paths within error messages or tracebacks</span>
+</span><span id="line-162"><span class="sd">    - Quoted paths</span>
+</span><span id="line-163"><span class="sd">    """</span>
+</span><span id="line-164">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="line-165">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+</span><span id="line-166">
+</span><span id="line-167">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
+</span><span id="line-168">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
+</span><span id="line-169">
+</span><span id="line-170">    <span class="c1"># Validate it's text, not binary data</span>
+</span><span id="line-171">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+</span><span id="line-172">        <span class="k">try</span><span class="p">:</span>
+</span><span id="line-173">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
+</span><span id="line-174">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+</span><span id="line-175">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-176">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
+</span><span id="line-177">                <span class="s2">"Expected a file path string."</span>
+</span><span id="line-178">            <span class="p">)</span>
+</span><span id="line-179">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-180">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
+</span><span id="line-181">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-182">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-183">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
+</span><span id="line-184">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-185">        <span class="p">)</span>
+</span><span id="line-186">
+</span><span id="line-187">    <span class="c1"># Clean up the path</span>
+</span><span id="line-188">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-189">
+</span><span id="line-190">    <span class="c1"># Try the path as-is first</span>
+</span><span id="line-191">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+</span><span id="line-192">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
+</span><span id="line-193">        <span class="k">return</span> <span class="n">file_path</span>
+</span><span id="line-194">
+</span><span id="line-195">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
+</span><span id="line-196">    <span class="c1"># Look for quoted paths or paths in error messages</span>
+</span><span id="line-197">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="line-198">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
+</span><span id="line-199">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
+</span><span id="line-200">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
+</span><span id="line-201">    <span class="p">]</span>
+</span><span id="line-202">
+</span><span id="line-203">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+</span><span id="line-204">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+</span><span id="line-205">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+</span><span id="line-206">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-207">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
+</span><span id="line-208">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+</span><span id="line-209">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
+</span><span id="line-210">                <span class="p">)</span>
+</span><span id="line-211">                <span class="k">return</span> <span class="n">candidate</span>
+</span><span id="line-212">
+</span><span id="line-213">    <span class="c1"># If still not found, give helpful error</span>
+</span><span id="line-214">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
+</span><span id="line-215">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+</span><span id="line-216">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-217">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="line-218">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
+</span><span id="line-219">    <span class="p">)</span></div>
 
-</span><span id="line-173">
-</span><span id="line-174">
+</span><span id="line-220">
+</span><span id="line-221">
 <div class="viewcode-block" id="copy_to_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.copy_to_clipboard">[docs]</a>
-</span><span id="line-175"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-176"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-177"><span class="sd">    Copy data to system clipboard.</span>
-</span><span id="line-178">
-</span><span id="line-179"><span class="sd">    Args:</span>
-</span><span id="line-180"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
-</span><span id="line-181"><span class="sd">    """</span>
-</span><span id="line-182">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
-</span><span id="line-183">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+</span><span id="line-222"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-223"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-224"><span class="sd">    Copy data to system clipboard.</span>
+</span><span id="line-225">
+</span><span id="line-226"><span class="sd">    Args:</span>
+</span><span id="line-227"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
+</span><span id="line-228"><span class="sd">    """</span>
+</span><span id="line-229">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
+</span><span id="line-230">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
 
 </span></code></pre></div>
     </div></div>
@@ -383,7 +431,7 @@
 </footer>
     </div>
     
-    <script src="../../_static/documentation_options.js?v=b87b3bc5"></script>
+    <script src="../../_static/documentation_options.js?v=8f83b1af"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

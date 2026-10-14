@@ -7,8 +7,11 @@ replace/mix, Ken Burns, thumbnails, subtitles, speech-to-text + filler removal,
 TTS dubbing, and chapter detection.
 
 ```bash
-pip install mixing
+pip install 'mixing[media]'   # audio + video editing (moviepy, opencv, scipy, pydub)
+pip install mixing            # base: only the pure modules (srt, chapters, errors, util, egress, transcript, TTS)
 ```
+
+The base install is light on purpose: it carries no media backend (and so no bundled ffmpeg binary). `mixing.audio` and `mixing.video` need the `media` extra; importing them without it raises an `ImportError` that says so.
 
 ---
 
@@ -125,7 +128,8 @@ logging.basicConfig(level=logging.INFO)  # or level=logging.ERROR for errors onl
 ### Optional extras
 
 ```bash
-pip install mixing[audio]      # pydub / ffmpeg-python / soundfile
+pip install mixing[media]      # moviepy / opencv / scipy / pydub: mixing.audio + mixing.video
+pip install mixing[audio]      # ffmpeg-python / soundfile (on top of media)
 pip install mixing[widget]     # interactive Jupyter audio widget
 pip install mixing[gen]        # Google Vertex AI Veo generation
 pip install mixing[llm]        # aix — chapter titling + SRT translation

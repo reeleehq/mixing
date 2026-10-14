@@ -16,7 +16,7 @@ parameter whose **role** is constant — “what to do with the result” — wh
 There are two flavors of producer, modeled by two helpers:
 
 - [`deliver()`](#mixing.egress.deliver) — *object-first*: `output=None` returns the in-memory
-  object (e.g. an [`Audio`](mixing.audio.html.md#mixing.audio.Audio)). Used by editing functions that
+  object (e.g. an `Audio`). Used by editing functions that
   build a value you may want to keep chaining.
 - [`write_egress()`](#mixing.egress.write_egress) — *file-first*: `output=None` saves to a default path
   (typically beside the input) and returns it. Used by file→file operations
