@@ -45,6 +45,8 @@ You can also pass your own callable as ``strategy`` for custom logic.
 Hosts usually announce a song just before it starts; :func:`text_before_segments`
 returns the transcript words just before each segment (pair it with
 :func:`mixing.srt.parse_vtt_words` for YouTube captions, or a Scribe transcript).
+To find where that talk overlaps the carved song itself (an intro over the opening
+bars, a back-announce over the fade), use :func:`mixing.audio.talk_edges.find_talk_edges`.
 
 Output:
 - ``find_segments`` returns a list of ``Segment`` dataclasses (start/end in

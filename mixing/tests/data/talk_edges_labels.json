@@ -1,0 +1,518 @@
+{
+ "description": "Hand-labelled host-talk edges of songs carved from radio-show tapes (find_segments strategy=audioset), labelled from the tapes' YouTube auto-captions (word timings, about +-0.5 s). Seconds are relative to the song start; song_start is the song start in its tape. intro_end 0.0 = no intro talk; outro_start == duration = no outro talk; null = ambiguous from the captions, not scored. split: dev = used to choose the defaults; heldout = scored, then used to diagnose (contaminated); test = labelled after the design was frozen and scored once. No audio and no caption text; tapes are identified by their YouTube id.",
+ "edges": [
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 1,
+   "song_start": 50.7,
+   "duration": 151.35,
+   "intro_end": 5.9,
+   "outro_start": 147.3,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 2,
+   "song_start": 206.0,
+   "duration": 133.1,
+   "intro_end": 9.2,
+   "outro_start": 131.1,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 3,
+   "song_start": 415.45,
+   "duration": 170.85,
+   "intro_end": 8.0,
+   "outro_start": 170.85,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 4,
+   "song_start": 625.65,
+   "duration": 154.3,
+   "intro_end": 0.0,
+   "outro_start": 154.3,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 5,
+   "song_start": 879.35,
+   "duration": 163.75,
+   "intro_end": 11.2,
+   "outro_start": 163.75,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 6,
+   "song_start": 1062.1,
+   "duration": 146.4,
+   "intro_end": 5.0,
+   "outro_start": 141.6,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 7,
+   "song_start": 1317.25,
+   "duration": 187.65,
+   "intro_end": 14.4,
+   "outro_start": 181.7,
+   "split": "dev"
+  },
+  {
+   "tape": "B7NyTZHKSGY",
+   "song": 8,
+   "song_start": 1516.5,
+   "duration": 177.65,
+   "intro_end": 0.0,
+   "outro_start": 177.65,
+   "split": "dev"
+  },
+  {
+   "tape": "VOFT5dVG2sQ",
+   "song": 1,
+   "song_start": 56.65,
+   "duration": 148.15,
+   "intro_end": 13.1,
+   "outro_start": 145.2,
+   "split": "dev"
+  },
+  {
+   "tape": "VOFT5dVG2sQ",
+   "song": 2,
+   "song_start": 237.15,
+   "duration": 95.5,
+   "intro_end": 4.1,
+   "outro_start": 95.5,
+   "split": "dev"
+  },
+  {
+   "tape": "VOFT5dVG2sQ",
+   "song": 3,
+   "song_start": 524.15,
+   "duration": 83.4,
+   "intro_end": 0.0,
+   "outro_start": 83.4,
+   "split": "dev"
+  },
+  {
+   "tape": "VOFT5dVG2sQ",
+   "song": 4,
+   "song_start": 711.85,
+   "duration": 129.95,
+   "intro_end": 0.0,
+   "outro_start": 127.7,
+   "split": "dev"
+  },
+  {
+   "tape": "VOFT5dVG2sQ",
+   "song": 7,
+   "song_start": 1424.6,
+   "duration": 201.6,
+   "intro_end": 0.0,
+   "outro_start": 201.6,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 1,
+   "song_start": 46.1,
+   "duration": 146.1,
+   "intro_end": 1.2,
+   "outro_start": 146.1,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 2,
+   "song_start": 229.3,
+   "duration": 163.35,
+   "intro_end": 0.0,
+   "outro_start": 162.9,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 3,
+   "song_start": 594.45,
+   "duration": 86.65,
+   "intro_end": 0.0,
+   "outro_start": 84.5,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 4,
+   "song_start": 694.8,
+   "duration": 121.6,
+   "intro_end": null,
+   "outro_start": 117.0,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 5,
+   "song_start": 864.4,
+   "duration": 158.15,
+   "intro_end": 3.7,
+   "outro_start": 156.6,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 6,
+   "song_start": 1225.35,
+   "duration": 128.7,
+   "intro_end": null,
+   "outro_start": 126.3,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 7,
+   "song_start": 1410.75,
+   "duration": 87.3,
+   "intro_end": 0.0,
+   "outro_start": 85.5,
+   "split": "dev"
+  },
+  {
+   "tape": "8YgVkkYFsBQ",
+   "song": 8,
+   "song_start": 1568.7,
+   "duration": 83.05,
+   "intro_end": 2.5,
+   "outro_start": 77.6,
+   "split": "dev"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 1,
+   "song_start": 107.4,
+   "duration": 177.85,
+   "intro_end": 0.0,
+   "outro_start": 177.85,
+   "split": "heldout"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 2,
+   "song_start": 322.4,
+   "duration": 110.65,
+   "intro_end": 3.6,
+   "outro_start": 105.6,
+   "split": "heldout"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 3,
+   "song_start": 537.3,
+   "duration": 152.0,
+   "intro_end": 7.5,
+   "outro_start": 146.9,
+   "split": "heldout"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 4,
+   "song_start": 700.95,
+   "duration": 152.95,
+   "intro_end": 1.2,
+   "outro_start": 152.95,
+   "split": "heldout"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 6,
+   "song_start": 1386.65,
+   "duration": 202.6,
+   "intro_end": 0.7,
+   "outro_start": 199.9,
+   "split": "heldout"
+  },
+  {
+   "tape": "gQajl7kbxSY",
+   "song": 7,
+   "song_start": 1604.6,
+   "duration": 141.7,
+   "intro_end": 1.0,
+   "outro_start": null,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 1,
+   "song_start": 63.9,
+   "duration": 155.3,
+   "intro_end": null,
+   "outro_start": 154.8,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 2,
+   "song_start": 290.0,
+   "duration": 97.45,
+   "intro_end": null,
+   "outro_start": 97.4,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 3,
+   "song_start": 511.05,
+   "duration": 126.25,
+   "intro_end": 1.2,
+   "outro_start": 123.3,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 4,
+   "song_start": 664.75,
+   "duration": 202.85,
+   "intro_end": 1.5,
+   "outro_start": 194.5,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 5,
+   "song_start": 947.15,
+   "duration": 173.65,
+   "intro_end": 8.3,
+   "outro_start": 167.1,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 6,
+   "song_start": 1120.8,
+   "duration": 169.7,
+   "intro_end": 15.6,
+   "outro_start": 163.7,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 7,
+   "song_start": 1365.95,
+   "duration": 114.75,
+   "intro_end": 0.6,
+   "outro_start": 110.7,
+   "split": "heldout"
+  },
+  {
+   "tape": "y27Nw2c1vfg",
+   "song": 8,
+   "song_start": 1517.75,
+   "duration": 198.95,
+   "intro_end": null,
+   "outro_start": 195.8,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 1,
+   "song_start": 141.0,
+   "duration": 174.3,
+   "intro_end": 6.2,
+   "outro_start": null,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 2,
+   "song_start": 315.3,
+   "duration": 131.8,
+   "intro_end": null,
+   "outro_start": 130.2,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 3,
+   "song_start": 520.0,
+   "duration": 136.15,
+   "intro_end": 5.5,
+   "outro_start": 133.0,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 4,
+   "song_start": 669.1,
+   "duration": 192.0,
+   "intro_end": 2.4,
+   "outro_start": null,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 5,
+   "song_start": 913.15,
+   "duration": 179.65,
+   "intro_end": null,
+   "outro_start": 178.4,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 6,
+   "song_start": 1170.25,
+   "duration": 257.35,
+   "intro_end": 5.8,
+   "outro_start": 253.5,
+   "split": "heldout"
+  },
+  {
+   "tape": "fdA7Xuukeew",
+   "song": 7,
+   "song_start": 1501.2,
+   "duration": 200.15,
+   "intro_end": 5.3,
+   "outro_start": 197.1,
+   "split": "heldout"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 1,
+   "song_start": 51.15,
+   "duration": 183.3,
+   "intro_end": 11.6,
+   "outro_start": 183.3,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 2,
+   "song_start": 304.6,
+   "duration": 124.25,
+   "intro_end": 2.4,
+   "outro_start": 119.9,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 3,
+   "song_start": 533.35,
+   "duration": 185.5,
+   "intro_end": 4.6,
+   "outro_start": 177.8,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 4,
+   "song_start": 739.25,
+   "duration": 131.45,
+   "intro_end": 2.6,
+   "outro_start": 129.3,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 5,
+   "song_start": 930.95,
+   "duration": 184.6,
+   "intro_end": 0.0,
+   "outro_start": 181.8,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 6,
+   "song_start": 1156.05,
+   "duration": 190.9,
+   "intro_end": 4.5,
+   "outro_start": 187.0,
+   "split": "test"
+  },
+  {
+   "tape": "D9ltmbrsrCM",
+   "song": 7,
+   "song_start": 1497.6,
+   "duration": 242.75,
+   "intro_end": 1.2,
+   "outro_start": 240.1,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 1,
+   "song_start": 57.2,
+   "duration": 147.35,
+   "intro_end": 0.0,
+   "outro_start": 144.8,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 2,
+   "song_start": 213.95,
+   "duration": 112.8,
+   "intro_end": 1.0,
+   "outro_start": 108.0,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 3,
+   "song_start": 377.8,
+   "duration": 150.7,
+   "intro_end": null,
+   "outro_start": 144.3,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 4,
+   "song_start": 578.05,
+   "duration": 244.0,
+   "intro_end": null,
+   "outro_start": 244.0,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 5,
+   "song_start": 922.55,
+   "duration": 153.95,
+   "intro_end": null,
+   "outro_start": 153.95,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 6,
+   "song_start": 1146.8,
+   "duration": 153.0,
+   "intro_end": null,
+   "outro_start": 147.4,
+   "split": "test"
+  },
+  {
+   "tape": "XZa-qnf4a5U",
+   "song": 7,
+   "song_start": 1410.65,
+   "duration": 182.95,
+   "intro_end": 19.0,
+   "outro_start": 180.5,
+   "split": "test"
+  },
+  {
+   "tape": "g6WG5ve7zd0",
+   "song": 1,
+   "song_start": 12.75,
+   "duration": 162.3,
+   "intro_end": 4.0,
+   "outro_start": null,
+   "split": "test"
+  }
+ ]
+}
