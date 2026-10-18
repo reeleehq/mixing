@@ -33,6 +33,7 @@ Times are always seconds (`float`) everywhere except the timestamp string.
 | [`parse_srt`](#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](#mixing.srt.Cue) objects. |
 | [`dump_srt`](#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                        |
 | [`shift_srt_timestamps`](#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                 |
+| [`parse_vtt_words`](#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                          |
 
 ### Classes
 
@@ -49,17 +50,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -93,15 +106,46 @@ the millisecond separator. Cues without a valid time line are skipped.
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](#mixing.srt.Cue)]
 
+### mixing.srt.parse_vtt_words(vtt_text)
+
+Parse a WebVTT caption file into a word list shaped like Scribe’s.
+
+Each entry is `{"text", "start", "end", "type": "word"}` (seconds), the same
+shape [`mixing.transcript.transcribe()`](mixing.transcript.html.md#mixing.transcript.transcribe) returns under `"words"`, so the
+result plugs into the word-level helpers (`words_to_srt`,
+`mixing.audio.segmentation.text_before_segments()`, …).
+
+YouTube auto-captions carry per-word timings as inline `<hh:mm:ss.mmm>`
+tags; text before a line’s first tag takes the cue start (or, on a later
+line of the same cue, the latest timing seen), and the rolling duplicate lines
+(no inline timings) are ignored. A file with no inline timings falls back to
+one entry per cue (its whole text). A word ends where the next one starts
+(capped at its cue end). Tags are stripped and HTML entities unescaped.
+
+```pycon
+>>> vtt = '''WEBVTT
+...
+... 00:00:12.240 --> 00:00:15.509 align:start position:0%
+... Music<00:00:12.639><c> with</c><00:00:12.800><c> meaning</c>
+...
+... 00:00:15.509 --> 00:00:15.519 align:start position:0%
+... Music with meaning
+... '''
+>>> [(w["text"], w["start"]) for w in parse_vtt_words(vtt)]
+[('Music', 12.24), ('with', 12.639), ('meaning', 12.8)]
+>>> parse_vtt_words("1\n00:01.000 --> 00:02.500\nRock &amp; roll\n\nNOTE hi\n")
+[{'text': 'Rock & roll', 'start': 1.0, 'end': 2.5, 'type': 'word'}]
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]
+
 ### mixing.srt.seconds_to_srt_time(seconds)
 
 Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> seconds_to_srt_time(2592.187)
@@ -112,14 +156,14 @@ and negative inputs clamp to zero.
 '00:00:00,000'
 ```
 
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.srt.shift_srt_timestamps(srt_text, shift_seconds=0.0)
 
 Shift every cue time line in `srt_text` by `shift_seconds`.
 
 Negative values shift earlier; resulting negative times clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> srt = '1\n00:43:12,187 --> 00:43:13,817\nHello world'
@@ -127,12 +171,12 @@ Negative values shift earlier; resulting negative times clamp to zero.
 True
 ```
 
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.srt.srt_time_to_seconds(timestamp)
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
-
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
@@ -141,15 +185,15 @@ Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 1.5
 ```
 
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 ### mixing.srt.to_srt_time(seconds)
 
 Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> seconds_to_srt_time(2592.187)
@@ -159,3 +203,6 @@ and negative inputs clamp to zero.
 >>> seconds_to_srt_time(-3)
 '00:00:00,000'
 ```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)

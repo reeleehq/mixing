@@ -52,7 +52,7 @@ Lower-level building blocks:
 | [`FillerRemovalResult`](#mixing.transcript.FillerRemovalResult)(cleaned_media, ...[, ...])   | Paths and computed ranges produced by [`remove_fillers()`](#mixing.transcript.remove_fillers).   |
 |---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 
-### *class* mixing.transcript.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=<factory>, keeps=<factory>)
+### *class* mixing.transcript.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=list(), keeps=list())
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -63,8 +63,8 @@ Paths and computed ranges produced by [`remove_fillers()`](#mixing.transcript.re
 Re-encode `input_path` keeping only the listed time ranges.
 
 * **Parameters:**
-  * **input_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
-  * **output_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
+  * **input_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
+  * **output_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
   * **keeps** ([`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]) – `[{"start": float, "end": float}, ...]` time ranges in seconds.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
@@ -118,9 +118,6 @@ Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
 
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
-
 ```pycon
 >>> seconds_to_srt_time(2592.187)
 '00:43:12,187'
@@ -129,6 +126,9 @@ and negative inputs clamp to zero.
 >>> seconds_to_srt_time(-3)
 '00:00:00,000'
 ```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ### mixing.transcript.is_filler(item, , fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}))
 
@@ -166,10 +166,10 @@ started in the post-cut timeline.
 End-to-end filler removal.
 
 * **Parameters:**
-  * **input_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
-  * **output_dir** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
+  * **input_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
+  * **output_dir** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
     Created if missing.
-  * **output_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
+  * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
@@ -189,8 +189,8 @@ End-to-end filler removal.
 Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 
 * **Parameters:**
-  * **media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
-  * **srt_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
+  * **srt_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
     path with an `.srt` suffix.
   * **reuse** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` (default) and the SRT already exists, read and
     return it without re-transcribing.
@@ -210,7 +210,7 @@ Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
-  * **audio** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
+  * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
@@ -219,7 +219,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional BCP-47 hint to skip language detection.
   * **extra_fields** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – Additional multipart fields to send (forward compatible).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
     [`default_cache_dir()`](#mixing.transcript.default_cache_dir). A path → use that directory.
     The cache key is the SHA-256 of the audio bytes plus all
     request parameters that affect the response.

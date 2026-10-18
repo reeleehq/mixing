@@ -10,6 +10,7 @@ General utilities for mixing video, audio, etc.
 | [`get_path_from_clipboard`](#mixing.util.get_path_from_clipboard)()                   | Get file path from clipboard and validate it.                             |
 | [`has_ffmpeg`](#mixing.util.has_ffmpeg)()                                | Return True if the `ffmpeg` binary is available on `PATH`.                |
 | [`require_media_extra`](#mixing.util.require_media_extra)(feature, \*[, modules]) | Raise an informative `ImportError` if the `media` extra is not installed. |
+| [`require_ml_extra`](#mixing.util.require_ml_extra)(feature, \*[, modules])    | Raise an informative `ImportError` if the `ml` extra is not installed.    |
 | [`require_package`](#mixing.util.require_package)(package_name)               | Import a package, raising an informative error if not installed.          |
 | [`to_seconds`](#mixing.util.to_seconds)(value, \*, unit, rate)           | Convert time value to seconds based on unit.                              |
 
@@ -37,15 +38,12 @@ wherever mixing’s video stack is.
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – when no ffmpeg executable can be found, naming both
       remedies (installing `imageio-ffmpeg` or a system ffmpeg).
 * **Return type:**
-  [*str*](https://docs.python.org/3/builtins/stdtypes.html#str)
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> isinstance(ffmpeg_exe(), str)
 True
 ```
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ### mixing.util.get_path_from_clipboard()
 
@@ -70,13 +68,13 @@ Without it, some operations degrade silently — producing wrong-duration
 or lower-quality output instead of failing. Callers should check this at
 startup and refuse to run rather than emit broken media.
 
-* **Return type:**
-  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
-
 ```pycon
 >>> isinstance(has_ffmpeg(), bool)
 True
 ```
+
+* **Return type:**
+  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
 
 ### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
 
@@ -94,11 +92,26 @@ Traceback (most recent call last):
 ImportError: demo requires the 'media' extra ...
 ```
 
+### mixing.util.require_ml_extra(feature, , modules=('torch', 'transformers'))
+
+Raise an informative `ImportError` if the `ml` extra is not installed.
+
+`torch` / `transformers` (the pretrained AudioSet tagger) come with
+`mixing[ml]`; nothing imports them until a learned feature is used.
+
+```pycon
+>>> require_ml_extra("demo", modules=("math",))
+>>> require_ml_extra("demo", modules=("no_such_module_xyz",))
+Traceback (most recent call last):
+  ...
+ImportError: demo requires the 'ml' extra ...
+```
+
 ### mixing.util.require_package(package_name)
 
 Import a package, raising an informative error if not installed.
 
-Packages supplied by the `media` extra get a hint naming that extra.
+Packages supplied by the `media` or `ml` extra get a hint naming that extra.
 
 ```pycon
 >>> math = require_package('math')
@@ -112,7 +125,7 @@ Convert time value to seconds based on unit.
 
 * **Parameters:**
   * **value** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Time value to convert
-  * **unit** (`Union`[[`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'frames'`, `'milliseconds'`], [`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'samples'`, `'milliseconds'`]]) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)
+  * **unit** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'frames'`, `'milliseconds'`], [`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'samples'`, `'milliseconds'`]]) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)
   * **rate** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Frame rate (fps) for ‘frames’ or sample rate (Hz) for ‘samples’
 * **Return type:**
   [`float`](https://docs.python.org/3/builtins/functions.html#float)

@@ -30,6 +30,7 @@
 <meta content="mixing.srt | mixing" name="twitter:title"/>
 <link href="../_static/pygments.css?v=d75fae25" rel="stylesheet" type="text/css"/>
 <link href="../_static/theme.css?v=d6d7c91b" rel="stylesheet" type="text/css"/>
+<link href="../_static/sphinx_autodoc_typehints.css?v=057ac668" rel="stylesheet" type="text/css"/>
 <link href="../_static/copybutton.css?v=76b2166b" rel="stylesheet" type="text/css"/>
 <link href="../_static/epythet.css?v=6b72e7cd" rel="stylesheet" type="text/css"/>
 <link href="../search.html" rel="search" title="Search"/>
@@ -170,6 +171,9 @@ in seconds, and <code class="docutils literal notranslate"><span class="pre">tex
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.srt.shift_srt_timestamps" title="mixing.srt.shift_srt_timestamps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">shift_srt_timestamps</span></code></a>(srt_text[, shift_seconds])</p></td>
 <td><p>Shift every cue time line in <code class="docutils literal notranslate"><span class="pre">srt_text</span></code> by <code class="docutils literal notranslate"><span class="pre">shift_seconds</span></code>.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.srt.parse_vtt_words" title="mixing.srt.parse_vtt_words"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_vtt_words</span></code></a>(vtt_text)</p></td>
+<td><p>Parse a WebVTT caption file into a word list shaped like Scribe's.</p></td>
+</tr>
 </tbody>
 </table>
 <p class="rubric">Classes</p>
@@ -191,21 +195,41 @@ in seconds, and <code class="docutils literal notranslate"><span class="pre">tex
 <dt class="sig sig-object py" id="mixing.srt.Cue.index">
 <span class="sig-name descname"><span class="pre">index</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.Cue.index" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.Cue.index'">¶</a></dt>
 <dd><p>1-based cue number.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="mixing.srt.Cue.start">
 <span class="sig-name descname"><span class="pre">start</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.Cue.start" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.Cue.start'">¶</a></dt>
 <dd><p>Start time in seconds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="mixing.srt.Cue.end">
 <span class="sig-name descname"><span class="pre">end</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.Cue.end" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.Cue.end'">¶</a></dt>
 <dd><p>End time in seconds.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="mixing.srt.Cue.text">
 <span class="sig-name descname"><span class="pre">text</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.Cue.text" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.Cue.text'">¶</a></dt>
 <dd><p>Cue text (may contain embedded newlines).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="mixing.srt.Cue.duration">
@@ -251,16 +275,45 @@ the millisecond separator. Cues without a valid time line are skipped.</p>
 </dl>
 </dd></dl>
 <dl class="py function">
+<dt class="sig sig-object py" id="mixing.srt.parse_vtt_words">
+<span class="sig-prename descclassname"><span class="pre">mixing.srt.</span></span><span class="sig-name descname"><span class="pre">parse_vtt_words</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vtt_text</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/srt.html#parse_vtt_words"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.parse_vtt_words" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.parse_vtt_words'">¶</a></dt>
+<dd><p>Parse a WebVTT caption file into a word list shaped like Scribe’s.</p>
+<p>Each entry is <code class="docutils literal notranslate"><span class="pre">{"text",</span> <span class="pre">"start",</span> <span class="pre">"end",</span> <span class="pre">"type":</span> <span class="pre">"word"}</span></code> (seconds), the same
+shape <a class="reference internal" href="mixing.transcript.html#mixing.transcript.transcribe" title="mixing.transcript.transcribe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.transcript.transcribe()</span></code></a> returns under <code class="docutils literal notranslate"><span class="pre">"words"</span></code>, so the
+result plugs into the word-level helpers (<code class="docutils literal notranslate"><span class="pre">words_to_srt</span></code>,
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.audio.segmentation.text_before_segments()</span></code>, …).</p>
+<p>YouTube auto-captions carry per-word timings as inline <code class="docutils literal notranslate"><span class="pre">&lt;hh:mm:ss.mmm&gt;</span></code>
+tags; text before a line’s first tag takes the cue start (or, on a later
+line of the same cue, the latest timing seen), and the rolling duplicate lines
+(no inline timings) are ignored. A file with no inline timings falls back to
+one entry per cue (its whole text). A word ends where the next one starts
+(capped at its cue end). Tags are stripped and HTML entities unescaped.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">vtt</span> <span class="o">=</span> <span class="s1">'''WEBVTT</span>
+</span><span id="line-2"><span class="gp">...</span>
+</span><span id="line-3"><span class="gp">... </span><span class="s1">00:00:12.240 --&gt; 00:00:15.509 align:start position:0%</span>
+</span><span id="line-4"><span class="gp">... </span><span class="s1">Music&lt;00:00:12.639&gt;&lt;c&gt; with&lt;/c&gt;&lt;00:00:12.800&gt;&lt;c&gt; meaning&lt;/c&gt;</span>
+</span><span id="line-5"><span class="gp">...</span>
+</span><span id="line-6"><span class="gp">... </span><span class="s1">00:00:15.509 --&gt; 00:00:15.519 align:start position:0%</span>
+</span><span id="line-7"><span class="gp">... </span><span class="s1">Music with meaning</span>
+</span><span id="line-8"><span class="gp">... </span><span class="s1">'''</span>
+</span><span id="line-9"><span class="gp">&gt;&gt;&gt; </span><span class="p">[(</span><span class="n">w</span><span class="p">[</span><span class="s2">"text"</span><span class="p">],</span> <span class="n">w</span><span class="p">[</span><span class="s2">"start"</span><span class="p">])</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">parse_vtt_words</span><span class="p">(</span><span class="n">vtt</span><span class="p">)]</span>
+</span><span id="line-10"><span class="go">[('Music', 12.24), ('with', 12.639), ('meaning', 12.8)]</span>
+</span><span id="line-11"><span class="gp">&gt;&gt;&gt; </span><span class="n">parse_vtt_words</span><span class="p">(</span><span class="s2">"1</span><span class="se">\n</span><span class="s2">00:01.000 --&gt; 00:02.500</span><span class="se">\n</span><span class="s2">Rock &amp;amp; roll</span><span class="se">\n\n</span><span class="s2">NOTE hi</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="line-12"><span class="go">[{'text': 'Rock &amp; roll', 'start': 1.0, 'end': 2.5, 'type': 'word'}]</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
 <dt class="sig sig-object py" id="mixing.srt.seconds_to_srt_time">
 <span class="sig-prename descclassname"><span class="pre">mixing.srt.</span></span><span class="sig-name descname"><span class="pre">seconds_to_srt_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">seconds</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/srt.html#seconds_to_srt_time"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.seconds_to_srt_time" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.seconds_to_srt_time'">¶</a></dt>
 <dd><p>Format a time in seconds as an SRT timestamp <code class="docutils literal notranslate"><span class="pre">HH:MM:SS,mmm</span></code>.</p>
 <p>Milliseconds are <em>rounded</em> (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
-</dd>
-</dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">seconds_to_srt_time</span><span class="p">(</span><span class="mf">2592.187</span><span class="p">)</span>
 </span><span id="line-2"><span class="go">'00:43:12,187'</span>
 </span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">seconds_to_srt_time</span><span class="p">(</span><span class="mf">1.5</span><span class="p">)</span>
@@ -269,38 +322,43 @@ and negative inputs clamp to zero.</p>
 </span><span id="line-6"><span class="go">'00:00:00,000'</span>
 </span></code></pre></div>
 </div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.srt.shift_srt_timestamps">
 <span class="sig-prename descclassname"><span class="pre">mixing.srt.</span></span><span class="sig-name descname"><span class="pre">shift_srt_timestamps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">srt_text</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_seconds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/srt.html#shift_srt_timestamps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.shift_srt_timestamps" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.shift_srt_timestamps'">¶</a></dt>
 <dd><p>Shift every cue time line in <code class="docutils literal notranslate"><span class="pre">srt_text</span></code> by <code class="docutils literal notranslate"><span class="pre">shift_seconds</span></code>.</p>
 <p>Negative values shift earlier; resulting negative times clamp to zero.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
-</dd>
-</dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">srt</span> <span class="o">=</span> <span class="s1">'1</span><span class="se">\n</span><span class="s1">00:43:12,187 --&gt; 00:43:13,817</span><span class="se">\n</span><span class="s1">Hello world'</span>
 </span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="s1">'00:00:00,187 --&gt; 00:00:01,817'</span> <span class="ow">in</span> <span class="n">shift_srt_timestamps</span><span class="p">(</span><span class="n">srt</span><span class="p">,</span> <span class="o">-</span><span class="mi">2592</span><span class="p">)</span>
 </span><span id="line-3"><span class="go">True</span>
 </span></code></pre></div>
 </div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.srt.srt_time_to_seconds">
 <span class="sig-prename descclassname"><span class="pre">mixing.srt.</span></span><span class="sig-name descname"><span class="pre">srt_time_to_seconds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timestamp</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/srt.html#srt_time_to_seconds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.srt_time_to_seconds" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.srt_time_to_seconds'">¶</a></dt>
 <dd><p>Parse an <code class="docutils literal notranslate"><span class="pre">HH:MM:SS,mmm</span></code> (or <code class="docutils literal notranslate"><span class="pre">.mmm</span></code>) SRT timestamp to seconds.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
-</dd>
-</dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">srt_time_to_seconds</span><span class="p">(</span><span class="s1">'00:43:12,187'</span><span class="p">)</span>
 </span><span id="line-2"><span class="go">2592.187</span>
 </span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">srt_time_to_seconds</span><span class="p">(</span><span class="s1">'00:00:01.500'</span><span class="p">)</span>
 </span><span id="line-4"><span class="go">1.5</span>
 </span></code></pre></div>
 </div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.srt.to_srt_time">
@@ -308,11 +366,6 @@ and negative inputs clamp to zero.</p>
 <dd><p>Format a time in seconds as an SRT timestamp <code class="docutils literal notranslate"><span class="pre">HH:MM:SS,mmm</span></code>.</p>
 <p>Milliseconds are <em>rounded</em> (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
-</dd>
-</dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">seconds_to_srt_time</span><span class="p">(</span><span class="mf">2592.187</span><span class="p">)</span>
 </span><span id="line-2"><span class="go">'00:43:12,187'</span>
 </span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">seconds_to_srt_time</span><span class="p">(</span><span class="mf">1.5</span><span class="p">)</span>
@@ -321,6 +374,11 @@ and negative inputs clamp to zero.</p>
 </span><span id="line-6"><span class="go">'00:00:00,000'</span>
 </span></code></pre></div>
 </div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
 </dd></dl>
 </section>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
@@ -338,6 +396,7 @@ and negative inputs clamp to zero.</p>
 <li><a :data-current="activeSection === '#mixing.srt.dump_srt'" class="reference internal" href="#mixing.srt.dump_srt"><code class="docutils literal notranslate"><span class="pre">dump_srt()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.fmt_srt_time'" class="reference internal" href="#mixing.srt.fmt_srt_time"><code class="docutils literal notranslate"><span class="pre">fmt_srt_time()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.parse_srt'" class="reference internal" href="#mixing.srt.parse_srt"><code class="docutils literal notranslate"><span class="pre">parse_srt()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.srt.parse_vtt_words'" class="reference internal" href="#mixing.srt.parse_vtt_words"><code class="docutils literal notranslate"><span class="pre">parse_vtt_words()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.seconds_to_srt_time'" class="reference internal" href="#mixing.srt.seconds_to_srt_time"><code class="docutils literal notranslate"><span class="pre">seconds_to_srt_time()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.shift_srt_timestamps'" class="reference internal" href="#mixing.srt.shift_srt_timestamps"><code class="docutils literal notranslate"><span class="pre">shift_srt_timestamps()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.srt_time_to_seconds'" class="reference internal" href="#mixing.srt.srt_time_to_seconds"><code class="docutils literal notranslate"><span class="pre">srt_time_to_seconds()</span></code></a></li>
@@ -355,7 +414,7 @@ and negative inputs clamp to zero.</p>
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=8f83b1af"></script>
+<script src="../_static/documentation_options.js?v=2bfb35b6"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

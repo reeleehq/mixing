@@ -39,17 +39,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -93,9 +105,6 @@ the millisecond separator. Cues without a valid time line are skipped.
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
-
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
 2592.187
@@ -103,12 +112,15 @@ Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 1.5
 ```
 
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 ### mixing.dubbing.srt.translate_srt(srt, target_language, , source_language=None, translate_fn=None)
 
 Translate the cue text of an SRT to `target_language`, keeping timings.
 
 * **Parameters:**
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](mixing.srt.html.md#mixing.srt.Cue) objects.
+  * **srt** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](mixing.srt.html.md#mixing.srt.Cue) objects.
   * **target_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Human-readable target language (e.g. `"French"`).
   * **source_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional source language hint.
   * **translate_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)], [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]]) – A callable `(texts, target_language, source_language)

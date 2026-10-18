@@ -67,17 +67,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -192,15 +204,15 @@ with [`add_shared_voice()`](#mixing.dubbing.add_shared_voice), then synthesize w
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
-
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
 2592.187
 >>> srt_time_to_seconds('00:00:01.500')
 1.5
 ```
+
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 ### mixing.dubbing.synthesize_to_file(text, voice_id, path, \*\*kwargs)
 
@@ -232,7 +244,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional ISO-639-1 hint (e.g. `"fr"`). Only some
     models honor it; ignored by others.
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](#mixing.dubbing.default_cache_dir). `False`
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](#mixing.dubbing.default_cache_dir). `False`
     → no cache. A path → use that directory. The cache key is a
     SHA-256 of the text plus every parameter that affects the audio.
   * **refresh** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` and `cache` is enabled, force a re-call and
@@ -255,7 +267,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 Translate the cue text of an SRT to `target_language`, keeping timings.
 
 * **Parameters:**
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](mixing.srt.html.md#mixing.srt.Cue) objects.
+  * **srt** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](mixing.srt.html.md#mixing.srt.Cue) objects.
   * **target_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Human-readable target language (e.g. `"French"`).
   * **source_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional source language hint.
   * **translate_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)], [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]]) – A callable `(texts, target_language, source_language)

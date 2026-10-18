@@ -30,6 +30,7 @@
 <meta content="mixing.util | mixing" name="twitter:title"/>
 <link href="../_static/pygments.css?v=d75fae25" rel="stylesheet" type="text/css"/>
 <link href="../_static/theme.css?v=d6d7c91b" rel="stylesheet" type="text/css"/>
+<link href="../_static/sphinx_autodoc_typehints.css?v=057ac668" rel="stylesheet" type="text/css"/>
 <link href="../_static/copybutton.css?v=76b2166b" rel="stylesheet" type="text/css"/>
 <link href="../_static/epythet.css?v=6b72e7cd" rel="stylesheet" type="text/css"/>
 <link href="../search.html" rel="search" title="Search"/>
@@ -140,10 +141,13 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.require_media_extra" title="mixing.util.require_media_extra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">require_media_extra</span></code></a>(feature, *[, modules])</p></td>
 <td><p>Raise an informative <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> if the <code class="docutils literal notranslate"><span class="pre">media</span></code> extra is not installed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.require_package" title="mixing.util.require_package"><code class="xref py py-obj docutils literal notranslate"><span class="pre">require_package</span></code></a>(package_name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.require_ml_extra" title="mixing.util.require_ml_extra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">require_ml_extra</span></code></a>(feature, *[, modules])</p></td>
+<td><p>Raise an informative <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> if the <code class="docutils literal notranslate"><span class="pre">ml</span></code> extra is not installed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.require_package" title="mixing.util.require_package"><code class="xref py py-obj docutils literal notranslate"><span class="pre">require_package</span></code></a>(package_name)</p></td>
 <td><p>Import a package, raising an informative error if not installed.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.to_seconds" title="mixing.util.to_seconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_seconds</span></code></a>(value, *, unit, rate)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.to_seconds" title="mixing.util.to_seconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_seconds</span></code></a>(value, *, unit, rate)</p></td>
 <td><p>Convert time value to seconds based on unit.</p></td>
 </tr>
 </tbody>
@@ -157,7 +161,7 @@
 <dd class="field-odd"><p><strong>data</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#bytes" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bytes</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> | <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span>) – Bytes (for binary data like images) or string to copy</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><span class="highlight sphinx_autodoc_typehints-value"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="kc"><span class="pre">None</span></span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></span></p>
 </dd>
 </dl>
 </dd></dl>
@@ -177,18 +181,13 @@ wherever mixing’s video stack is.</p>
     remedies (installing <code class="docutils literal notranslate"><span class="pre">imageio-ffmpeg</span></code> or a system ffmpeg).</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><em>str</em><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
 </dd>
 </dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">ffmpeg_exe</span><span class="p">(),</span> <span class="nb">str</span><span class="p">)</span>
 </span><span id="line-2"><span class="go">True</span>
 </span></code></pre></div>
 </div>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
-</dd>
-</dl>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.util.get_path_from_clipboard">
@@ -215,15 +214,15 @@ normalization, audio replacement) shells out to ffmpeg via moviepy.
 Without it, some operations degrade silently — producing wrong-duration
 or lower-quality output instead of failing. Callers should check this at
 startup and refuse to run rather than emit broken media.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">has_ffmpeg</span><span class="p">(),</span> <span class="nb">bool</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">True</span>
+</span></code></pre></div>
+</div>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
 </dd>
 </dl>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">has_ffmpeg</span><span class="p">(),</span> <span class="nb">bool</span><span class="p">)</span>
-</span><span id="line-2"><span class="go">True</span>
-</span></code></pre></div>
-</div>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.util.require_media_extra">
@@ -243,10 +242,26 @@ moviepy / opencv / scipy / pydub backends come with <code class="docutils litera
 </dl>
 </dd></dl>
 <dl class="py function">
+<dt class="sig sig-object py" id="mixing.util.require_ml_extra">
+<span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">require_ml_extra</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">feature</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">modules</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('torch',</span> <span class="pre">'transformers')</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#require_ml_extra"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.require_ml_extra" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.require_ml_extra'">¶</a></dt>
+<dd><p>Raise an informative <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> if the <code class="docutils literal notranslate"><span class="pre">ml</span></code> extra is not installed.</p>
+<p><code class="docutils literal notranslate"><span class="pre">torch</span></code> / <code class="docutils literal notranslate"><span class="pre">transformers</span></code> (the pretrained AudioSet tagger) come with
+<code class="docutils literal notranslate"><span class="pre">mixing[ml]</span></code>; nothing imports them until a learned feature is used.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">require_ml_extra</span><span class="p">(</span><span class="s2">"demo"</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s2">"math"</span><span class="p">,))</span>
+</span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="n">require_ml_extra</span><span class="p">(</span><span class="s2">"demo"</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s2">"no_such_module_xyz"</span><span class="p">,))</span>
+</span><span id="line-3"><span class="gt">Traceback (most recent call last):</span>
+</span><span id="line-4"><span class="w">  </span><span class="c">...</span>
+</span><span id="line-5"><span class="gr">ImportError</span>: <span class="n">demo requires the 'ml' extra ...</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+</dl>
+</dd></dl>
+<dl class="py function">
 <dt class="sig sig-object py" id="mixing.util.require_package">
 <span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">require_package</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">package_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#require_package"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.require_package" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.require_package'">¶</a></dt>
 <dd><p>Import a package, raising an informative error if not installed.</p>
-<p>Packages supplied by the <code class="docutils literal notranslate"><span class="pre">media</span></code> extra get a hint naming that extra.</p>
+<p>Packages supplied by the <code class="docutils literal notranslate"><span class="pre">media</span></code> or <code class="docutils literal notranslate"><span class="pre">ml</span></code> extra get a hint naming that extra.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">math</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s1">'math'</span><span class="p">)</span>
 </span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="n">math</span><span class="o">.</span><span class="n">pi</span>
 </span><span id="line-3"><span class="go">3.141592653589793</span>
@@ -263,7 +278,7 @@ moviepy / opencv / scipy / pydub backends come with <code class="docutils litera
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>value</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span>) – Time value to convert</p></li>
-<li><p><strong>unit</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<code class="docutils literal notranslate"><span class="pre">'seconds'</span></code>, <code class="docutils literal notranslate"><span class="pre">'frames'</span></code>, <code class="docutils literal notranslate"><span class="pre">'milliseconds'</span></code>], <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<code class="docutils literal notranslate"><span class="pre">'seconds'</span></code>, <code class="docutils literal notranslate"><span class="pre">'samples'</span></code>, <code class="docutils literal notranslate"><span class="pre">'milliseconds'</span></code>]]</span>) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)</p></li>
+<li><p><strong>unit</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Union</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'seconds'</span></span></code></span>, <span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'frames'</span></span></code></span>, <span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'milliseconds'</span></span></code></span>], <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'seconds'</span></span></code></span>, <span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'samples'</span></span></code></span>, <span class="highlight sphinx_autodoc_typehints-value"><code class="docutils literal notranslate"><span class="s1"><span class="pre">'milliseconds'</span></span></code></span>]]</span>) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)</p></li>
 <li><p><strong>rate</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span>) – Frame rate (fps) for ‘frames’ or sample rate (Hz) for ‘samples’</p></li>
 </ul>
 </dd>
@@ -293,6 +308,7 @@ moviepy / opencv / scipy / pydub backends come with <code class="docutils litera
 <li><a :data-current="activeSection === '#mixing.util.get_path_from_clipboard'" class="reference internal" href="#mixing.util.get_path_from_clipboard"><code class="docutils literal notranslate"><span class="pre">get_path_from_clipboard()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.has_ffmpeg'" class="reference internal" href="#mixing.util.has_ffmpeg"><code class="docutils literal notranslate"><span class="pre">has_ffmpeg()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.require_media_extra'" class="reference internal" href="#mixing.util.require_media_extra"><code class="docutils literal notranslate"><span class="pre">require_media_extra()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.util.require_ml_extra'" class="reference internal" href="#mixing.util.require_ml_extra"><code class="docutils literal notranslate"><span class="pre">require_ml_extra()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.require_package'" class="reference internal" href="#mixing.util.require_package"><code class="docutils literal notranslate"><span class="pre">require_package()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.to_seconds'" class="reference internal" href="#mixing.util.to_seconds"><code class="docutils literal notranslate"><span class="pre">to_seconds()</span></code></a></li>
 </ul>
@@ -308,7 +324,7 @@ moviepy / opencv / scipy / pydub backends come with <code class="docutils litera
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=8f83b1af"></script>
+<script src="../_static/documentation_options.js?v=2bfb35b6"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

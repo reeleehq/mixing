@@ -22,6 +22,7 @@ mixing.srt
       parse_srt
       dump_srt
       shift_srt_timestamps
+      parse_vtt_words
    
    .. rubric:: Classes
 

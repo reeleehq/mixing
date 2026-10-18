@@ -13,6 +13,7 @@ mixing.util
       get_path_from_clipboard
       has_ffmpeg
       require_media_extra
+      require_ml_extra
       require_package
       to_seconds
    

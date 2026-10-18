@@ -1,4 +1,4 @@
-> built 2026-10-14 12:28 UTC from f4a0fb8 (main) · mixing 0.0.56. Details: build_info.json
+> built 2026-10-18 02:54 UTC from 715b89c (main) · mixing 0.0.57. Details: build_info.json
 
 # index.html.md
 
@@ -139,13 +139,14 @@ pip install mixing[gen]        # Google Vertex AI Veo generation
 pip install mixing[llm]        # aix — chapter titling + SRT translation
 pip install mixing[clipboard]  # get file paths from the clipboard
 pip install mixing[beats]      # librosa — beat/downbeat/onset analysis
+pip install mixing[ml]         # torch + transformers — find_segments(strategy="audioset"): songs vs jingles vs talk
 ```
 
 ## What’s inside
 
 | Subpackage           | Highlights                                                                                                                                                                                                                                                                                              |
 |----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments`, `beat_grid`/`BeatGrid` (extra `beats`)                                                                                                 |
+| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `beat_grid`/`BeatGrid` (extra `beats`)                               |
 | `mixing.video`       | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES` |
 | `mixing.video.genai` | `generate_video` (Vertex AI Veo)                                                                                                                                                                                                                                                                        |
 | `mixing.transcript`  | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose`                                                                                                                                                                                                                        |
@@ -333,17 +334,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -458,15 +471,15 @@ with [`add_shared_voice()`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.a
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
-
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
 2592.187
 >>> srt_time_to_seconds('00:00:01.500')
 1.5
 ```
+
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 ### mixing.dubbing.synthesize_to_file(text, voice_id, path, \*\*kwargs)
 
@@ -498,7 +511,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional ISO-639-1 hint (e.g. `"fr"`). Only some
     models honor it; ignored by others.
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_cache_dir). `False`
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_cache_dir). `False`
     → no cache. A path → use that directory. The cache key is a
     SHA-256 of the text plus every parameter that affects the audio.
   * **refresh** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` and `cache` is enabled, force a re-call and
@@ -521,7 +534,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 Translate the cue text of an SRT to `target_language`, keeping timings.
 
 * **Parameters:**
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
+  * **srt** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
   * **target_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Human-readable target language (e.g. `"French"`).
   * **source_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional source language hint.
   * **translate_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)], [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]]) – A callable `(texts, target_language, source_language)
@@ -585,17 +598,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -639,9 +664,6 @@ the millisecond separator. Cues without a valid time line are skipped.
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
-
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
 2592.187
@@ -649,12 +671,15 @@ Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 1.5
 ```
 
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 ### mixing.dubbing.srt.translate_srt(srt, target_language, , source_language=None, translate_fn=None)
 
 Translate the cue text of an SRT to `target_language`, keeping timings.
 
 * **Parameters:**
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
+  * **srt** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
   * **target_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Human-readable target language (e.g. `"French"`).
   * **source_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional source language hint.
   * **translate_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)], [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]]) – A callable `(texts, target_language, source_language)
@@ -847,7 +872,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional ISO-639-1 hint (e.g. `"fr"`). Only some
     models honor it; ignored by others.
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.default_cache_dir). `False`
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use [`default_cache_dir()`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.default_cache_dir). `False`
     → no cache. A path → use that directory. The cache key is a
     SHA-256 of the text plus every parameter that affects the audio.
   * **refresh** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` and `cache` is enabled, force a re-call and
@@ -928,7 +953,7 @@ Object-first egress: route an in-memory `result` to `output`.
 
 * **Parameters:**
   * **result** ([`Any`](https://docs.python.org/3/library/typing.html#typing.Any)) – the produced in-memory value (e.g. an `Audio`).
-  * **output** (`Union`[[`None`](https://docs.python.org/3/builtins/constants.html#None), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Any`](https://docs.python.org/3/library/typing.html#typing.Any)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]) – the egress target (see module docstring).
+  * **output** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`None`](https://docs.python.org/3/builtins/constants.html#None), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Any`](https://docs.python.org/3/library/typing.html#typing.Any)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]) – the egress target (see module docstring).
   * **write** ([`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Any`](https://docs.python.org/3/library/typing.html#typing.Any), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]) – `write(result, path)` persists `result` to `path`.
   * **default_name** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – filename to use when `output` is a directory.
 * **Return type:**
@@ -968,8 +993,8 @@ File-first egress: for operations whose primary effect is writing a file.
 - path/dir → write to that file (dir → `default_path`’s name inside it).
 
 * **Parameters:**
-  * **output** (`Union`[[`None`](https://docs.python.org/3/builtins/constants.html#None), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Any`](https://docs.python.org/3/library/typing.html#typing.Any)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]) – the egress target (see module docstring).
-  * **default_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – where to write when `output` is `None` / a sink, and
+  * **output** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`None`](https://docs.python.org/3/builtins/constants.html#None), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Any`](https://docs.python.org/3/library/typing.html#typing.Any)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]) – the egress target (see module docstring).
+  * **default_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`PathLike`](https://docs.python.org/3/library/os.html#os.PathLike)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – where to write when `output` is `None` / a sink, and
     the source of the auto filename when `output` is a directory.
   * **write** ([`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)], [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]) – `write(path)` performs the actual encode to `path`.
 * **Return type:**
@@ -1127,23 +1152,35 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
 Cue duration in seconds (never negative).
 
-### *class* mixing.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=<factory>, keeps=<factory>)
+### *class* mixing.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=list(), keeps=list())
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -1252,13 +1289,13 @@ Without it, some operations degrade silently — producing wrong-duration
 or lower-quality output instead of failing. Callers should check this at
 startup and refuse to run rather than emit broken media.
 
-* **Return type:**
-  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
-
 ```pycon
 >>> isinstance(has_ffmpeg(), bool)
 True
 ```
+
+* **Return type:**
+  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
 
 ### mixing.parse_srt(srt_text)
 
@@ -1275,10 +1312,10 @@ the millisecond separator. Cues without a valid time line are skipped.
 End-to-end filler removal.
 
 * **Parameters:**
-  * **input_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
-  * **output_dir** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
+  * **input_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
+  * **output_dir** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
     Created if missing.
-  * **output_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
+  * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
@@ -1300,9 +1337,6 @@ Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
 
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
-
 ```pycon
 >>> seconds_to_srt_time(2592.187)
 '00:43:12,187'
@@ -1312,13 +1346,16 @@ and negative inputs clamp to zero.
 '00:00:00,000'
 ```
 
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.srt_for_media(media, , srt_path=None, reuse=True, refresh=False, cache=True, max_chars=80, \*\*transcribe_kwargs)
 
 Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 
 * **Parameters:**
-  * **media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
-  * **srt_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
+  * **srt_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
     path with an `.srt` suffix.
   * **reuse** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` (default) and the SRT already exists, read and
     return it without re-transcribing.
@@ -1337,15 +1374,15 @@ Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
-
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
 2592.187
 >>> srt_time_to_seconds('00:00:01.500')
 1.5
 ```
+
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 ### mixing.text_to_speech(text, voice_id, , api_key=None, model_id='eleven_multilingual_v2', output_format='mp3_44100_128', voice_settings=None, language_code=None, timeout=600.0, cache=True, refresh=False, return_cache_status=False)
 
@@ -1365,7 +1402,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional ISO-639-1 hint (e.g. `"fr"`). Only some
     models honor it; ignored by others.
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use `default_cache_dir()`. `False`
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `True` (default) → use `default_cache_dir()`. `False`
     → no cache. A path → use that directory. The cache key is a
     SHA-256 of the text plus every parameter that affects the audio.
   * **refresh** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` and `cache` is enabled, force a re-call and
@@ -1388,7 +1425,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
-  * **audio** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
+  * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
@@ -1397,7 +1434,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional BCP-47 hint to skip language detection.
   * **extra_fields** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – Additional multipart fields to send (forward compatible).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
     `default_cache_dir()`. A path → use that directory.
     The cache key is the SHA-256 of the audio bytes plus all
     request parameters that affect the response.
@@ -1422,7 +1459,7 @@ Transcribe `audio` with ElevenLabs Scribe.
 Translate the cue text of an SRT to `target_language`, keeping timings.
 
 * **Parameters:**
-  * **srt** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
+  * **srt** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]]) – SRT text or a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.
   * **target_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Human-readable target language (e.g. `"French"`).
   * **source_language** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional source language hint.
   * **translate_fn** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Callable`](https://docs.python.org/3/library/typing.html#typing.Callable)[[[`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)], [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)], [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]]) – A callable `(texts, target_language, source_language)
@@ -1485,6 +1522,7 @@ Times are always seconds (`float`) everywhere except the timestamp string.
 | [`parse_srt`](_autosummary/mixing.srt.html.md#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects. |
 | [`dump_srt`](_autosummary/mixing.srt.html.md#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                        |
 | [`shift_srt_timestamps`](_autosummary/mixing.srt.html.md#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                 |
+| [`parse_vtt_words`](_autosummary/mixing.srt.html.md#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                          |
 
 ### Classes
 
@@ -1501,17 +1539,29 @@ One SRT subtitle cue.
 
 1-based cue number.
 
+* **Type:**
+  [`int`](https://docs.python.org/3/builtins/functions.html#int)
+
 #### start
 
 Start time in seconds.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 #### end
 
 End time in seconds.
 
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 #### text
 
 Cue text (may contain embedded newlines).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 #### *property* duration *: [float](https://docs.python.org/3/builtins/functions.html#float)*
 
@@ -1545,15 +1595,46 @@ the millisecond separator. Cues without a valid time line are skipped.
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]
 
+### mixing.srt.parse_vtt_words(vtt_text)
+
+Parse a WebVTT caption file into a word list shaped like Scribe’s.
+
+Each entry is `{"text", "start", "end", "type": "word"}` (seconds), the same
+shape [`mixing.transcript.transcribe()`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe) returns under `"words"`, so the
+result plugs into the word-level helpers (`words_to_srt`,
+`mixing.audio.segmentation.text_before_segments()`, …).
+
+YouTube auto-captions carry per-word timings as inline `<hh:mm:ss.mmm>`
+tags; text before a line’s first tag takes the cue start (or, on a later
+line of the same cue, the latest timing seen), and the rolling duplicate lines
+(no inline timings) are ignored. A file with no inline timings falls back to
+one entry per cue (its whole text). A word ends where the next one starts
+(capped at its cue end). Tags are stripped and HTML entities unescaped.
+
+```pycon
+>>> vtt = '''WEBVTT
+...
+... 00:00:12.240 --> 00:00:15.509 align:start position:0%
+... Music<00:00:12.639><c> with</c><00:00:12.800><c> meaning</c>
+...
+... 00:00:15.509 --> 00:00:15.519 align:start position:0%
+... Music with meaning
+... '''
+>>> [(w["text"], w["start"]) for w in parse_vtt_words(vtt)]
+[('Music', 12.24), ('with', 12.639), ('meaning', 12.8)]
+>>> parse_vtt_words("1\n00:01.000 --> 00:02.500\nRock &amp; roll\n\nNOTE hi\n")
+[{'text': 'Rock & roll', 'start': 1.0, 'end': 2.5, 'type': 'word'}]
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]
+
 ### mixing.srt.seconds_to_srt_time(seconds)
 
 Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> seconds_to_srt_time(2592.187)
@@ -1564,14 +1645,14 @@ and negative inputs clamp to zero.
 '00:00:00,000'
 ```
 
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.srt.shift_srt_timestamps(srt_text, shift_seconds=0.0)
 
 Shift every cue time line in `srt_text` by `shift_seconds`.
 
 Negative values shift earlier; resulting negative times clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> srt = '1\n00:43:12,187 --> 00:43:13,817\nHello world'
@@ -1579,12 +1660,12 @@ Negative values shift earlier; resulting negative times clamp to zero.
 True
 ```
 
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.srt.srt_time_to_seconds(timestamp)
 
 Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
-
-* **Return type:**
-  [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
 ```pycon
 >>> srt_time_to_seconds('00:43:12,187')
@@ -1593,15 +1674,15 @@ Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.
 1.5
 ```
 
+* **Return type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
 ### mixing.srt.to_srt_time(seconds)
 
 Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> seconds_to_srt_time(2592.187)
@@ -1611,6 +1692,9 @@ and negative inputs clamp to zero.
 >>> seconds_to_srt_time(-3)
 '00:00:00,000'
 ```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 
 # _autosummary/mixing.transcript.fillers.html.md
@@ -1801,7 +1885,7 @@ Lower-level building blocks:
 | [`FillerRemovalResult`](_autosummary/mixing.transcript.html.md#mixing.transcript.FillerRemovalResult)(cleaned_media, ...[, ...])   | Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers).   |
 |---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 
-### *class* mixing.transcript.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=<factory>, keeps=<factory>)
+### *class* mixing.transcript.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=list(), keeps=list())
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -1812,8 +1896,8 @@ Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.t
 Re-encode `input_path` keeping only the listed time ranges.
 
 * **Parameters:**
-  * **input_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
-  * **output_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
+  * **input_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
+  * **output_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
   * **keeps** ([`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]) – `[{"start": float, "end": float}, ...]` time ranges in seconds.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
@@ -1867,9 +1951,6 @@ Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.
 Milliseconds are *rounded* (not truncated), with carry handled correctly,
 and negative inputs clamp to zero.
 
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
-
 ```pycon
 >>> seconds_to_srt_time(2592.187)
 '00:43:12,187'
@@ -1878,6 +1959,9 @@ and negative inputs clamp to zero.
 >>> seconds_to_srt_time(-3)
 '00:00:00,000'
 ```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ### mixing.transcript.is_filler(item, , fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}))
 
@@ -1915,10 +1999,10 @@ started in the post-cut timeline.
 End-to-end filler removal.
 
 * **Parameters:**
-  * **input_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
-  * **output_dir** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
+  * **input_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
+  * **output_dir** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
     Created if missing.
-  * **output_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
+  * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
@@ -1938,8 +2022,8 @@ End-to-end filler removal.
 Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 
 * **Parameters:**
-  * **media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
-  * **srt_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
+  * **srt_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
     path with an `.srt` suffix.
   * **reuse** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` (default) and the SRT already exists, read and
     return it without re-transcribing.
@@ -1959,7 +2043,7 @@ Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
-  * **audio** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
+  * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
@@ -1968,7 +2052,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional BCP-47 hint to skip language detection.
   * **extra_fields** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – Additional multipart fields to send (forward compatible).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
     [`default_cache_dir()`](_autosummary/mixing.transcript.html.md#mixing.transcript.default_cache_dir). A path → use that directory.
     The cache key is the SHA-256 of the audio bytes plus all
     request parameters that affect the response.
@@ -2050,8 +2134,8 @@ have no Python dependencies beyond the stdlib.
 Re-encode `input_path` keeping only the listed time ranges.
 
 * **Parameters:**
-  * **input_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
-  * **output_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
+  * **input_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Input audio/video file.
+  * **output_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Output file (extension picks the container).
   * **keeps** ([`Sequence`](https://docs.python.org/3/library/typing.html#typing.Sequence)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]) – `[{"start": float, "end": float}, ...]` time ranges in seconds.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
@@ -2094,8 +2178,8 @@ raw response is itself cached on disk) and written next to the media.
 Return `(srt_text, srt_path)` for `media`, transcribing if needed.
 
 * **Parameters:**
-  * **media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
-  * **srt_path** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Audio or video file (Scribe extracts audio from video).
+  * **srt_path** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Where the SRT lives/should be written. Defaults to the media
     path with an `.srt` suffix.
   * **reuse** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – When `True` (default) and the SRT already exists, read and
     return it without re-transcribing.
@@ -2130,7 +2214,7 @@ ffmpeg cut -> write transcript outputs.
 | [`FillerRemovalResult`](_autosummary/mixing.transcript.pipeline.html.md#mixing.transcript.pipeline.FillerRemovalResult)(cleaned_media, ...[, ...])   | Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.pipeline.html.md#mixing.transcript.pipeline.remove_fillers).   |
 |---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 
-### *class* mixing.transcript.pipeline.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=<factory>, keeps=<factory>)
+### *class* mixing.transcript.pipeline.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=list(), keeps=list())
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -2141,10 +2225,10 @@ Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.t
 End-to-end filler removal.
 
 * **Parameters:**
-  * **input_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
-  * **output_dir** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
+  * **input_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Video or audio file to clean.
+  * **output_dir** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – Directory to write transcripts and intermediate files into.
     Created if missing.
-  * **output_media** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
+  * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
@@ -2196,7 +2280,7 @@ then `~/.cache/`. Final segment is always `mixing/transcript`.
 Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
-  * **audio** (`Union`[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
+  * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
@@ -2205,7 +2289,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   * **language_code** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – Optional BCP-47 hint to skip language detection.
   * **extra_fields** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]]) – Additional multipart fields to send (forward compatible).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Total request timeout in seconds.
-  * **cache** (`Union`[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
+  * **cache** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`bool`](https://docs.python.org/3/builtins/functions.html#bool), [`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]) – `False` (default) → no cache. `True` → use
     [`default_cache_dir()`](_autosummary/mixing.transcript.scribe.html.md#mixing.transcript.scribe.default_cache_dir). A path → use that directory.
     The cache key is the SHA-256 of the audio bytes plus all
     request parameters that affect the response.
@@ -2240,6 +2324,7 @@ General utilities for mixing video, audio, etc.
 | [`get_path_from_clipboard`](_autosummary/mixing.util.html.md#mixing.util.get_path_from_clipboard)()                   | Get file path from clipboard and validate it.                             |
 | [`has_ffmpeg`](_autosummary/mixing.util.html.md#mixing.util.has_ffmpeg)()                                | Return True if the `ffmpeg` binary is available on `PATH`.                |
 | [`require_media_extra`](_autosummary/mixing.util.html.md#mixing.util.require_media_extra)(feature, \*[, modules]) | Raise an informative `ImportError` if the `media` extra is not installed. |
+| [`require_ml_extra`](_autosummary/mixing.util.html.md#mixing.util.require_ml_extra)(feature, \*[, modules])    | Raise an informative `ImportError` if the `ml` extra is not installed.    |
 | [`require_package`](_autosummary/mixing.util.html.md#mixing.util.require_package)(package_name)               | Import a package, raising an informative error if not installed.          |
 | [`to_seconds`](_autosummary/mixing.util.html.md#mixing.util.to_seconds)(value, \*, unit, rate)           | Convert time value to seconds based on unit.                              |
 
@@ -2267,15 +2352,12 @@ wherever mixing’s video stack is.
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – when no ffmpeg executable can be found, naming both
       remedies (installing `imageio-ffmpeg` or a system ffmpeg).
 * **Return type:**
-  [*str*](https://docs.python.org/3/builtins/stdtypes.html#str)
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ```pycon
 >>> isinstance(ffmpeg_exe(), str)
 True
 ```
-
-* **Return type:**
-  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 ### mixing.util.get_path_from_clipboard()
 
@@ -2300,13 +2382,13 @@ Without it, some operations degrade silently — producing wrong-duration
 or lower-quality output instead of failing. Callers should check this at
 startup and refuse to run rather than emit broken media.
 
-* **Return type:**
-  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
-
 ```pycon
 >>> isinstance(has_ffmpeg(), bool)
 True
 ```
+
+* **Return type:**
+  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
 
 ### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
 
@@ -2324,11 +2406,26 @@ Traceback (most recent call last):
 ImportError: demo requires the 'media' extra ...
 ```
 
+### mixing.util.require_ml_extra(feature, , modules=('torch', 'transformers'))
+
+Raise an informative `ImportError` if the `ml` extra is not installed.
+
+`torch` / `transformers` (the pretrained AudioSet tagger) come with
+`mixing[ml]`; nothing imports them until a learned feature is used.
+
+```pycon
+>>> require_ml_extra("demo", modules=("math",))
+>>> require_ml_extra("demo", modules=("no_such_module_xyz",))
+Traceback (most recent call last):
+  ...
+ImportError: demo requires the 'ml' extra ...
+```
+
 ### mixing.util.require_package(package_name)
 
 Import a package, raising an informative error if not installed.
 
-Packages supplied by the `media` extra get a hint naming that extra.
+Packages supplied by the `media` or `ml` extra get a hint naming that extra.
 
 ```pycon
 >>> math = require_package('math')
@@ -2342,7 +2439,7 @@ Convert time value to seconds based on unit.
 
 * **Parameters:**
   * **value** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Time value to convert
-  * **unit** (`Union`[[`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'frames'`, `'milliseconds'`], [`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'samples'`, `'milliseconds'`]]) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)
+  * **unit** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'frames'`, `'milliseconds'`], [`Literal`](https://docs.python.org/3/library/typing.html#typing.Literal)[`'seconds'`, `'samples'`, `'milliseconds'`]]) – Unit of the value (‘seconds’, ‘frames’, ‘milliseconds’, ‘samples’)
   * **rate** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Frame rate (fps) for ‘frames’ or sample rate (Hz) for ‘samples’
 * **Return type:**
   [`float`](https://docs.python.org/3/builtins/functions.html#float)
@@ -2367,7 +2464,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-14 12:28 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a"><code>f4a0fb8</code></a> on branch <code>main</code>, for **mixing 0.0.56** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-18 02:54 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/715b89c7383ef3e4b199fd731a9fc5a7f388afb7"><code>715b89c</code></a> on branch <code>main</code>, for **mixing 0.0.57** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -2376,9 +2473,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a"><code>f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/715b89c7383ef3e4b199fd731a9fc5a7f388afb7"><code>715b89c7383ef3e4b199fd731a9fc5a7f388afb7</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.56</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.57</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2387,9 +2484,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/38563185960">38563185960</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/39091289767">39091289767</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>867c5cf986c886ff696b8e2de45d3f9446306380</code> (in the history of the built commit) |
+| Event commit | <code>ee8b37c52622fc78f328289788bf84ea4c53deac</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2414,13 +2511,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.56/">0.0.56</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.57/">0.0.57</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout f4a0fb822f53fbc839604e52ae4c03ff2ed3b27a
+git checkout 715b89c7383ef3e4b199fd731a9fc5a7f388afb7
 pip install "epythet==0.2.17"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
@@ -2450,7 +2547,7 @@ Source: [`.claude/skills/mixing`](https://github.com/thorwhalen/mixing/tree/HEAD
 
 ### `mixing-audio`
 
-Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
+Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “find the songs in this radio show / tape”, “songs vs jingles vs DJ talk”, “what did the host say before each song”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
 
 Source: [`.claude/skills/mixing-audio`](https://github.com/thorwhalen/mixing/tree/HEAD/.claude/skills/mixing-audio).
 
