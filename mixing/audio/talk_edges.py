@@ -56,7 +56,12 @@ import numpy as np
 
 from .audio_util import AudioSource, _normalize_audio_source
 from .segmentation import Segment, _label_runs, _mono_float32
-from .tagging import AST_SAMPLE_RATE, AudioClassifier, WindowProbabilities, ast_audioset_classifier
+from .tagging import (
+    AST_SAMPLE_RATE,
+    AudioClassifier,
+    WindowProbabilities,
+    ast_audioset_classifier,
+)
 
 #: Window length (seconds) of the default classifier: short, for fine edges.
 TALK_WINDOW_SECONDS = 3.0
@@ -149,8 +154,8 @@ def _body_bounds(
     long_runs = [
         (a, b)
         for is_talk, a, b in _label_runs(flags)
-        if not is_talk and starts[b - 1] - starts[a] + (ends[a] - starts[a]) / 2
-        >= min_music_seconds
+        if not is_talk
+        and starts[b - 1] - starts[a] + (ends[a] - starts[a]) / 2 >= min_music_seconds
     ]
     if not long_runs:
         return None
@@ -217,8 +222,16 @@ def talk_edges_from_probs(
 
     # A talk run that starts within max_edge_seconds of an edge is kept whole.
     runs = [(a, b) for is_talk, a, b in _label_runs(flags) if is_talk]
-    head = [(a, b) for a, b in runs if b <= first_body and starts[a] < start + max_edge_seconds]
-    tail = [(a, b) for a, b in runs if a > last_body and ends[b - 1] > end - max_edge_seconds]
+    head = [
+        (a, b)
+        for a, b in runs
+        if b <= first_body and starts[a] < start + max_edge_seconds
+    ]
+    tail = [
+        (a, b)
+        for a, b in runs
+        if a > last_body and ends[b - 1] > end - max_edge_seconds
+    ]
     last = len(flags) - 1
     intro = outro = None
     if head:
@@ -273,13 +286,17 @@ def _snap_to_words(
             intro = Segment(intro.start, end, label=intro.label)
             snapped = True
     if outro is not None:
-        starts = [s for s, _ in spans if abs(s - outro.start) <= radius and s < outro.end]
+        starts = [
+            s for s, _ in spans if abs(s - outro.start) <= radius and s < outro.end
+        ]
         if starts:
             outro = Segment(max(starts[0], edges.start), outro.end, label=outro.label)
             snapped = True
     clean_start = intro.end if intro else edges.start
     clean_end = max(outro.start if outro else edges.end, clean_start)
-    return TalkEdges(edges.start, edges.end, intro, outro, clean_start, clean_end, snapped)
+    return TalkEdges(
+        edges.start, edges.end, intro, outro, clean_start, clean_end, snapped
+    )
 
 
 def find_talk_edges(
@@ -352,10 +369,14 @@ def find_talk_edges(
     if segment is None:
         start, end = 0.0, total
     else:
-        start, end = (segment.start, segment.end) if hasattr(segment, "start") else segment
+        start, end = (
+            (segment.start, segment.end) if hasattr(segment, "start") else segment
+        )
         start, end = max(0.0, float(start)), min(total, float(end))
         if end <= start:
-            raise ValueError(f"Empty segment ({start}, {end}) for audio of {total:.2f} s.")
+            raise ValueError(
+                f"Empty segment ({start}, {end}) for audio of {total:.2f} s."
+            )
         audio_seg = audio_seg[int(round(start * 1000)) : int(round(end * 1000))]
     samples, sr = _mono_float32(audio_seg, sample_rate=sample_rate)
     if len(samples) == 0:
