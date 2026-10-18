@@ -49,6 +49,7 @@ on into the song.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 from typing import Any, Iterable
 
 import numpy as np
@@ -84,6 +85,8 @@ DEFAULT_WORD_SNAP_SECONDS = 1.5
 #: "end" where the next word starts, which after the host's last word is seconds away
 #: (a multi-word item, such as a cue, is credited this much per word).
 MAX_WORD_SECONDS = 0.6
+#: Label of :attr:`TalkEdges.clean`.
+CLEAN_LABEL = "music"
 
 
 @dataclass(frozen=True)
@@ -112,7 +115,7 @@ class TalkEdges:
     @property
     def clean(self) -> Segment:
         """The song without its intro and outro talk, as a ``Segment``."""
-        return Segment(self.clean_start, self.clean_end, label="music")
+        return Segment(self.clean_start, self.clean_end, label=CLEAN_LABEL)
 
 
 def _talk_flags(
@@ -170,12 +173,21 @@ def talk_edges_from_probs(
 ) -> TalkEdges:
     """The audio half of :func:`find_talk_edges`: edges from window probabilities.
 
-    ``probs`` must be in the same timeline as ``start``/``end`` (seconds). See
+    ``probs`` must be in the same timeline as ``start``/``end`` (seconds) and its
+    windows should cover the song: talk where no window reaches is not seen. See
     :func:`find_talk_edges` for the arguments.
     """
+    start, end = float(start), float(end)
+    if not end > start:
+        raise ValueError(f"Need start < end (seconds); got start={start}, end={end}.")
     if len(probs) == 0:
         return TalkEdges(start, end, None, None, start, end)
-    starts, ends = np.asarray(probs.starts), np.asarray(probs.ends)
+    starts, ends = np.asarray(probs.starts, float), np.asarray(probs.ends, float)
+    if ends[-1] <= start or starts[0] >= end:
+        raise ValueError(
+            f"The windows ({starts[0]:.2f}-{ends[-1]:.2f} s) do not overlap the song "
+            f"({start:.2f}-{end:.2f} s): are probs and start/end in the same timeline?"
+        )
     flags = _talk_flags(
         np.asarray(probs.speech),
         np.asarray(probs.music),
@@ -203,17 +215,20 @@ def talk_edges_from_probs(
     def clamp(t):
         return float(min(max(t, start), end))
 
+    # A talk run that starts within max_edge_seconds of an edge is kept whole.
+    runs = [(a, b) for is_talk, a, b in _label_runs(flags) if is_talk]
+    head = [(a, b) for a, b in runs if b <= first_body and starts[a] < start + max_edge_seconds]
+    tail = [(a, b) for a, b in runs if a > last_body and ends[b - 1] > end - max_edge_seconds]
+    last = len(flags) - 1
     intro = outro = None
-    head = [i for i in np.flatnonzero(flags[:first_body]) if starts[i] < start + max_edge_seconds]
     if head:
-        a = start if head[0] == 0 else clamp(talk_start(head[0]))
-        b = clamp(talk_end(head[-1]))
+        a = start if head[0][0] == 0 else clamp(talk_start(head[0][0]))
+        b = clamp(talk_end(head[-1][1] - 1))
         intro = Segment(a, b, label=talk_label) if b > a else None
-    tail_idx = last_body + 1 + np.flatnonzero(flags[last_body + 1 :])
-    tail = [i for i in tail_idx if ends[i] > end - max_edge_seconds]
     if tail:
-        a = clamp(talk_start(tail[0]))
-        b = end if tail[-1] == len(flags) - 1 else clamp(talk_end(tail[-1]))
+        a = clamp(talk_start(tail[0][0]))
+        reaches_end = tail[-1][1] - 1 == last and ends[last] >= end - width[last]
+        b = end if reaches_end else clamp(talk_end(tail[-1][1] - 1))
         outro = Segment(a, b, label=talk_label) if b > a else None
     clean_start = intro.end if intro else start
     clean_end = max(outro.start if outro else end, clean_start)
@@ -221,16 +236,18 @@ def talk_edges_from_probs(
 
 
 def _word_spans(words: Iterable[Any]) -> list[tuple[float, float]]:
-    """``(start, end)`` of each transcript item (Scribe or ``parse_vtt_words`` dicts, cues).
+    """``(start, end)`` of each transcript item: Scribe, ``parse_vtt_words`` or
+    Whisper (``"word"`` key) mappings, or cue-like objects.
 
     An item is credited at most ``MAX_WORD_SECONDS`` per word of its text.
     """
     spans = []
     for w in words:
-        if isinstance(w, dict):
+        if isinstance(w, Mapping):
             if w.get("type", "word") != "word":
                 continue  # Scribe "spacing" and "audio_event" tokens
-            s, e, text = w.get("start"), w.get("end"), w.get("text", "")
+            text = w.get("text", w.get("word", ""))  # Scribe / Whisper
+            s, e = w.get("start"), w.get("end")
         else:
             s, e = getattr(w, "start", None), getattr(w, "end", None)
             text = getattr(w, "text", "")
@@ -249,14 +266,14 @@ def _snap_to_words(
     """Intro end -> end of the last word starting in the ``radius`` before it;
     outro start -> the first word starting within ``radius`` of it."""
     intro, outro, snapped = edges.intro, edges.outro, False
-    if intro is not None:
+    if intro is not None and intro.end < edges.end:  # all-talk songs stay all talk
         ends = [e for s, e in spans if intro.end - radius <= s <= intro.end]
         if ends:
             end = min(max(ends[-1], intro.start), edges.end)
             intro = Segment(intro.start, end, label=intro.label)
             snapped = True
     if outro is not None:
-        starts = [s for s, _ in spans if abs(s - outro.start) <= radius]
+        starts = [s for s, _ in spans if abs(s - outro.start) <= radius and s < outro.end]
         if starts:
             outro = Segment(max(starts[0], edges.start), outro.end, label=outro.label)
             snapped = True
@@ -292,8 +309,9 @@ def find_talk_edges(
             strategy="audioset")``). ``None`` analyses all of ``audio``. Returned
             times are always in ``audio``'s timeline.
         words: Optional word-timestamped transcript in ``audio``'s timeline:
-            Scribe-style dicts with ``"start"`` (and ``"end"``) such as
-            ``transcribe(...)["words"]`` or :func:`mixing.srt.parse_vtt_words`
+            dicts with ``"start"`` (and ``"end"``) and ``"text"`` (Scribe's
+            ``transcribe(...)["words"]``, :func:`mixing.srt.parse_vtt_words`) or
+            ``"word"`` (Whisper)
             (shift caption times if ``audio`` is a carved song), or cue-like
             objects with ``.start``/``.end``. Edges snap to the announcer's last
             intro word and first outro word. Without it, edges are window-resolution
@@ -301,17 +319,22 @@ def find_talk_edges(
         classifier: The seam: any ``(samples, sr) -> WindowProbabilities``. ``None``
             uses :func:`~mixing.audio.tagging.ast_audioset_classifier` with
             ``TALK_WINDOW_SECONDS`` windows every ``TALK_HOP_SECONDS`` (needs
-            ``pip install 'mixing[ml]'``). Only P(speech) is used.
+            ``pip install 'mixing[ml]'``). Only P(speech) and P(music) are used;
+            its windows should cover the whole song.
         sample_rate: Rate the audio is resampled to (anti-aliased) before
             classifying; ``None`` keeps the native rate.
         talk_threshold: P(speech) that seeds a talk region where there is no
             music. Raise it (or ``music_penalty``) if sung openings come out as
             intro talk; lower it if a host over a loud bed is missed.
         music_penalty: How much the seed bar rises per unit of P(music).
+        edge_threshold: P(speech) that seeds talk already under way where the song
+            was cut (a talk region touching its first or last window), whatever
+            the music.
         talk_floor: P(speech) down to which a talk region extends (hysteresis).
         min_music_seconds: Shortest non-talk run (seconds) taken as the song body;
             shorter music between talk (a sting, a pause) stays inside the intro.
-        max_edge_seconds: How far (seconds) from either end talk is looked for.
+        max_edge_seconds: How far (seconds) from either end a talk region may
+            start to count as intro/outro; a region that does is kept whole.
         edge_fraction: Fraction of a window that must be talk for it to score as
             talk; converts window positions to times. Retune it with a classifier
             whose window length differs.

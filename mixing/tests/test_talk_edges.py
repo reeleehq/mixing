@@ -142,12 +142,31 @@ def test_talk_under_way_at_the_cut_needs_only_the_edge_threshold():
 
 
 def test_a_late_intro_beyond_max_edge_seconds_is_ignored():
-    # talk at 20-30 s after an instrumental opening shorter than min_music_seconds
+    # talk at 5-10 s after an instrumental opening shorter than min_music_seconds
     def speech(t):
         return 0.8 if 5 <= t < 10 else 0.1
 
     assert _edges(speech).intro is not None
     assert _edges(speech, max_edge_seconds=4.0).intro is None
+
+
+def test_a_talk_region_starting_within_max_edge_seconds_is_kept_whole():
+    edges = _edges(lambda t: 0.8 if t < 80 else 0.1, duration=200.0)
+    assert edges.intro.end == pytest.approx(80.0, abs=1.0)  # not cut at 60 s
+
+
+def test_inconsistent_inputs_are_informative_errors():
+    probs = _probs(lambda t: 0.8 if t < 10 else 0.1, 120.0)
+    with pytest.raises(ValueError, match="start < end"):
+        talk_edges_from_probs(probs, start=120.0, end=0.0)
+    with pytest.raises(ValueError, match="same timeline"):  # song-time probs, tape-time bounds
+        talk_edges_from_probs(probs, start=1000.0, end=1120.0)
+
+
+def test_results_are_plain_floats():
+    probs = _probs(lambda t: 0.8 if t < 10 else 0.1, 120.0)
+    edges = talk_edges_from_probs(probs, start=np.float64(0), end=np.float32(120))
+    assert all(type(x) is float for x in (edges.start, edges.end, edges.clean_end))
 
 
 def test_no_music_body_means_all_talk_and_an_empty_clean_span():
@@ -267,6 +286,42 @@ def test_words_out_of_reach_or_cues_are_handled():
     assert snapped.intro.end == pytest.approx(6.5 + 2 * te.MAX_WORD_SECONDS)
 
 
+def test_tape_time_words_with_a_segment():
+    tape = np.concatenate([_tone(30.0), _song(), _tone(20.0)])  # song at 30-104 s
+    words = [
+        {"text": "earlier", "start": 6.0, "end": 6.3},  # before the song: ignored
+        {"text": "(music)", "start": 36.5, "end": 37.0, "type": "audio_event"},
+        {"text": "here's", "start": 36.0, "end": 36.4},
+        {"text": "Bobo.", "start": 37.2, "end": 40.0},
+        {"text": "that", "start": 98.2, "end": 98.5},
+    ]
+    edges = find_talk_edges(
+        _to_segment(tape), (30.0, 104.0), classifier=zcr_classifier, words=words
+    )
+    assert edges.intro.end == pytest.approx(37.2 + te.MAX_WORD_SECONDS)
+    assert edges.outro.start == pytest.approx(98.2)
+
+
+def test_whisper_style_words_are_read():
+    words = [{"word": " Bobo.", "start": 7.3, "end": 7.6}]
+    edges = find_talk_edges(_to_segment(_song()), classifier=zcr_classifier, words=words)
+    assert edges.intro.end == pytest.approx(7.6)
+
+
+def test_snapping_never_inverts_an_outro():
+    # a 0.5 s outro estimate followed by a short fade; a word just after its end
+    probs = _probs(lambda t: 0.8 if 100 <= t < 102 else 0.1, 110.0)
+    edges = talk_edges_from_probs(probs, start=0.0, end=110.0)
+    snapped = te._snap_to_words(edges, [(edges.outro.end + 0.5, edges.outro.end + 0.8)], radius=1.5)
+    assert snapped.outro == edges.outro and not snapped.snapped_to_words
+
+
+def test_an_all_talk_song_stays_all_talk_with_words():
+    edges = _edges(lambda t: 0.8, duration=30.0)
+    snapped = te._snap_to_words(edges, [(28.9, 29.2)], radius=1.5)
+    assert snapped.clean_start == snapped.clean_end == 30.0
+
+
 def test_empty_segment_is_an_informative_error():
     with pytest.raises(ValueError, match="Empty segment"):
         find_talk_edges(_to_segment(_song()), (50.0, 40.0), classifier=zcr_classifier)
@@ -320,7 +375,9 @@ def test_real_model_against_hand_labels():
     labels = json.loads(LABELS.read_text())["edges"]
     errors = []
     for tape_id in sorted({e["tape"] for e in labels}):
-        tape_dir = next(Path(root).glob(f"*_{tape_id}"))
+        found = list(Path(root).glob(f"*_{tape_id}"))
+        assert found, f"no NNN_{tape_id} folder under MIXING_MWM_TAPES"
+        tape_dir = found[0]
         audio = AudioSegment.from_file(str(tape_dir / f"{tape_dir.name}.m4a"))
         words = parse_vtt_words((tape_dir / f"{tape_dir.name}.en.vtt").read_text())
         for e in (e for e in labels if e["tape"] == tape_id):

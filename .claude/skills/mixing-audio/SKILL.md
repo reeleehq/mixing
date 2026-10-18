@@ -438,9 +438,12 @@ Carved songs often still carry the announcer: an intro over the opening bars, a 
 from mixing.audio import find_talk_edges
 from mixing.srt import parse_vtt_words
 
+from pydub import AudioSegment
+
+tape = AudioSegment.from_file("show.m4a")  # decode once, not once per song
 words = parse_vtt_words(open("show.en.vtt").read())  # optional, tape timeline
 for song in songs:  # Segments from find_segments(..., strategy="audioset")
-    e = find_talk_edges("show.m4a", song, words=words)  # times in the tape timeline
+    e = find_talk_edges(tape, song, words=words)  # times in the tape timeline
     e.intro, e.outro  # Segment(label="talk") or None
     e.clean_start, e.clean_end  # the music proper; e.clean is a Segment
     e.snapped_to_words  # True if the transcript refined an edge
@@ -449,8 +452,8 @@ for song in songs:  # Segments from find_segments(..., strategy="audioset")
 
 - Same classifier seam as `"audioset"` (`classifier=`), default AST with 3 s windows every 0.5 s (`mixing[ml]`). Only P(speech) and P(music) are used.
 - Sung vocals read as speech too (0.4-0.65 inside singing vs 0.5-0.8 for a host over a bed), so a window *seeds* talk only if `P(speech) >= talk_threshold + music_penalty * P(music)` (0.45 + 0.4 x music: singing comes with the full band); talk already under way at the cut needs only `edge_threshold` (0.6). Seeded regions grow down to `talk_floor` (0.4). The song body is the first/last non-talk run of `min_music_seconds` (8): shorter music (a sting) stays inside the intro, talk inside the body is never an edge.
-- `words=` (Scribe words, `parse_vtt_words`, or cues, in `audio`'s timeline) snaps the intro end to the last word starting in the 1.5 s before the audio estimate and the outro start to the first word within 1.5 s of it. It sharpens *where*, not *whether*: lyrics are transcribed too, so the audio decides what is talk.
-- Measured: see the hand-label results in the PR that added it (reeleehq/mixing#61) and `mixing/tests/data/talk_edges_labels.json` (times only; the slow test re-scores them with `MIXING_RUN_SLOW=1 MIXING_MWM_TAPES=<tapes dir>`).
+- `words=` (Scribe words, `parse_vtt_words`, Whisper `"word"` dicts, or cues, in `audio`'s timeline) snaps the intro end to the last word starting in the 1.5 s before the audio estimate and the outro start to the first word within 1.5 s of it. It sharpens *where*, not *whether*: lyrics are transcribed too, so the audio decides what is talk.
+- Measured against 57 hand-labelled song edges from 9 tapes (captions, about ±0.5 s). On the 20 edges with real talk in the test split (labelled after the defaults were frozen, scored once): with captions, median error 0.08 s, 75% within 0.5 s, 90% within 1.8 s, worst 11.6 s (a host over a loud bed that never reached the seed bar); audio only, median 0.5 s, 90% within 1 s. Edges with no talk came out exact. Labels: `mixing/tests/data/talk_edges_labels.json` (times only; the slow test re-scores them with `MIXING_RUN_SLOW=1 MIXING_MWM_TAPES=<tapes dir>`).
 - Known misses: a sung line that reads as talk right after the host with no long enough music between them (the intro runs on into the song); a jingle of `min_music_seconds` or more *before* the host's intro (it is taken for the song body, so the intro is missed: raise `min_music_seconds` above the jingle); talk only in the last ~1.5 s (the last 3 s window barely sees it).
 - `talk_edges_from_probs(probs, start=, end=, ...)` is the audio half on precomputed `WindowProbabilities`, for re-tuning without re-running the model.
 
