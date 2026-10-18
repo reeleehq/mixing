@@ -415,8 +415,12 @@ songs = [s for s in segs if s.label == "song"]
 extract_segments("show.m4a", songs, output="songs/", format="m4a")
 
 # what the host said just before each song (where titles are announced):
-words = parse_vtt_words(open("show.en.vtt").read())  # YouTube captions -> Scribe-shaped words
-intros = text_before_segments(songs, words)  # or transcribe(...)["words"], or parse_srt cues
+words = parse_vtt_words(
+    open("show.en.vtt").read()
+)  # YouTube captions -> Scribe-shaped words
+intros = text_before_segments(
+    songs, words
+)  # or transcribe(...)["words"], or parse_srt cues
 ```
 
 A pretrained AudioSet tagger (default: AST, `MIT/ast-finetuned-audioset-10-10-0.4593`) scores P(speech)/P(music) in 5 s windows every 2 s; music windows (P > 0.5 and > P(speech)) are median-filtered, grouped into runs, and every boundary is snapped to the quietest 100 ms within ±4 s. On a 29-min 1970s radio tape it found the same 7 songs and 7 jingles as the reference prototype (all 14 song edges within 0.05 s) in ~50 s on Apple-silicon MPS; two sibling tapes gave 8 and 7 songs.
