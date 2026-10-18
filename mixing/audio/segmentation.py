@@ -25,11 +25,26 @@ The strategies, in increasing order of sophistication:
   amplitude is roughly constant: it detects boundaries where the *spectral
   content* changes abruptly. See Foote, "Automatic audio segmentation using
   a measure of audio novelty" (ICME 2000).
-- ``"speech_music"`` — low-energy frame ratio + 4 Hz modulation energy
-  (Scheirer & Slaney 1997-style features). Splits radio audio into spoken
-  and musical regions.
+- ``"speech_music"`` — low-energy frame ratio + ZCR variance (Scheirer &
+  Slaney 1997-style handcrafted features). Cheap and dependency-free, and fine
+  for speech vs *instrumental* music, but it does **not** separate talk from
+  *sung* songs: sung vocals look just as syllabic as speech. On a real radio
+  show (DJ talk, jingles, sung pop songs) a 4 Hz envelope-modulation feature
+  measured 0.529±0.159 on speech vs 0.535±0.158 on music.
+- ``"audioset"`` — a pretrained AudioSet tagger (by default the Audio
+  Spectrogram Transformer) scores speech vs music in sliding windows; runs of
+  music become segments, their edges snapped to the quietest nearby moment.
+  This is the strategy for **radio shows and tapes**: it tells sung songs from
+  talk, and with ``min_song_duration`` it labels long music runs ``"song"``
+  and short ones (stingers, station IDs) ``"jingle"``. The model is a seam
+  (``classifier=``); its default needs the ``mixing[ml]`` extra (``torch``,
+  ``transformers``), imported lazily. See :mod:`mixing.audio.tagging`.
 
 You can also pass your own callable as ``strategy`` for custom logic.
+
+Hosts usually announce a song just before it starts; :func:`text_before_segments`
+returns the transcript words just before each segment (pair it with
+:func:`mixing.srt.parse_vtt_words` for YouTube captions, or a Scribe transcript).
 
 Output:
 - ``find_segments`` returns a list of ``Segment`` dataclasses (start/end in
@@ -50,8 +65,15 @@ Examples:
     ...                       kernel_seconds=12.0,
     ...                       min_peak_distance_seconds=60.0)  # doctest: +SKIP
     >>>
-    >>> # Radio show: tag speech vs music regions
-    >>> segs = find_segments("radio.mp3", strategy="speech_music")  # doctest: +SKIP
+    >>> # Radio show / tape with sung songs: learned speech vs music (mixing[ml])
+    >>> segs = find_segments("show.m4a", strategy="audioset",
+    ...                       min_song_duration=75)  # doctest: +SKIP
+    >>> songs = [s for s in segs if s.label == "song"]  # doctest: +SKIP
+    >>>
+    >>> # ... and what the host said just before each song
+    >>> from mixing.srt import parse_vtt_words  # doctest: +SKIP
+    >>> words = parse_vtt_words(open("show.en.vtt").read())  # doctest: +SKIP
+    >>> intros = text_before_segments(songs, words)  # doctest: +SKIP
     >>>
     >>> # Save them to disk
     >>> paths = extract_segments("concert.wav", segs, output="songs/")  # doctest: +SKIP
@@ -59,19 +81,36 @@ Examples:
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Sequence, Union, TYPE_CHECKING
+from typing import Any, Callable, Iterable, Literal, Sequence, Union, TYPE_CHECKING
 import numpy as np
 
 from ..util import require_package
 from .audio_util import AudioSource, _normalize_audio_source
+from .tagging import AST_SAMPLE_RATE, AudioClassifier, ast_audioset_classifier
 
 if TYPE_CHECKING:
     from pydub import AudioSegment
 
 
 SegmentationStrategyName = Literal[
-    "silence", "energy_novelty", "self_similarity", "speech_music"
+    "silence", "energy_novelty", "self_similarity", "speech_music", "audioset"
 ]
+
+#: ``"audioset"``: a window is music if P(music) exceeds this (and P(speech)).
+DEFAULT_MUSIC_THRESHOLD = 0.5
+#: ``"audioset"``: median-filter length, in windows, applied to the music/talk labels.
+DEFAULT_SMOOTH_WINDOWS = 5
+#: ``"audioset"``: boundaries move to the quietest moment within this many seconds.
+DEFAULT_SNAP_RADIUS_SECONDS = 4.0
+#: Length (seconds) of the RMS frames scanned when snapping a boundary.
+SNAP_FRAME_SECONDS = 0.1
+_SNAP_TOLERANCE = 1e-6  # seconds; absorbs float error when two boundaries coincide
+#: Typical radio-show split: music runs at least this long are songs, shorter ones jingles.
+RADIO_MIN_SONG_SECONDS = 75.0
+#: :func:`text_before_segments`: seconds of transcript taken before a segment start.
+DEFAULT_TEXT_BEFORE_SECONDS = 25.0
+#: :func:`text_before_segments`: seconds of transcript taken after a segment start.
+DEFAULT_TEXT_AFTER_SECONDS = 3.0
 
 
 @dataclass(frozen=True)
@@ -525,7 +564,9 @@ def segment_by_speech_music(
 ) -> list[Segment]:
     """Tag regions of audio as ``"speech"`` or ``"music"``.
 
-    Useful for radio shows and podcasts with musical interludes. Implements
+    Useful for podcasts with *instrumental* interludes. It does not separate
+    talk from sung songs (sung vocals look like speech to these features);
+    for radio shows use ``segment_by_audioset`` (``strategy="audioset"``). Implements
     a simplified version of Scheirer & Slaney (ICASSP 1997) using two of
     their most discriminative features:
 
@@ -633,6 +674,281 @@ def segment_by_speech_music(
 
 
 # ----------------------------------------------------------------------------
+# Strategy: learned speech vs music (AudioSet tagger)
+# ----------------------------------------------------------------------------
+
+
+def _label_runs(flags: np.ndarray) -> list[tuple[bool, int, int]]:
+    """Runs of equal values as ``(value, first_index, last_index_exclusive)``.
+
+    >>> _label_runs(np.array([0, 0, 1, 1, 1, 0]))
+    [(False, 0, 2), (True, 2, 5), (False, 5, 6)]
+    """
+    runs, start = [], 0
+    for i in range(1, len(flags) + 1):
+        if i == len(flags) or flags[i] != flags[start]:
+            runs.append((bool(flags[start]), start, i))
+            start = i
+    return runs
+
+
+def _mono_float32(
+    audio: "AudioSegment", *, sample_rate: int | None = None
+) -> tuple[np.ndarray, int]:
+    """Mono float32 samples in [-1, 1]; resampled (anti-aliased) only if asked."""
+    seg = audio.set_channels(1)
+    x = np.array(seg.get_array_of_samples(), dtype=np.float32)
+    x /= float(1 << (8 * seg.sample_width - 1))
+    sr = seg.frame_rate
+    if sample_rate is not None and sample_rate != sr and len(x):
+        g = np.gcd(int(sr), int(sample_rate))
+        resample_poly = require_package("scipy.signal").resample_poly
+        x = resample_poly(x, sample_rate // g, sr // g).astype(np.float32)
+        sr = sample_rate
+    return x, sr
+
+
+def _snap_boundaries(
+    boundaries: Sequence[float],
+    samples: np.ndarray,
+    *,
+    sr: int,
+    radius: float,
+    total_duration: float,
+) -> list[float]:
+    """Move each boundary to the quietest ``SNAP_FRAME_SECONDS`` frame within ``radius``.
+
+    Boundaries stay ordered: each one searches only between the (already
+    snapped) previous boundary and the next raw one. Two may coincide; the
+    caller drops the empty segment between them.
+    """
+    if radius <= 0 or not boundaries:
+        return list(boundaries)
+    snapped: list[float] = []
+    for k, b in enumerate(boundaries):
+        lo = max(b - radius, snapped[-1] if snapped else 0.0)
+        hi = min(
+            b + radius, boundaries[k + 1] if k + 1 < len(boundaries) else total_duration
+        )
+        # Start half a frame early so a frame is centred on ``lo`` itself.
+        a = max(0, int(round((lo - SNAP_FRAME_SECONDS / 2) * sr)))
+        rms, centers = _frame_rms(
+            samples[a : int(hi * sr)],
+            sr=sr,
+            frame_seconds=SNAP_FRAME_SECONDS,
+            hop_seconds=SNAP_FRAME_SECONDS / 2,
+        )
+        centers = centers + a / sr
+        # ``>=``: two boundaries may land on the same quiet point, which drops
+        # the sliver between them (e.g. a few words between a jingle and a song).
+        mask = (centers >= lo - _SNAP_TOLERANCE) & (centers < hi)
+        best = float(centers[mask][np.argmin(rms[mask])]) if mask.any() else b
+        snapped.append(max(best, lo))
+    return snapped
+
+
+def segment_by_audioset(
+    audio: "AudioSegment",
+    *,
+    classifier: AudioClassifier | None = None,
+    sample_rate: int | None = AST_SAMPLE_RATE,
+    music_threshold: float = DEFAULT_MUSIC_THRESHOLD,
+    smooth_windows: int = DEFAULT_SMOOTH_WINDOWS,
+    snap_radius: float = DEFAULT_SNAP_RADIUS_SECONDS,
+    min_song_duration: float | None = None,
+    speech_label: str = "speech",
+    music_label: str = "music",
+    song_label: str = "song",
+    jingle_label: str = "jingle",
+) -> list[Segment]:
+    """Split audio into talk and music with a pretrained audio tagger.
+
+    The strategy for radio shows and tapes where songs are *sung*: handcrafted
+    features (``"speech_music"``) confuse sung vocals with speech, a model
+    trained on AudioSet does not.
+
+    Pipeline:
+      1. ``classifier(samples, sr)`` scores P(speech) and P(music) per window
+         (default: the AudioSet AST, 5 s windows every 2 s);
+      2. a window is music if ``P(music) > music_threshold`` and
+         ``P(music) > P(speech)``; the labels are median-filtered over
+         ``smooth_windows`` windows;
+      3. runs of equal labels become back-to-back segments. A music run
+         extends to the outer edges of its outermost music windows, so songs
+         are not clipped;
+      4. each boundary moves to the quietest moment within ``snap_radius``
+         seconds (the gap between a song and the host's voice);
+      5. with ``min_song_duration``, music segments at least that long are
+         labelled ``song_label`` and shorter ones ``jingle_label``.
+
+    Args:
+        audio: pydub ``AudioSegment``.
+        classifier: The seam: any ``(samples, sr) -> WindowProbabilities``
+            (see :mod:`mixing.audio.tagging`). ``None`` uses
+            :func:`~mixing.audio.tagging.ast_audioset_classifier`, which needs
+            ``pip install 'mixing[ml]'``.
+        sample_rate: Rate (Hz) the audio is resampled to, with an anti-aliased
+            polyphase filter, before classifying and snapping. The default is
+            the AST's 16 kHz (it also keeps memory low on long tapes); ``None``
+            keeps the native rate and leaves resampling to the classifier. Not
+            pydub's resampler: it is not anti-aliased, and on a real tape it
+            lowered the tagger's music probabilities from ~0.8 to ~0.5.
+        music_threshold: Minimum P(music) for a window to count as music.
+        smooth_windows: Median-filter length in windows (``1`` disables it;
+            even values are rounded up to odd). At the default 2 s hop, music
+            runs of about 7 s or less are smoothed away, so very short stingers
+            never become jingles. It counts windows, so retune it (and
+            ``snap_radius``) for a classifier with a different window/hop.
+        snap_radius: Seconds a boundary may move to reach a quiet point
+            (``0`` disables snapping). It picks the quietest 100 ms in reach,
+            which is usually the gap between a song and the host but can be a
+            pause inside a song; lower it if songs come out trimmed.
+        min_song_duration: Seconds. If given, split music segments into
+            songs (>=) and jingles (<); ``RADIO_MIN_SONG_SECONDS`` (75) suits
+            radio shows. ``None`` labels them all ``music_label``.
+        speech_label: Label of non-music segments (talk, but also silence or
+            noise: anything the tagger does not call music).
+        music_label, song_label, jingle_label: Labels of music segments.
+
+    Returns:
+        Back-to-back ``Segment``s covering the whole audio. ``score`` is the
+        mean probability of the segment's class over its windows. Two speech
+        segments are never adjacent; two music segments can be (a jingle
+        running straight into a song).
+
+    >>> from mixing.audio.tagging import WindowProbabilities
+    >>> def stub(samples, sr):  # music from 10 s to 30 s, talk elsewhere
+    ...     t = np.arange(0.0, 36.0, 2.0)
+    ...     m = ((t >= 10) & (t + 4 <= 30)).astype(float)
+    ...     return WindowProbabilities(t, t + 4, 1 - m, m)
+    >>> from pydub import AudioSegment
+    >>> segs = segment_by_audioset(
+    ...     AudioSegment.silent(40_000), classifier=stub, snap_radius=0,
+    ...     min_song_duration=15,
+    ... )
+    >>> [(s.label, s.start, s.end) for s in segs]
+    [('speech', 0.0, 10.0), ('song', 10.0, 30.0), ('speech', 30.0, 40.0)]
+    """
+    samples, sr = _mono_float32(audio, sample_rate=sample_rate)
+    if len(samples) == 0:
+        return []
+    total_duration = len(samples) / sr
+    classify = classifier if classifier is not None else ast_audioset_classifier()
+    probs = classify(samples, sr)
+    if len(probs) == 0:
+        return [Segment(0.0, total_duration, label=speech_label)]
+
+    speech, music = np.asarray(probs.speech), np.asarray(probs.music)
+    is_music = (music > music_threshold) & (music > speech)
+    if smooth_windows > 1 and len(is_music) > 1:
+        median_filter = require_package("scipy.ndimage").median_filter
+        size = smooth_windows | 1  # an even median window would bias and shift
+        is_music = median_filter(is_music.astype(np.int8), size=size, mode="nearest")
+    runs = _label_runs(np.asarray(is_music, dtype=bool))
+
+    # A boundary between two runs sits at the music run's outer window edge.
+    raw = [
+        float(probs.ends[left_end - 1])
+        if left_music
+        else float(probs.starts[right_start])
+        for (left_music, _, left_end), (_, right_start, _) in zip(runs, runs[1:])
+    ]
+    raw = [min(max(b, 0.0), total_duration) for b in raw]
+    # Drop runs squeezed to nothing by their neighbours' window overlap.
+    kept_runs, kept_bounds = [runs[0]], []
+    for run, b in zip(runs[1:], raw):
+        while kept_bounds and b <= kept_bounds[-1]:
+            kept_bounds.pop()
+            kept_runs.pop()
+        if kept_runs[-1][0] == run[0]:
+            continue  # merged into the previous run of the same kind
+        kept_runs.append(run)
+        kept_bounds.append(b)
+    bounds = _snap_boundaries(
+        kept_bounds, samples, sr=sr, radius=snap_radius, total_duration=total_duration
+    )
+    edges = [0.0] + bounds + [total_duration]
+
+    # Snapping can collapse a run to nothing; drop it, and re-join the talk on
+    # either side. Two music runs left adjacent stay two items (e.g. a jingle
+    # straight into a song).
+    spans: list[list] = []
+    for (is_mus, _, _), start, end in zip(kept_runs, edges, edges[1:]):
+        if end <= start:
+            continue
+        if spans and not is_mus and not spans[-1][0]:
+            spans[-1][2] = end
+        else:
+            spans.append([is_mus, start, end])
+
+    centers = (np.asarray(probs.starts) + np.asarray(probs.ends)) / 2
+    segments = []
+    for is_mus, start, end in spans:
+        inside = (centers >= start) & (centers <= end)
+        cls = music if is_mus else speech
+        score = float(cls[inside].mean()) if inside.any() else None
+        if not is_mus:
+            label = speech_label
+        elif min_song_duration is None:
+            label = music_label
+        else:
+            label = song_label if end - start >= min_song_duration else jingle_label
+        segments.append(Segment(start=start, end=end, label=label, score=score))
+    return segments
+
+
+def _word_start_and_text(word: Any) -> tuple[float, str] | None:
+    """``(start, text)`` of a Scribe-style word dict or a ``Cue``-like object."""
+    if isinstance(word, dict):
+        if word.get("type", "word") not in ("word", "audio_event"):
+            return None  # Scribe "spacing" tokens
+        start, text = word.get("start"), word.get("text", "")
+    else:
+        start, text = getattr(word, "start", None), getattr(word, "text", "")
+    text = " ".join(str(text).split())
+    return (float(start), text) if start is not None and text else None
+
+
+def text_before_segments(
+    segments: Iterable[Segment | tuple[float, float]],
+    words: Iterable[Any],
+    *,
+    before_seconds: float = DEFAULT_TEXT_BEFORE_SECONDS,
+    after_seconds: float = DEFAULT_TEXT_AFTER_SECONDS,
+) -> list[str]:
+    """The transcript text just before each segment starts (one string per segment).
+
+    Radio hosts announce a song right before it plays, so for each segment this
+    joins the words that start within ``[start - before_seconds, start +
+    after_seconds]``. It does not try to name the song; it hands you the text
+    where the name usually is.
+
+    Args:
+        segments: ``Segment``s or ``(start, end)`` tuples (seconds); usually the
+            songs from ``find_segments(..., strategy="audioset")``.
+        words: Word-timestamped transcript items: Scribe-style dicts with
+            ``"text"`` and ``"start"`` (``transcribe(...)["words"]``,
+            :func:`mixing.srt.parse_vtt_words`), or ``Cue``-like objects with
+            ``.text`` / ``.start`` (:func:`mixing.srt.parse_srt`).
+        before_seconds: How far before a segment's start to look.
+        after_seconds: How far past its start to keep looking (captions lag).
+
+    >>> words = [{"text": "next", "start": 8.0}, {"text": "up,", "start": 8.5},
+    ...          {"text": " ", "start": 8.9, "type": "spacing"},
+    ...          {"text": "Yesterday", "start": 9.0}, {"text": "la", "start": 40.0}]
+    >>> text_before_segments([Segment(10.0, 60.0, label="song")], words)
+    ['next up, Yesterday']
+    """
+    items = [x for x in map(_word_start_and_text, words) if x is not None]
+    out = []
+    for seg in segments:
+        start = float(seg.start if hasattr(seg, "start") else seg[0])
+        lo, hi = start - before_seconds, start + after_seconds
+        out.append(" ".join(text for t, text in items if lo <= t <= hi))
+    return out
+
+
+# ----------------------------------------------------------------------------
 # Post-processing
 # ----------------------------------------------------------------------------
 
@@ -736,6 +1052,7 @@ _STRATEGIES: dict[str, Callable[..., list[Segment]]] = {
     "energy_novelty": segment_by_energy,
     "self_similarity": segment_by_self_similarity,
     "speech_music": segment_by_speech_music,
+    "audioset": segment_by_audioset,
 }
 
 
@@ -768,8 +1085,8 @@ def find_segments(
     Args:
         audio: File path, numpy array, or pydub ``AudioSegment``.
         strategy: Strategy name (``"silence"``, ``"energy_novelty"``,
-            ``"self_similarity"``, ``"speech_music"``) or a callable
-            ``(AudioSegment, **kwargs) -> list[Segment]``.
+            ``"self_similarity"``, ``"speech_music"``, ``"audioset"``) or a
+            callable ``(AudioSegment, **kwargs) -> list[Segment]``.
         min_segment_duration: Drop or merge segments shorter than this.
         max_segment_duration: Split segments longer than this into equal pieces.
         merge_gap: Merge consecutive same-label segments separated by less

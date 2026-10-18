@@ -68,6 +68,12 @@ VIDEO_IMPORT_NAMES = ("numpy", "moviepy", "cv2", "PIL", "burns", "looks")
 # Everything the extra supplies; ``require_package`` uses it to pick its hint.
 MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES))
 
+# The ``ml`` extra: pretrained models (the AudioSet tagger behind the "audioset"
+# segmentation strategy). Imported lazily, inside the functions that need them.
+ML_EXTRA = "ml"
+ML_INSTALL_HINT = f"pip install 'mixing[{ML_EXTRA}]'"
+ML_IMPORT_NAMES = ("torch", "transformers")
+
 
 def _is_importable(name: str) -> bool:
     """True if top-level module ``name`` can be found, without importing it."""
@@ -90,12 +96,31 @@ def require_media_extra(feature: str, *, modules: tuple[str, ...] = MEDIA_IMPORT
       ...
     ImportError: demo requires the 'media' extra ...
     """
+    _require_extra(feature, extra=MEDIA_EXTRA, hint=MEDIA_INSTALL_HINT, modules=modules)
+
+
+def require_ml_extra(feature: str, *, modules: tuple[str, ...] = ML_IMPORT_NAMES):
+    """Raise an informative ``ImportError`` if the ``ml`` extra is not installed.
+
+    ``torch`` / ``transformers`` (the pretrained AudioSet tagger) come with
+    ``mixing[ml]``; nothing imports them until a learned feature is used.
+
+    >>> require_ml_extra("demo", modules=("math",))
+    >>> require_ml_extra("demo", modules=("no_such_module_xyz",))
+    Traceback (most recent call last):
+      ...
+    ImportError: demo requires the 'ml' extra ...
+    """
+    _require_extra(feature, extra=ML_EXTRA, hint=ML_INSTALL_HINT, modules=modules)
+
+
+def _require_extra(feature: str, *, extra: str, hint: str, modules: tuple[str, ...]):
     missing = [name for name in modules if not _is_importable(name)]
     if missing:
         raise ImportError(
-            f"{feature} requires the {MEDIA_EXTRA!r} extra "
+            f"{feature} requires the {extra!r} extra "
             f"(missing: {', '.join(missing)}). Install it with "
-            f"{MEDIA_INSTALL_HINT}."
+            f"{hint}."
         )
 
 
@@ -103,7 +128,7 @@ def require_package(package_name: str):
     """
     Import a package, raising an informative error if not installed.
 
-    Packages supplied by the ``media`` extra get a hint naming that extra.
+    Packages supplied by the ``media`` or ``ml`` extra get a hint naming that extra.
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
@@ -112,8 +137,11 @@ def require_package(package_name: str):
     try:
         return importlib.import_module(package_name)
     except ImportError as e:
-        if package_name.split(".")[0] in MEDIA_IMPORT_NAMES:
+        top = package_name.split(".")[0]
+        if top in MEDIA_IMPORT_NAMES:
             hint = MEDIA_INSTALL_HINT
+        elif top in ML_IMPORT_NAMES:
+            hint = ML_INSTALL_HINT
         else:
             hint = f"pip install {package_name}"
         raise ImportError(

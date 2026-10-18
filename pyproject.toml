@@ -70,6 +70,15 @@ audio = [
 beats = [
     "librosa",
 ]
+# Pretrained models: the AudioSet tagger (AST) behind find_segments(strategy=
+# "audioset") — tells sung songs from talk on radio shows. torch (BSD) and
+# transformers (Apache-2.0) are lazy-imported inside the classifier, so
+# `import mixing.audio` stays light; the model (MIT/ast-finetuned-audioset,
+# BSD-3) downloads from the Hugging Face hub on first use.
+ml = [
+    "torch",
+    "transformers",
+]
 widget = [
     "ipywidgets",
     "soundfile",
@@ -138,6 +147,9 @@ testpaths = [
 doctest_optionflags = [
     "ELLIPSIS",
     "IGNORE_EXCEPTION_DETAIL",
+]
+markers = [
+    "slow: needs a model download / real media; skipped unless MIXING_RUN_SLOW=1",
 ]
 
 [tool.wads.ops.ffmpeg]
