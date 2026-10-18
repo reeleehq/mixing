@@ -11,7 +11,8 @@ description: >
   these audio clips", "add background music under the narration", "make it
   louder / normalize", "convert to mono", "align two recordings", "find the
   offset between these takes", "split a concert into songs", "separate speech
-  from music", "loop this ambient clip to N seconds", "duck the music under
+  from music", "find the songs in this radio show / tape", "songs vs jingles
+  vs DJ talk", "what did the host say before each song", "loop this ambient clip to N seconds", "duck the music under
   the dialogue". For video audio (replace/normalize a video's track) use
   mixing-video; this skill is audio-file → audio-file.
 ---
@@ -393,13 +394,37 @@ Strategies (pick by regime; pass tuning kwargs straight through to `find_segment
 | `"silence"` (default) | clean gaps (DJ mix, audiobook) | `silence_thresh_db=-40`, `min_silence_len=1.0` |
 | `"energy_novelty"` | fade-outs / quiet moments, no true silence | `valley_threshold_factor=0.5`, `min_peak_distance_seconds=30` |
 | `"self_similarity"` | concert/live: spectral content changes, level steady | `kernel_seconds=12.0`, `min_peak_distance_seconds=30` |
-| `"speech_music"` | radio/podcast: tag spoken vs musical regions | `low_energy_threshold=0.5`, `min_segment_duration=3.0` |
+| `"speech_music"` | speech vs *instrumental* music, no extra deps (handcrafted features: cannot tell sung songs from talk) | `low_energy_threshold=0.5`, `min_segment_duration=3.0` |
+| `"audioset"` | **radio shows / tapes with sung songs**: learned speech vs music, songs vs jingles (`mixing[ml]`) | `min_song_duration=75`, `snap_radius=4.0`, `music_threshold=0.5`, `classifier=` |
 
 `find_segments(..., strategy=, min_segment_duration=, max_segment_duration=,
 merge_gap=, pad_start=, pad_end=, **strategy_kwargs)`. You can also pass your
 own `(AudioSegment, **kwargs) -> list[Segment]` callable as `strategy`. The
-`segment_by_silence/energy/self_similarity/speech_music` functions are exported
+`segment_by_silence/energy/self_similarity/speech_music/audioset` functions are exported
 too if you want to call one directly on a pydub `AudioSegment`.
+
+### Radio shows: songs, jingles and the host's intros (`mixing[ml]` extra)
+
+```python
+from mixing.audio import find_segments, extract_segments, text_before_segments
+from mixing.srt import parse_vtt_words
+
+segs = find_segments("show.m4a", strategy="audioset", min_song_duration=75)
+# back-to-back Segments labelled "speech" | "song" | "jingle" (no min_song_duration -> "music")
+songs = [s for s in segs if s.label == "song"]
+extract_segments("show.m4a", songs, output="songs/", format="m4a")
+
+# what the host said just before each song (where titles are announced):
+words = parse_vtt_words(open("show.en.vtt").read())  # YouTube captions -> Scribe-shaped words
+intros = text_before_segments(songs, words)  # or transcribe(...)["words"], or parse_srt cues
+```
+
+A pretrained AudioSet tagger (default: AST, `MIT/ast-finetuned-audioset-10-10-0.4593`) scores P(speech)/P(music) in 5 s windows every 2 s; music windows (P > 0.5 and > P(speech)) are median-filtered, grouped into runs, and every boundary is snapped to the quietest 100 ms within ±4 s. On a 29-min 1970s radio tape it found the same 7 songs and 7 jingles as the reference prototype (all 14 song edges within 0.05 s) in ~50 s on Apple-silicon MPS; two sibling tapes gave 8 and 7 songs.
+
+- **The model is a seam**: `classifier=` takes any `(samples, sr) -> WindowProbabilities` (`starts`, `ends`, `speech`, `music` arrays). Wrap foley's `PannsTagger` or a CLAP tagger in a few lines; `ast_audioset_classifier(window_seconds=, hop_seconds=, device=, model_name=)` tunes the default. Tests inject a stub here, so they need no torch.
+- `pip install 'mixing[ml]'` (torch + transformers). Imported lazily: `import mixing.audio` never loads torch; calling the default classifier without the extra raises an `ImportError` naming `mixing[ml]`. The model (~350 MB) downloads from the Hugging Face hub on first use.
+- Non-music segments are all labelled `"speech"`: silence and noise included.
+- Resampling matters: the strategy hands native-rate samples to the classifier, which resamples with an anti-aliased polyphase filter. pydub's own resampler is not anti-aliased and dropped the tagger's music probabilities from ~0.8 to ~0.5 on the real tape.
 
 ## Beat / downbeat / onset analysis (`mixing[beats]` extra)
 
@@ -446,8 +471,8 @@ overlay_audio(base, bed, mix_ratio=0.25, output="with_room_tone.wav")
 off = find_audio_offset("camera.wav", "studio.mp3")
 crop_audio("camera.wav", off, off + Audio("studio.mp3").duration, output="aligned.wav")
 
-# Split a radio show into speech vs music regions and save each:
-extract_segments("show.mp3", strategy="speech_music", output="parts/")
+# Split a radio show into talk, songs and jingles and save each (mixing[ml]):
+extract_segments("show.mp3", strategy="audioset", min_song_duration=75, output="parts/")
 ```
 
 ## Gotchas

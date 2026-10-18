@@ -11,7 +11,9 @@ Main exports:
 - save_audio_clip: Extract and save audio segments
 - find_audio_offset: Align two recordings via cross-correlation
 - find_segments, extract_segments: Split a long audio into pieces (songs,
-  speech vs music, etc.) using pluggable strategies
+  speech vs music, etc.) using pluggable strategies; ``strategy="audioset"``
+  (extra ``ml``) tells sung songs from talk on radio shows
+- text_before_segments: transcript words just before each segment (song intros)
 
 Examples:
     >>> from mixing.audio import Audio, fade_in, concatenate_audio  # doctest: +SKIP
@@ -67,7 +69,10 @@ from .segmentation import (
     segment_by_energy,
     segment_by_self_similarity,
     segment_by_speech_music,
+    segment_by_audioset,
+    text_before_segments,
 )
+from .tagging import WindowProbabilities, ast_audioset_classifier
 from .beats import beat_grid, BeatGrid
 from ..errors import MixingError, WindowTooWideForClip
 
@@ -107,6 +112,10 @@ __all__ = [
     "segment_by_energy",
     "segment_by_self_similarity",
     "segment_by_speech_music",
+    "segment_by_audioset",
+    "text_before_segments",
+    "WindowProbabilities",
+    "ast_audioset_classifier",
     "beat_grid",
     "BeatGrid",
 ]
