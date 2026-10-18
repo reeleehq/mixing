@@ -14,6 +14,8 @@ Main exports:
   speech vs music, etc.) using pluggable strategies; ``strategy="audioset"``
   (extra ``ml``) tells sung songs from talk on radio shows
 - text_before_segments: transcript words just before each segment (song intros)
+- find_talk_edges: the host's talk at the start/end of a carved song (talk over
+  music counts), with the music proper's clean start/end
 
 Examples:
     >>> from mixing.audio import Audio, fade_in, concatenate_audio  # doctest: +SKIP
@@ -73,6 +75,7 @@ from .segmentation import (
     text_before_segments,
 )
 from .tagging import WindowProbabilities, ast_audioset_classifier
+from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
 from .beats import beat_grid, BeatGrid
 from ..errors import MixingError, WindowTooWideForClip
 
@@ -116,6 +119,9 @@ __all__ = [
     "text_before_segments",
     "WindowProbabilities",
     "ast_audioset_classifier",
+    "TalkEdges",
+    "find_talk_edges",
+    "talk_edges_from_probs",
     "beat_grid",
     "BeatGrid",
 ]
