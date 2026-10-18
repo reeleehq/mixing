@@ -1,4 +1,4 @@
-> built 2026-10-18 02:54 UTC from 715b89c (main) · mixing 0.0.57. Details: build_info.json
+> built 2026-10-18 10:35 UTC from 7f2e8d0 (main) · mixing 0.0.58. Details: build_info.json
 
 # index.html.md
 
@@ -144,15 +144,15 @@ pip install mixing[ml]         # torch + transformers — find_segments(strategy
 
 ## What’s inside
 
-| Subpackage           | Highlights                                                                                                                                                                                                                                                                                              |
-|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `beat_grid`/`BeatGrid` (extra `beats`)                               |
-| `mixing.video`       | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES` |
-| `mixing.video.genai` | `generate_video` (Vertex AI Veo)                                                                                                                                                                                                                                                                        |
-| `mixing.transcript`  | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose`                                                                                                                                                                                                                        |
-| `mixing.chapters`    | `detect_chapters`, `Chapter`                                                                                                                                                                                                                                                                            |
-| `mixing.dubbing`     | `text_to_speech`, `list_voices`, `translate_srt`, `dub_video_from_srt`                                                                                                                                                                                                                                  |
-| `mixing.srt`         | `Cue`, `parse_srt`, `dump_srt`, `seconds_to_srt_time`                                                                                                                                                                                                                                                   |
+| Subpackage           | Highlights                                                                                                                                                                                                                                                                                                                     |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `find_talk_edges` (host talk at a song’s start/end), `beat_grid`/`BeatGrid` (extra `beats`) |
+| `mixing.video`       | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES`                        |
+| `mixing.video.genai` | `generate_video` (Vertex AI Veo)                                                                                                                                                                                                                                                                                               |
+| `mixing.transcript`  | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose`                                                                                                                                                                                                                                               |
+| `mixing.chapters`    | `detect_chapters`, `Chapter`                                                                                                                                                                                                                                                                                                   |
+| `mixing.dubbing`     | `text_to_speech`, `list_voices`, `translate_srt`, `dub_video_from_srt`                                                                                                                                                                                                                                                         |
+| `mixing.srt`         | `Cue`, `parse_srt`, `dump_srt`, `seconds_to_srt_time`                                                                                                                                                                                                                                                                          |
 
 See the [skills]() for the full, example-driven API of each.
 
@@ -2464,18 +2464,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-18 02:54 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/715b89c7383ef3e4b199fd731a9fc5a7f388afb7"><code>715b89c</code></a> on branch <code>main</code>, for **mixing 0.0.57** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-18 10:35 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/7f2e8d030205e251849b8530d8036f03e96ed5e2"><code>7f2e8d0</code></a> on branch <code>main</code>, for **mixing 0.0.58** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.58) is ahead of the latest release on PyPI (0.0.57): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/715b89c7383ef3e4b199fd731a9fc5a7f388afb7"><code>715b89c7383ef3e4b199fd731a9fc5a7f388afb7</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/7f2e8d030205e251849b8530d8036f03e96ed5e2"><code>7f2e8d030205e251849b8530d8036f03e96ed5e2</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.57</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.58</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2484,9 +2486,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/39091289767">39091289767</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/39119384539">39119384539</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>ee8b37c52622fc78f328289788bf84ea4c53deac</code> (in the history of the built commit) |
+| Event commit | <code>be46424009c3a996b4bf33e0ef50bb8801af57c3</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2511,13 +2513,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.57/">0.0.57</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.57/">0.0.57</a>, older than the documented version (0.0.58).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 715b89c7383ef3e4b199fd731a9fc5a7f388afb7
+git checkout 7f2e8d030205e251849b8530d8036f03e96ed5e2
 pip install "epythet==0.2.17"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
@@ -2547,7 +2549,7 @@ Source: [`.claude/skills/mixing`](https://github.com/thorwhalen/mixing/tree/HEAD
 
 ### `mixing-audio`
 
-Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “find the songs in this radio show / tape”, “songs vs jingles vs DJ talk”, “what did the host say before each song”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
+Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “find the songs in this radio show / tape”, “songs vs jingles vs DJ talk”, “what did the host say before each song”, “trim the DJ talk off the start/end of each song”, “where does the host stop talking”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
 
 Source: [`.claude/skills/mixing-audio`](https://github.com/thorwhalen/mixing/tree/HEAD/.claude/skills/mixing-audio).
 
