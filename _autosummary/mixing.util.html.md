@@ -111,7 +111,7 @@ ImportError: demo requires the 'ml' extra ...
 
 Import a package, raising an informative error if not installed.
 
-Packages supplied by the `media` or `ml` extra get a hint naming that extra.
+Packages supplied by the `media`, `ml` or `beats` extra get a hint naming that extra.
 
 ```pycon
 >>> math = require_package('math')
