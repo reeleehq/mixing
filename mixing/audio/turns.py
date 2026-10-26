@@ -1,7 +1,7 @@
 """Process each turn of a recording separately and splice the results back.
 
 ``process_turns(audio, turns, process)`` is the combinator behind
-:func:`mixing.audio.loudness.level_turns`, and is reusable for any
+:func:`mixing.audio.leveling.level_turns`, and is reusable for any
 per-segment treatment (per-speaker EQ, denoising, ducking, ...):
 
 - turns are ``(speaker, start_s, end_s)`` in **seconds**, whatever the

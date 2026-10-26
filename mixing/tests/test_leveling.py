@@ -1,4 +1,5 @@
-"""Loudness meter (checked against ffmpeg's ebur128) and per-turn levelling."""
+"""Loudness meter (checked against ffmpeg's ebur128) and per-turn levelling
+(``mixing.audio.leveling``)."""
 
 import re
 import subprocess
@@ -12,12 +13,13 @@ pytest.importorskip("scipy")
 from pydub import AudioSegment
 
 from mixing.audio import Audio, level_turns, loudness, process_turns
-from mixing.audio.loudness import (
+from mixing.audio.leveling import (
     MAX_GAIN_DB,
-    _check_turns,
     apply_ffmpeg_filter,
+    apply_gain,
     noise_floor_db,
 )
+from mixing.audio.turns import check_turns
 from mixing.util import ffmpeg_exe
 
 RATE = 44100
@@ -77,10 +79,10 @@ def test_loudness_silence_and_gain():
 
 def test_check_turns_rejects_overlap_and_out_of_range():
     with pytest.raises(ValueError):
-        _check_turns([("a", 0, 2), ("b", 1, 3)], 5)
+        check_turns([("a", 0, 2), ("b", 1, 3)], 5)
     with pytest.raises(ValueError):
-        _check_turns([("a", 0, 9)], 5)
-    assert _check_turns([("b", 2, 3), ("a", 0, 1)], 5)[0][0] == "a"
+        check_turns([("a", 0, 9)], 5)
+    assert check_turns([("b", 2, 3), ("a", 0, 1)], 5)[0][0] == "a"
 
 
 def test_level_turns_equalises_speakers():
@@ -222,17 +224,17 @@ def test_denoise_and_compressor_keep_onsets_in_place():
         assert abs(after - before) < 0.005, (before, after)
 
 
-def test_many_turns_join_is_fast():
+def test_many_turns_join_is_linear():
+    """2000 turns over 10 min: a quadratic join (``out += piece``) copies ~20 GB
+    and takes seconds; the single ``b"".join`` takes ~25 ms."""
     import time
 
-    audio = Audio(_voice(60, 0.2))
-    turns = [("ab"[i % 2], i * 0.3, i * 0.3 + 0.25) for i in range(200)]
+    audio = Audio(AudioSegment.silent(600_000, frame_rate=16000))
+    turns = [("ab"[i % 2], i * 0.3, i * 0.3 + 0.2) for i in range(2000)]
     t0 = time.perf_counter()
-    out = level_turns(
-        audio, turns, compressor=None, denoise=None, ceiling_db=None, pad_s=0.1
-    )
-    assert time.perf_counter() - t0 < 10
-    assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+    out = process_turns(audio, turns, lambda speaker, a, core: a, pad_s=0.05)
+    assert time.perf_counter() - t0 < 1.0
+    assert out._get_segment().raw_data == audio._get_segment().raw_data
 
 
 def test_gain_is_capped_with_a_warning():
@@ -284,3 +286,162 @@ def test_apply_ffmpeg_filter_keeps_sample_width():
     out_seg = out._get_segment()
     assert out_seg.sample_width == 4
     assert len(out_seg.raw_data) == len(seg.raw_data)
+
+
+# --- float headroom: nothing clips before the limiter ---------------------------
+
+
+def _pcm(signal, *, rate=RATE):
+    pcm = np.clip(signal, -1, 1) * 32767
+    return AudioSegment(
+        pcm.astype(np.int16).tobytes(), frame_rate=rate, sample_width=2, channels=1
+    )
+
+
+def _bursty_speaker():
+    """A quiet speaker with 2 ms loud sine bursts each second (very high crest)."""
+    t = np.arange(6 * RATE) / RATE
+    envelope = 0.6 + 0.4 * np.sin(2 * np.pi * 3 * t)
+    x = (
+        0.03
+        * envelope
+        * sum(np.sin(2 * np.pi * 220 * h * t) / h for h in (1, 2, 3, 4))
+        / 2
+    )
+    n = int(0.002 * RATE)
+    for k in range(1, 6):
+        x[k * RATE : k * RATE + n] += 0.6 * np.sin(
+            2 * np.pi * 2900 * np.arange(n) / RATE
+        )
+    pad = np.zeros(RATE // 2)
+    return Audio(_pcm(np.concatenate([pad, x, pad]))), [("q", 0.5, 6.5)]
+
+
+def _flat_top_count(audio):
+    """Samples within 1 LSB of the peak: a hard clip leaves hundreds."""
+    samples = np.abs(np.array(audio._get_segment().get_array_of_samples(), dtype=int))
+    return int((samples >= samples.max() - 1).sum())
+
+
+def test_high_crest_gains_do_not_clip_without_ceiling():
+    """Pre-gain to -6 LUFS pushes the bursts ~18 dB above 0 dBFS; gaining back
+    down to -30 LUFS must restore them intact (float headroom between stages)."""
+    audio, turns = _bursty_speaker()
+    out = level_turns(
+        audio, turns, pregain_lufs=-6, target_lufs=-30,
+        compressor=None, denoise=None, ceiling_db=None,
+    )  # fmt: skip
+    assert _flat_top_count(out) <= _flat_top_count(audio) + 2  # integer path: ~435
+    assert _peak_dbfs(out) < 0
+    assert loudness(out[0.5:6.5]) == pytest.approx(-30, abs=0.1)
+
+
+def test_high_crest_default_path_has_only_the_limiters_ceiling():
+    audio, turns = _bursty_speaker()
+    out = level_turns(audio, turns)
+    assert _peak_dbfs(out) <= -1.5 + 0.1
+    assert _flat_top_count(out) <= 10  # the integer pipeline left ~435
+
+
+def test_apply_gain_is_float_then_saturates_once():
+    seg = _voice(1, 0.5)
+    back = apply_gain(apply_gain(Audio(seg), -12), 12)
+    diff = np.abs(
+        np.array(back._get_segment().get_array_of_samples(), dtype=int)
+        - np.array(seg.get_array_of_samples(), dtype=int)
+    )
+    assert diff.max() <= 2
+
+
+# --- latency compensation only where the filter has a fixed delay ---------------
+
+
+def _onset_hp_s(audio, start, end, *, fraction=0.3, cutoff=150.0):
+    """Onset (s, from ``start``) of the content above ``cutoff`` Hz (zero-phase)."""
+    from scipy.signal import butter, sosfiltfilt
+
+    seg = audio._get_segment()
+    data = np.array(seg.get_array_of_samples(), dtype=float)
+    data = sosfiltfilt(butter(4, cutoff, "highpass", fs=RATE, output="sos"), data)
+    window = np.abs(data[int(start * RATE) : int(end * RATE)])
+    return int(np.argmax(window > fraction * window.max())) / RATE
+
+
+def test_hum_does_not_misalign_chain_or_denoise():
+    """Strong 60 Hz hum makes signal cross-correlation periodic; an EQ chain
+    must not be "compensated" at all, and denoise only by its probed delay."""
+    t = np.arange(6 * RATE) / RATE
+    x = 0.3 * np.sin(2 * np.pi * 60 * t)
+    for onset in (1.0, 3.6):
+        span = (t >= onset) & (t < onset + 1.5)
+        x[span] += (
+            0.3
+            * sum(np.sin(2 * np.pi * 220 * h * t[span]) / h for h in (1, 2, 3, 4))
+            / 2
+        )
+    audio = Audio(_pcm(x))
+    turns = [("s", 0.5, 2.8), ("s", 3.1, 5.4)]
+    out = level_turns(audio, turns, chains={"s": "highpass=f=80"}, denoise_above=-200)
+    for _, s, e in turns:
+        before, after = _onset_hp_s(audio, s, e), _onset_hp_s(out, s, e)
+        assert abs(after - before) < 0.005, (before, after)
+
+
+# --- sample formats -------------------------------------------------------------
+
+
+def test_8bit_input_round_trips_and_levels():
+    seg = _voice(4, 0.2).set_sample_width(1)
+    same = apply_ffmpeg_filter(Audio(seg), "volume=1")
+    a = np.array(seg.get_array_of_samples(), dtype=int)
+    b = np.array(same._get_segment().get_array_of_samples(), dtype=int)
+    assert np.abs(a - b).max() <= 1  # pydub's 8-bit is signed; read as such
+    out = level_turns(Audio(seg), [("a", 0.5, 3.5)], denoise=None)
+    assert out._get_segment().sample_width == 1
+    assert len(out._get_segment().raw_data) == len(seg.raw_data)
+    assert loudness(out[0.5:3.5]) == pytest.approx(-16, abs=1.0)
+
+
+def test_stereo_through_level_turns():
+    gaps = _silence(0.8)
+    left = _voice(3, 0.5, seed=1) + gaps + _voice(3, 0.04, freq=140, seed=2)
+    right = _voice(3, 0.3, seed=3) + gaps + _voice(3, 0.06, freq=150, seed=4)
+    audio = Audio(_stereo(left, right))
+    turns = [("a", 0.0, 3.0), ("b", 3.8, 6.8)]
+    out = level_turns(audio, turns)
+    assert out._get_segment().channels == 2
+    assert out.duration == pytest.approx(audio.duration, abs=1e-3)
+    for _, s, e in turns:
+        assert loudness(out[s:e]) == pytest.approx(-16, abs=1.0)
+
+
+def test_24bit_wav_through_level_turns(tmp_path):
+    path = tmp_path / "v24.wav"
+    (_voice(3, 0.5, seed=1) + _silence(0.8) + _voice(3, 0.06, freq=140, seed=2)).export(
+        str(path), format="wav", parameters=["-acodec", "pcm_s24le"]
+    )
+    audio = Audio(str(path))
+    turns = [("a", 0.0, 3.0), ("b", 3.8, 6.8)]
+    out = level_turns(audio, turns)
+    assert out.duration == pytest.approx(audio.duration, abs=1e-3)
+    assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+    for _, s, e in turns:
+        assert loudness(out[s:e]) == pytest.approx(-16, abs=1.0)
+
+
+# --- validation and warnings ----------------------------------------------------
+
+
+@pytest.mark.parametrize("ceiling_db", [0.5, -30.0])
+def test_ceiling_db_out_of_range_raises(ceiling_db):
+    audio, turns = _three_speakers()
+    with pytest.raises(ValueError, match="ceiling_db"):
+        level_turns(audio, turns, ceiling_db=ceiling_db)
+
+
+def test_turn_below_gate_is_left_untouched_with_warning():
+    t = np.arange(2 * RATE) / RATE
+    audio = Audio(_pcm(1e-4 * np.sin(2 * np.pi * 1000 * t)))  # ~3 LSB, < -70 LUFS
+    with pytest.warns(UserWarning, match="gate"):
+        out = level_turns(audio, [("q", 0.2, 1.8)])
+    assert out._get_segment().raw_data == audio._get_segment().raw_data
