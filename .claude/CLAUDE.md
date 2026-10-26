@@ -33,6 +33,7 @@ Focused subpackages, each with a clear dependency footprint:
 
 | Module | Purpose | Heavy deps |
 |---|---|---|
+| `mixing.loudness` | array-only loudness: `integrated_lufs(meter=)` (numpy / ffmpeg_ebur128 / pyloudnorm / callable), `level_group`, `limit_peaks` (sample or true peak), `true_peak_db`; `mixing.audio.leveling` builds its `Audio` layer on it | `numpy`, `scipy` (extra `loudness`; no media stack) |
 | `mixing.audio` | `Audio`/`AudioSamples`, fades, crop, concat, overlay, `loop_audio`, `duck_audio`, `find_audio_offset`, segmentation | `pydub`, `numpy`, `scipy` |
 | `mixing.audio.beats` | `beat_grid`/`BeatGrid` — beat/downbeat/onset analysis | `librosa` (extra `beats`, lazy-imported) |
 | `mixing.audio.tagging` | `WindowProbabilities` + `ast_audioset_classifier`: the classifier seam behind `find_segments(strategy="audioset")` (songs vs jingles vs talk on radio shows) | `torch`, `transformers` (extra `ml`, lazy-imported) |
@@ -133,7 +134,7 @@ pydub, numpy, pillow, burns, looks); importing either without it raises an
 called at the top of both package `__init__`s). Tests install it via `testing`.
 
 `pip install mixing[<extra>]`: `media` (see above), `audio` (ffmpeg-python/soundfile, on top of `media`),
-`widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for
+`loudness` (numpy + scipy, for `mixing.loudness`), `widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for
 chapter titling + SRT translation), `clipboard` (`pyclip`), `beats` (`librosa`,
 for `mixing.audio.beats.beat_grid`), `ml` (`torch` + `transformers`, for the `"audioset"` segmentation strategy), `dev`/`testing`.
 Tests needing a model download are marked `slow` and skip unless `MIXING_RUN_SLOW=1`.
