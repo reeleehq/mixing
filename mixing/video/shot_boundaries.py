@@ -8,7 +8,8 @@ Method: sample the video at a low frame rate (default 2 fps) as tiny grayscale
 frames through ffmpeg, take the mean absolute difference between consecutive
 frames, and call a boundary wherever that change exceeds a threshold. The
 default threshold is adaptive (robust to a video's own noise level).
-Boundaries are therefore resolved to ``1 / fps`` seconds; raise ``fps`` for
+Boundaries are therefore accurate to about ``1 / fps`` seconds (a cut is
+reported at the nearest sample); raise ``fps`` for
 finer cuts.
 
 The pure stages (:func:`frame_changes`, :func:`adaptive_threshold`,
@@ -23,6 +24,7 @@ any source, and ``sampler`` lets a caller swap the frame source.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Callable
@@ -43,6 +45,9 @@ ADAPTIVE_THRESHOLD_SIGMAS = 6.0
 #: Never go below this mean abs difference (0-255 scale); noise-only videos
 #: would otherwise have a threshold near zero.
 MIN_SHOT_THRESHOLD = 8.0
+#: ...and never above this: when cuts are frequent (a page every 0.5 s) the
+#: median change *is* a cut, and an uncapped threshold would sit above all of them.
+MAX_SHOT_THRESHOLD = 30.0
 #: Scale turning a median absolute deviation into a standard deviation.
 _MAD_TO_SIGMA = 1.4826
 
@@ -81,28 +86,43 @@ def adaptive_threshold(
     *,
     sigmas: float = ADAPTIVE_THRESHOLD_SIGMAS,
     floor: float = MIN_SHOT_THRESHOLD,
+    ceiling: float = MAX_SHOT_THRESHOLD,
 ) -> float:
-    """Median change plus ``sigmas`` robust deviations, never below ``floor``."""
+    """Median change plus ``sigmas`` robust deviations, clamped to ``[floor, ceiling]``."""
     if len(changes) == 0:
         return floor
     median = float(np.median(changes))
     mad = float(np.median(np.abs(changes - median)))
-    return max(floor, median + sigmas * _MAD_TO_SIGMA * mad)
+    return min(ceiling, max(floor, median + sigmas * _MAD_TO_SIGMA * mad))
 
 
 def spans_from_changes(
-    changes: np.ndarray, *, fps: float, threshold: float
+    changes: np.ndarray, *, fps: float, threshold: float, duration: float | None = None
 ) -> list[Span]:
     """Turn per-frame changes into ``[(start, end), ...]`` shot spans.
 
     ``changes[i]`` is the change between frames ``i`` and ``i + 1``; a value
     above ``threshold`` puts a boundary at time ``(i + 1) / fps``. The spans
-    tile ``[0, (len(changes) + 1) / fps]`` with no gaps.
+    tile ``[0, duration]`` with no gaps; ``duration`` defaults to the sampled
+    length ``(len(changes) + 1) / fps``. Cuts at or past ``duration`` are dropped.
     """
-    n_frames = len(changes) + 1
+    end = (len(changes) + 1) / fps if duration is None else float(duration)
     cuts = [(i + 1) / fps for i in np.flatnonzero(changes > threshold)]
-    edges = [0.0, *cuts, n_frames / fps]
-    return list(zip(edges[:-1], edges[1:]))
+    edges = [0.0, *(c for c in cuts if c < end), end]
+    return [(float(a), float(b)) for a, b in zip(edges[:-1], edges[1:])]
+
+
+_DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
+def probe_duration(video) -> float | None:
+    """Container duration in seconds via ``ffmpeg -i``, or ``None`` if unknown."""
+    proc = subprocess.run([ffmpeg_exe(), "-i", str(video)], capture_output=True)
+    match = _DURATION_RE.search(proc.stderr.decode(errors="replace"))
+    if match is None:
+        return None
+    h, m, sec = match.groups()
+    return int(h) * 3600 + int(m) * 60 + float(sec)
 
 
 def shots(
@@ -123,16 +143,20 @@ def shots(
             seam for another frame source or a PySceneDetect-style strategy.
 
     Returns:
-        Spans in seconds that tile the sampled duration; a video with no cut is
-        one span. An empty list if no frame could be decoded.
+        Spans in seconds that tile the video's duration (the sampled length for
+        a custom ``sampler``); a video with no cut is one span. A short dissolve
+        shows up as a short fake shot. An empty list if nothing could be decoded.
     """
+    if fps <= 0:
+        raise ValueError(f"fps must be > 0, got {fps}")
     frames = sampler(video, fps=fps)
+    duration = probe_duration(video) if sampler is sample_frames else None
     if len(frames) == 0:
-        return []
+        return [] if not duration else [(0.0, float(duration))]
     changes = frame_changes(frames)
     if threshold is None:
         threshold = adaptive_threshold(changes)
-    return spans_from_changes(changes, fps=fps, threshold=threshold)
+    return spans_from_changes(changes, fps=fps, threshold=threshold, duration=duration)
 
 
 def _frame_at(video, t: float, *, width: int):
@@ -170,6 +194,7 @@ def contact_sheet(
         raise ValueError("contact_sheet needs at least one span")
     thumbs = [_frame_at(video, (a + b) / 2, width=thumb_width) for a, b in spans]
     cell_w, cell_h = thumbs[0].size
+    columns = min(columns, len(thumbs))
     rows = -(-len(thumbs) // columns)
     sheet = Image.new("RGB", (columns * cell_w, rows * cell_h))
     for i, thumb in enumerate(thumbs):

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from mixing.video.shot_boundaries import (
+    probe_duration,
     adaptive_threshold,
     contact_sheet,
     frame_changes,
@@ -56,5 +57,52 @@ def test_real_video_cuts(tmp_path):
     assert len(spans) == 2
     assert spans[0][1] == pytest.approx(2.0, abs=0.5)
     sheet = contact_sheet(out, spans)
-    assert sheet.size[0] > 0
+    assert sheet.size[0] == 2 * 240  # two thumbnails, two columns
     assert contact_sheet(out, spans, output=tmp_path).exists()
+
+
+def test_dense_cuts_are_not_swallowed_by_the_adaptive_threshold():
+    changes = np.array([50.0] * 7 + [0.5] * 3)
+    assert adaptive_threshold(changes) < 50.0
+    assert (
+        len(spans_from_changes(changes, fps=2, threshold=adaptive_threshold(changes)))
+        == 8
+    )
+
+
+def test_last_span_ends_at_duration():
+    spans = spans_from_changes(np.array([0.0, 50.0]), fps=1, threshold=8, duration=2.7)
+    assert spans == [(0.0, 2.0), (2.0, 2.7)]
+    assert spans_from_changes(np.array([]), fps=1, threshold=8, duration=0.12) == [
+        (0.0, 0.12)
+    ]
+
+
+def test_bad_fps():
+    with pytest.raises(ValueError):
+        shots("x", fps=0)
+
+
+def test_real_video_duration_and_dense_cuts(tmp_path):
+    import subprocess
+
+    from mixing.util import ffmpeg_exe
+
+    out = tmp_path / "pages.mp4"
+    colors = ["red", "blue", "green", "white", "black", "yellow"]
+    inputs = [
+        a
+        for c in colors
+        for a in ("-f", "lavfi", "-i", f"color={c}:s=160x90:d=0.5:r=10")
+    ]
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", *inputs, "-filter_complex",
+         f"concat=n={len(colors)}:v=1[v]", "-map", "[v]", str(out)],
+        check=True,
+    )  # fmt: skip
+    assert probe_duration(out) == pytest.approx(3.0, abs=0.1)
+    spans = shots(out, fps=4)
+    assert len(spans) == len(colors)
+    assert spans[-1][1] == pytest.approx(3.0, abs=0.1)
+    sheet = contact_sheet(out, spans, columns=3)
+    assert sheet.size[0] == 3 * 240 and sheet.size[1] % 2 == 0
