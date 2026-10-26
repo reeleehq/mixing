@@ -1,4 +1,4 @@
-> built 2026-10-26 12:25 UTC from 45b7cc4 (main) · mixing 0.0.59. Details: build_info.json
+> built 2026-10-26 15:20 UTC from dac2f30 (main) · mixing 0.0.60. Details: build_info.json
 
 # index.html.md
 
@@ -124,7 +124,7 @@ logging.basicConfig(level=logging.INFO)  # or level=logging.ERROR for errors onl
   Debian/Ubuntu: `sudo apt install ffmpeg`; Windows: download from
   [ffmpeg.org](https://ffmpeg.org/download.html) and add `bin` to PATH.
 - **ElevenLabs API key** for `mixing.transcript` / `mixing.dubbing`
-  (`ELEVENLABS_API_KEY`, or pass `api_key=`). Responses are cached on disk, so
+  (`ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`, or pass `api_key=`). Responses are cached on disk, so
   re-runs are free and offline.
 - **Google Cloud** auth for AI video generation
   (`mixing.video.genai`, Vertex AI Veo).
@@ -144,15 +144,15 @@ pip install mixing[ml]         # torch + transformers — find_segments(strategy
 
 ## What’s inside
 
-| Subpackage           | Highlights                                                                                                                                                                                                                                                                                                                     |
-|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `find_talk_edges` (host talk at a song’s start/end), `beat_grid`/`BeatGrid` (extra `beats`) |
-| `mixing.video`       | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES`                        |
-| `mixing.video.genai` | `generate_video` (Vertex AI Veo)                                                                                                                                                                                                                                                                                               |
-| `mixing.transcript`  | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose`                                                                                                                                                                                                                                               |
-| `mixing.chapters`    | `detect_chapters`, `Chapter`                                                                                                                                                                                                                                                                                                   |
-| `mixing.dubbing`     | `text_to_speech`, `list_voices`, `translate_srt`, `dub_video_from_srt`                                                                                                                                                                                                                                                         |
-| `mixing.srt`         | `Cue`, `parse_srt`, `dump_srt`, `seconds_to_srt_time`                                                                                                                                                                                                                                                                          |
+| Subpackage           | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mixing.audio`       | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `find_talk_edges` (host talk at a song’s start/end), `beat_grid`/`BeatGrid` (extra `beats`), `loudness` (BS.1770 LUFS), `level_turns` (per-speaker loudness matching), `process_turns`, `voice_profile` (per-speaker f0/loudness/timbre), `shift_pitch` (formant-preserving with rubberband) |
+| `mixing.video`       | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES`                                                                                                                                                                                                                         |
+| `mixing.video.genai` | `generate_video` (Vertex AI Veo)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `mixing.transcript`  | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose`                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `mixing.chapters`    | `detect_chapters`, `Chapter`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `mixing.dubbing`     | `text_to_speech`, `list_voices`, `translate_srt`, `dub_video_from_srt`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `mixing.srt`         | `Cue`, `parse_srt`, `dump_srt`, `seconds_to_srt_time`                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 See the [skills]() for the full, example-driven API of each.
 
@@ -284,7 +284,7 @@ Building blocks:
 
 The HTTP clients use stdlib only (no `requests` / `elevenlabs` SDK), so
 this adds no required deps. Needs ffmpeg on PATH and an ElevenLabs API key
-(env var `ELEVENLABS_API_KEY` or explicit `api_key=`). Translation needs
+(env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) or explicit `api_key=`). Translation needs
 either the `aix` package (`pip install 'mixing[llm]'`) or a custom
 `translate_fn`.
 
@@ -373,7 +373,7 @@ its existing id instead of erroring on a duplicate add.
   * **public_owner_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `public_owner_id` from [`search_shared_voices()`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.search_shared_voices).
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The shared voice’s `voice_id`.
   * **name** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Name to give the added voice on the account.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 * **Returns:**
@@ -422,7 +422,7 @@ label keyword (e.g. `"french"`) without memorizing voice ids.
 List the voices available on the account.
 
 * **Parameters:**
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Request timeout in seconds.
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]
@@ -431,7 +431,7 @@ List the voices available on the account.
   `category`, and a `labels` dict (`accent`, `description`,
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
-  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
 
 ### mixing.dubbing.parse_srt(srt_text)
 
@@ -500,7 +500,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 * **Parameters:**
   * **text** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The text to speak.
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs voice id (see [`list_voices()`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.list_voices)).
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS model id. Defaults to `eleven_multilingual_v2`.
   * **output_format** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs `output_format` query value, e.g.
     `mp3_44100_128` (default), `mp3_44100_192` (needs a paid
@@ -526,7 +526,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   Raw audio bytes in `output_format` (MP3 by default) — or, when
   `return_cache_status` is `True`, a `(audio, was_cached)` tuple.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 ### mixing.dubbing.translate_srt(srt, target_language, , source_language=None, translate_fn=None)
@@ -776,7 +776,7 @@ its existing id instead of erroring on a duplicate add.
   * **public_owner_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `public_owner_id` from [`search_shared_voices()`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.search_shared_voices).
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The shared voice’s `voice_id`.
   * **name** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Name to give the added voice on the account.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 * **Returns:**
@@ -807,7 +807,7 @@ label keyword (e.g. `"french"`) without memorizing voice ids.
 List the voices available on the account.
 
 * **Parameters:**
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Request timeout in seconds.
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]
@@ -816,7 +816,7 @@ List the voices available on the account.
   `category`, and a `labels` dict (`accent`, `description`,
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
-  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
 
 ### mixing.dubbing.tts.search_shared_voices(, language=None, use_cases=None, gender=None, category=None, sort=None, page_size=40, api_key=None, timeout=60.0, \*\*extra_params)
 
@@ -861,7 +861,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 * **Parameters:**
   * **text** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The text to speak.
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs voice id (see [`list_voices()`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.list_voices)).
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS model id. Defaults to `eleven_multilingual_v2`.
   * **output_format** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs `output_format` query value, e.g.
     `mp3_44100_128` (default), `mp3_44100_192` (needs a paid
@@ -887,7 +887,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   Raw audio bytes in `output_format` (MP3 by default) — or, when
   `return_cache_status` is `True`, a `(audio, was_cached)` tuple.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 
@@ -1318,7 +1318,7 @@ End-to-end filler removal.
   * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`transcribe()`](_autosummary/mixing.html.md#mixing.transcribe).
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `apply_keeps()`.
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
@@ -1391,7 +1391,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 * **Parameters:**
   * **text** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The text to speak.
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs voice id (see `list_voices()`).
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS model id. Defaults to `eleven_multilingual_v2`.
   * **output_format** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs `output_format` query value, e.g.
     `mp3_44100_128` (default), `mp3_44100_192` (needs a paid
@@ -1417,7 +1417,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   Raw audio bytes in `output_format` (MP3 by default) — or, when
   `return_cache_status` is `True`, a `(audio, was_cached)` tuple.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 ### mixing.transcribe(audio, , api_key=None, model_id='scribe_v1', timestamps_granularity='word', tag_audio_events=True, diarize=False, language_code=None, extra_fields=None, timeout=600.0, cache=False, refresh=False)
@@ -1426,7 +1426,7 @@ Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
   * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
   * **tag_audio_events** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Whether to surface `(laughs)` / `(coughs)` etc.
@@ -1451,7 +1451,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   events (`type != "word"`) include `(laughs)` etc. when
   `tag_audio_events=True`.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 ### mixing.translate_srt(srt, target_language, , source_language=None, translate_fn=None)
@@ -1842,7 +1842,7 @@ timeline-aware cuts of audio/video. Produces editable transcripts
 The HTTP client uses stdlib only (no `requests` or `elevenlabs` SDK
 dependency), so the package adds no required deps. The runtime needs
 ffmpeg on PATH for media operations, and an ElevenLabs API key (env
-var `ELEVENLABS_API_KEY` or explicit `api_key=`) for transcription.
+var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) or explicit `api_key=`) for transcription.
 
 Quick start:
 
@@ -2005,7 +2005,7 @@ End-to-end filler removal.
   * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`transcribe()`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe).
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`apply_keeps()`](_autosummary/mixing.transcript.html.md#mixing.transcript.apply_keeps).
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
@@ -2044,7 +2044,7 @@ Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
   * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
   * **tag_audio_events** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Whether to surface `(laughs)` / `(coughs)` etc.
@@ -2069,7 +2069,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   events (`type != "word"`) include `(laughs)` etc. when
   `tag_audio_events=True`.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 ### mixing.transcript.words_to_prose(words, , paragraph_pause=1.2, drop_fillers=False, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}))
@@ -2231,7 +2231,7 @@ End-to-end filler removal.
   * **output_media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`None`](https://docs.python.org/3/builtins/constants.html#None)]) – Output cleaned media path. Defaults to
     `output_dir / f"{stem}.cleaned.mp4"`.
   * **audio_events** ([`Iterable`](https://docs.python.org/3/library/typing.html#typing.Iterable)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – Override the default filler / event sets.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY`).
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `transcribe()`.
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `apply_keeps()`.
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
@@ -2281,7 +2281,7 @@ Transcribe `audio` with ElevenLabs Scribe.
 
 * **Parameters:**
   * **audio** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes)]) – Path to an audio/video file, or raw bytes.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Scribe model id (currently `scribe_v1`).
   * **timestamps_granularity** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `"word"` (default), `"character"`, or `"none"`.
   * **tag_audio_events** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Whether to surface `(laughs)` / `(coughs)` etc.
@@ -2306,7 +2306,7 @@ Transcribe `audio` with ElevenLabs Scribe.
   events (`type != "word"`) include `(laughs)` etc. when
   `tag_audio_events=True`.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 
@@ -2464,18 +2464,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-26 12:25 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/45b7cc4582b48af1b0782f6f7f00d271b9e17281"><code>45b7cc4</code></a> on branch <code>main</code>, for **mixing 0.0.59** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-26 15:20 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/dac2f30f5885f0fdadba8233f4768cbd3be684ce"><code>dac2f30</code></a> on branch <code>main</code>, for **mixing 0.0.60** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.60) is ahead of the latest release on PyPI (0.0.59): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/45b7cc4582b48af1b0782f6f7f00d271b9e17281"><code>45b7cc4582b48af1b0782f6f7f00d271b9e17281</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/dac2f30f5885f0fdadba8233f4768cbd3be684ce"><code>dac2f30f5885f0fdadba8233f4768cbd3be684ce</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.59</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.60</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2484,9 +2486,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40321333504">40321333504</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40347047770">40347047770</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>8c7b43cd680a62012e509486499f6052f26ee411</code> (in the history of the built commit) |
+| Event commit | <code>044eda4c4817c0a2c84231448b440b44117b4218</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2511,13 +2513,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.59/">0.0.59</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.59/">0.0.59</a>, older than the documented version (0.0.60).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 45b7cc4582b48af1b0782f6f7f00d271b9e17281
+git checkout dac2f30f5885f0fdadba8233f4768cbd3be684ce
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
@@ -2547,7 +2549,7 @@ Source: [`.claude/skills/mixing`](https://github.com/thorwhalen/mixing/tree/HEAD
 
 ### `mixing-audio`
 
-Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “find the songs in this radio show / tape”, “songs vs jingles vs DJ talk”, “what did the host say before each song”, “trim the DJ talk off the start/end of each song”, “where does the host stop talking”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
+Use for AUDIO editing with the `mixing` package: trim/crop a clip, fade in or fade out, join/concatenate clips (with optional crossfade), mix music under a voice or overlay one track on another, loop a short bed to a target length, duck a bed under dialogue, normalize loudness, convert to mono, resample, peek at raw samples, align two recordings of the same performance, or split a long recording (concert, DJ mix, radio show, podcast) into segments. Trigger on phrasings like “trim audio”, “fade out the end”, “join these audio clips”, “add background music under the narration”, “make it louder / normalize”, “convert to mono”, “align two recordings”, “find the offset between these takes”, “split a concert into songs”, “separate speech from music”, “find the songs in this radio show / tape”, “songs vs jingles vs DJ talk”, “what did the host say before each song”, “trim the DJ talk off the start/end of each song”, “where does the host stop talking”, “loop this ambient clip to N seconds”, “duck the music under the dialogue”, “level the speakers”, “one speaker is too quiet”, “match loudness per speaker / LUFS”, “this voice sounds too low”, “measure the pitch / f0 of each speaker”, “shift the pitch up two semitones”. For video audio (replace/normalize a video’s track) use mixing-video; this skill is audio-file → audio-file.
 
 Source: [`.claude/skills/mixing-audio`](https://github.com/thorwhalen/mixing/tree/HEAD/.claude/skills/mixing-audio).
 

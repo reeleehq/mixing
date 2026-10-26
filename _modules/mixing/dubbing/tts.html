@@ -270,7 +270,7 @@
 </span><span id="line-95"><span class="sd">    Args:</span>
 </span><span id="line-96"><span class="sd">        text: The text to speak.</span>
 </span><span id="line-97"><span class="sd">        voice_id: ElevenLabs voice id (see :func:`list_voices`).</span>
-</span><span id="line-98"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.</span>
+</span><span id="line-98"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).</span>
 </span><span id="line-99"><span class="sd">        model_id: TTS model id. Defaults to ``eleven_multilingual_v2``.</span>
 </span><span id="line-100"><span class="sd">        output_format: ElevenLabs ``output_format`` query value, e.g.</span>
 </span><span id="line-101"><span class="sd">            ``mp3_44100_128`` (default), ``mp3_44100_192`` (needs a paid</span>
@@ -296,7 +296,7 @@
 </span><span id="line-121"><span class="sd">        ``return_cache_status`` is ``True``, a ``(audio, was_cached)`` tuple.</span>
 </span><span id="line-122">
 </span><span id="line-123"><span class="sd">    Raises:</span>
-</span><span id="line-124"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.</span>
+</span><span id="line-124"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.</span>
 </span><span id="line-125"><span class="sd">        urllib.error.HTTPError: Request failed (4xx/5xx).</span>
 </span><span id="line-126"><span class="sd">    """</span>
 </span><span id="line-127">    <span class="n">settings</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">DFLT_VOICE_SETTINGS</span><span class="p">,</span> <span class="o">**</span><span class="p">(</span><span class="n">voice_settings</span> <span class="ow">or</span> <span class="p">{})}</span>
@@ -382,7 +382,7 @@
 </span><span id="line-201"><span class="w">    </span><span class="sd">"""List the voices available on the account.</span>
 </span><span id="line-202">
 </span><span id="line-203"><span class="sd">    Args:</span>
-</span><span id="line-204"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.</span>
+</span><span id="line-204"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).</span>
 </span><span id="line-205"><span class="sd">        timeout: Request timeout in seconds.</span>
 </span><span id="line-206">
 </span><span id="line-207"><span class="sd">    Returns:</span>
@@ -391,7 +391,7 @@
 </span><span id="line-210"><span class="sd">        ``age``, ``gender``, ``use_case``) describing the voice.</span>
 </span><span id="line-211">
 </span><span id="line-212"><span class="sd">    Raises:</span>
-</span><span id="line-213"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.</span>
+</span><span id="line-213"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.</span>
 </span><span id="line-214"><span class="sd">    """</span>
 </span><span id="line-215">    <span class="n">api_key</span> <span class="o">=</span> <span class="n">resolve_api_key</span><span class="p">(</span><span class="n">api_key</span><span class="p">)</span>
 </span><span id="line-216">    <span class="n">req</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">Request</span><span class="p">(</span>
@@ -481,7 +481,7 @@
 </span><span id="line-294"><span class="sd">        public_owner_id: ``public_owner_id`` from :func:`search_shared_voices`.</span>
 </span><span id="line-295"><span class="sd">        voice_id: The shared voice's ``voice_id``.</span>
 </span><span id="line-296"><span class="sd">        name: Name to give the added voice on the account.</span>
-</span><span id="line-297"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.</span>
+</span><span id="line-297"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).</span>
 </span><span id="line-298">
 </span><span id="line-299"><span class="sd">    Returns:</span>
 </span><span id="line-300"><span class="sd">        The account-local ``voice_id`` to pass to :func:`text_to_speech`.</span>
@@ -565,7 +565,7 @@
 </footer>
     </div>
     
-    <script src="../../../_static/documentation_options.js?v=6799126d"></script>
+    <script src="../../../_static/documentation_options.js?v=4d22d5b7"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -232,7 +232,7 @@
 </span><span id="line-57">
 </span><span id="line-58"><span class="sd">    Args:</span>
 </span><span id="line-59"><span class="sd">        audio: Path to an audio/video file, or raw bytes.</span>
-</span><span id="line-60"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.</span>
+</span><span id="line-60"><span class="sd">        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).</span>
 </span><span id="line-61"><span class="sd">        model_id: Scribe model id (currently ``scribe_v1``).</span>
 </span><span id="line-62"><span class="sd">        timestamps_granularity: ``"word"`` (default), ``"character"``, or ``"none"``.</span>
 </span><span id="line-63"><span class="sd">        tag_audio_events: Whether to surface ``(laughs)`` / ``(coughs)`` etc.</span>
@@ -257,7 +257,7 @@
 </span><span id="line-82"><span class="sd">        ``tag_audio_events=True``.</span>
 </span><span id="line-83">
 </span><span id="line-84"><span class="sd">    Raises:</span>
-</span><span id="line-85"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.</span>
+</span><span id="line-85"><span class="sd">        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.</span>
 </span><span id="line-86"><span class="sd">        urllib.error.HTTPError: Request failed (4xx/5xx).</span>
 </span><span id="line-87"><span class="sd">    """</span>
 </span><span id="line-88">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audio</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Path</span><span class="p">)):</span>
@@ -378,7 +378,7 @@
 </footer>
     </div>
     
-    <script src="../../../_static/documentation_options.js?v=6799126d"></script>
+    <script src="../../../_static/documentation_options.js?v=4d22d5b7"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>

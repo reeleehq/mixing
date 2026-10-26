@@ -119,10 +119,13 @@
 
 <section id="about-this-build">
 <h1>About this build<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#about-this-build">¶</a></h1>
-<p>This documentation was built on <strong>2026-10-26 12:25 UTC</strong> from commit <a href="https://github.com/reeleehq/mixing/commit/45b7cc4582b48af1b0782f6f7f00d271b9e17281"><code>45b7cc4</code></a> on branch <code>main</code>, for <strong>mixing 0.0.59</strong> (from <code>pyproject.toml</code>).</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.</p>
+<p>This documentation was built on <strong>2026-10-26 15:20 UTC</strong> from commit <a href="https://github.com/reeleehq/mixing/commit/dac2f30f5885f0fdadba8233f4768cbd3be684ce"><code>dac2f30</code></a> on branch <code>main</code>, for <strong>mixing 0.0.60</strong> (from <code>pyproject.toml</code>).</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The documentation and the package may be misaligned:</p>
+<ul class="simple">
+<li><p>The documented version (0.0.60) is ahead of the latest release on PyPI (0.0.59): these docs describe unreleased code.</p></li>
+</ul>
 </div>
 <section id="source">
 <h2>Source<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#source" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#source'">¶</a></h2>
@@ -134,13 +137,13 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Commit</p></td>
-<td><p><a href="https://github.com/reeleehq/mixing/commit/45b7cc4582b48af1b0782f6f7f00d271b9e17281"><code>45b7cc4582b48af1b0782f6f7f00d271b9e17281</code></a></p></td>
+<td><p><a href="https://github.com/reeleehq/mixing/commit/dac2f30f5885f0fdadba8233f4768cbd3be684ce"><code>dac2f30f5885f0fdadba8233f4768cbd3be684ce</code></a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Branch</p></td>
 <td><p><code>main</code></p></td>
 </tr>
 <tr class="row-even"><td><p>Tags at this commit</p></td>
-<td><p><code>0.0.59</code></p></td>
+<td><p><code>0.0.60</code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Working tree</p></td>
 <td><p>clean</p></td>
@@ -164,13 +167,13 @@
 <td><p><code>reeleehq/mixing</code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Run</p></td>
-<td><p><a href="https://github.com/reeleehq/mixing/actions/runs/40321333504">40321333504</a></p></td>
+<td><p><a href="https://github.com/reeleehq/mixing/actions/runs/40347047770">40347047770</a></p></td>
 </tr>
 <tr class="row-even"><td><p>Ref</p></td>
 <td><p><code>refs/heads/main</code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Event commit</p></td>
-<td><p><code>8c7b43cd680a62012e509486499f6052f26ee411</code> (in the history of the built commit)</p></td>
+<td><p><code>044eda4c4817c0a2c84231448b440b44117b4218</code> (in the history of the built commit)</p></td>
 </tr>
 </tbody>
 </table>
@@ -234,13 +237,13 @@
 </section>
 <section id="package-on-pypi">
 <h2>Package on PyPI<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#package-on-pypi" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#package-on-pypi'">¶</a></h2>
-<p>Latest release: <a href="https://pypi.org/project/mixing/0.0.59/">0.0.59</a>, the same as the documented version.</p>
+<p>Latest release: <a href="https://pypi.org/project/mixing/0.0.59/">0.0.59</a>, older than the documented version (0.0.60).</p>
 </section>
 <section id="site"><h2>Site</h2><table class="docutils align-default"><tbody><tr><td><p>Modules documented</p></td><td><p>16</p></td></tr><tr><td><p>Objects documented</p></td><td><p>140</p></td></tr></tbody></table></section>
 <section id="reproduce">
 <h2>Reproduce<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#reproduce" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#reproduce'">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">git<span class="w"> </span>clone<span class="w"> </span>https://github.com/reeleehq/mixing<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>mixing
-</span><span id="line-2">git<span class="w"> </span>checkout<span class="w"> </span>45b7cc4582b48af1b0782f6f7f00d271b9e17281
+</span><span id="line-2">git<span class="w"> </span>checkout<span class="w"> </span>dac2f30f5885f0fdadba8233f4768cbd3be684ce
 </span><span id="line-3">pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"epythet==0.2.22"</span>
 </span><span id="line-4">epythet<span class="w"> </span>quickstart<span class="w"> </span>.<span class="w"> </span>--ignore<span class="w"> </span>tests/<span class="w"> </span>scrap/<span class="w"> </span>examples/
 </span></code></pre></div>
@@ -270,7 +273,7 @@
 </div>
 </footer>
 </div>
-<script src="_static/documentation_options.js?v=6799126d"></script>
+<script src="_static/documentation_options.js?v=4d22d5b7"></script>
 <script src="_static/doctools.js?v=fd6eb6e6"></script>
 <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="_static/clipboard.min.js?v=a7894cd8"></script>

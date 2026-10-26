@@ -17,7 +17,7 @@ Building blocks:
 
 The HTTP clients use stdlib only (no `requests` / `elevenlabs` SDK), so
 this adds no required deps. Needs ffmpeg on PATH and an ElevenLabs API key
-(env var `ELEVENLABS_API_KEY` or explicit `api_key=`). Translation needs
+(env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) or explicit `api_key=`). Translation needs
 either the `aix` package (`pip install 'mixing[llm]'`) or a custom
 `translate_fn`.
 
@@ -106,7 +106,7 @@ its existing id instead of erroring on a duplicate add.
   * **public_owner_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – `public_owner_id` from [`search_shared_voices()`](#mixing.dubbing.search_shared_voices).
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The shared voice’s `voice_id`.
   * **name** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Name to give the added voice on the account.
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 * **Returns:**
@@ -155,7 +155,7 @@ label keyword (e.g. `"french"`) without memorizing voice ids.
 List the voices available on the account.
 
 * **Parameters:**
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **timeout** ([`float`](https://docs.python.org/3/builtins/functions.html#float)) – Request timeout in seconds.
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Any`](https://docs.python.org/3/library/typing.html#typing.Any)]]
@@ -164,7 +164,7 @@ List the voices available on the account.
   `category`, and a `labels` dict (`accent`, `description`,
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
-  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
 
 ### mixing.dubbing.parse_srt(srt_text)
 
@@ -233,7 +233,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
 * **Parameters:**
   * **text** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – The text to speak.
   * **voice_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs voice id (see [`list_voices()`](#mixing.dubbing.list_voices)).
-  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY`.
+  * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – API key. Falls back to env var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`).
   * **model_id** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – TTS model id. Defaults to `eleven_multilingual_v2`.
   * **output_format** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – ElevenLabs `output_format` query value, e.g.
     `mp3_44100_128` (default), `mp3_44100_192` (needs a paid
@@ -259,7 +259,7 @@ Synthesize `text` to speech with ElevenLabs and return audio bytes.
   Raw audio bytes in `output_format` (MP3 by default) — or, when
   `return_cache_status` is `True`, a `(audio, was_cached)` tuple.
 * **Raises:**
-  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` unset.
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
   * [**HTTPError**](https://docs.python.org/3/library/urllib.error.html#urllib.error.HTTPError) – Request failed (4xx/5xx).
 
 ### mixing.dubbing.translate_srt(srt, target_language, , source_language=None, translate_fn=None)
