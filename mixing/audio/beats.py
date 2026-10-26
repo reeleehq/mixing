@@ -28,6 +28,7 @@ import numpy as np
 
 from ..util import require_package
 from .audio_util import AudioSource, _normalize_audio_source
+from .samples import segment_samples
 
 #: Default analysis sample rate. 22.05 kHz is librosa's default and ample for beat/onset.
 DEFAULT_SAMPLE_RATE = 22050
@@ -73,12 +74,7 @@ def _load_mono_float(source: AudioSource, sample_rate: int) -> np.ndarray:
     """Load any :data:`AudioSource` as a mono float array in ~[-1, 1] at ``sample_rate``."""
     seg = _normalize_audio_source(source, target_type="AudioSegment")
     seg = seg.set_channels(1).set_frame_rate(sample_rate)
-    x = np.array(seg.get_array_of_samples(), dtype=np.float64)
-    # pydub yields integer PCM; scale to ~[-1, 1] by the sample width's full-scale value.
-    full_scale = float(1 << (8 * seg.sample_width - 1))
-    if full_scale > 0:
-        x = x / full_scale
-    return x
+    return segment_samples(seg)[:, 0]
 
 
 def beat_grid(

@@ -4,7 +4,8 @@
 meter (K-weighting, 400 ms blocks, absolute and relative gating) in pure
 numpy/scipy, so measuring needs no ffmpeg. ``level_turns`` uses it to bring
 every speaker turn of a recording to the same loudness, which whole-track peak
-normalisation (:meth:`Audio.normalize`) cannot do.
+normalisation (:meth:`Audio.normalize`) cannot do. ``loudness_range`` (EBU
+Tech 3342 LRA) and ``true_peak_db`` (4x oversampled) sit beside it.
 
 ``level_turns`` is :func:`mixing.audio.turns.process_turns` with a chain of
 stages per turn, all run on the turn padded by ``pad_s`` (so filters settle):
@@ -29,13 +30,14 @@ import subprocess
 import warnings
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Mapping, Sequence, Union
+from typing import Callable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
 from ..egress import Output, deliver
 from ..util import ffmpeg_exe
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
+from .samples import as_audio, audio_samples, segment_samples, to_audio
 from .turns import DEFAULT_PAD_S, Core, Turn, conform_segment, process_turns
 
 AudioFilter = Union[str, Callable[[Audio], Audio]]  # ffmpeg filter string or callable
@@ -51,6 +53,23 @@ _LUFS_OFFSET = -0.691
 _SHELF = dict(f0=1681.974450955533, gain_db=3.999843853973347, q=0.7071752369554196)
 _SHELF_VB_EXPONENT = 0.4996667741545416
 _HIGHPASS = dict(f0=38.13547087602444, q=0.5003270373238773)
+
+#: Seconds filtered at a time when metering (bounds peak memory).
+FILTER_CHUNK_S = 60.0
+# EBU Tech 3342 loudness range: 3 s short-term windows, relative gate -20 LU,
+# the spread between the 10th and 95th percentile of the gated windows.
+LRA_WINDOW_S = 3.0
+LRA_HOP_S = 1.0
+LRA_RELATIVE_GATE_LU = -20.0
+LRA_PERCENTILES = (10.0, 95.0)
+#: True-peak (BS.1770 Annex 2) oversampling factor.
+TRUE_PEAK_OVERSAMPLING = 4
+#: The true-peak interpolation is meant for >= 48 kHz; below that the factor is
+#: raised so the oversampled rate reaches this.
+TRUE_PEAK_MIN_RATE = 192_000
+#: Context (s) shared by neighbouring chunks so the upsampling filter does not
+#: ring at chunk joins.
+TRUE_PEAK_MARGIN_S = 0.1
 
 # --- level_turns defaults ----------------------------------------------------
 DEFAULT_TARGET_LUFS = -16.0
@@ -92,39 +111,6 @@ LATENCY_MIN_CORRELATION = 0.5
 LATENCY_MIN_ADVANTAGE = 0.05
 
 _FLOAT_PCM = "f64le"
-_INT_DTYPES = {1: np.int8, 2: np.int16, 4: np.int32}  # pydub stores 8-bit signed
-
-
-# --- samples <-> Audio ----------------------------------------------------------
-
-
-def _segment_samples(segment) -> np.ndarray:
-    """Float samples ``(n, channels)`` in [-1, 1] of a pydub segment."""
-    data = np.array(segment.get_array_of_samples(), dtype=np.float64)
-    return data.reshape(-1, segment.channels) / float(
-        1 << (8 * segment.sample_width - 1)
-    )
-
-
-def _samples(audio: Audio) -> tuple[np.ndarray, int]:
-    """``(float samples shaped (n, channels) in [-1, 1], rate)`` of ``audio``."""
-    segment = audio._get_segment()
-    return _segment_samples(segment), segment.frame_rate
-
-
-def _to_audio(data: np.ndarray, like, *, time_unit: str = "seconds") -> Audio:
-    """Float ``data`` as an :class:`Audio` with ``like``'s rate, channels, width.
-
-    Values beyond full scale **saturate** (integer PCM has no headroom).
-    """
-    width = like.sample_width
-    full_scale = float(1 << (8 * width - 1))
-    ints = np.clip(np.round(data * full_scale), -full_scale, full_scale - 1)
-    if width == 3:  # pydub converts 24-bit to 32-bit, but be safe
-        raw = ints.astype("<i4").view(np.uint8).reshape(-1, 4)[:, :3].tobytes()
-    else:
-        raw = ints.astype(_INT_DTYPES[width]).tobytes()
-    return Audio(like._spawn(raw), time_unit=time_unit)
 
 
 # --- measurement ----------------------------------------------------------------
@@ -155,28 +141,60 @@ def _lufs(mean_square: float) -> float:
     return _LUFS_OFFSET + 10.0 * np.log10(mean_square) if mean_square > 0 else -np.inf
 
 
-def _integrated_lufs(data: np.ndarray, fs: int) -> float:
-    """BS.1770-4 gated integrated loudness of float samples ``(n, channels)``."""
+def _k_weighted_energy(data: np.ndarray, fs: int, *, chunk_s: float) -> np.ndarray:
+    """Channel-summed squared K-weighted samples, ``(n,)``.
+
+    Filters ``chunk_s`` seconds at a time, carrying the filter state across
+    chunks, so peak memory is a few chunks of float64 rather than several
+    copies of the whole (possibly hours-long, stereo) signal.
+    """
     from scipy.signal import lfilter
 
-    if len(data) == 0:
-        return -np.inf
-    for b, a in _k_weighting_coefficients(fs):
-        data = lfilter(b, a, data, axis=0)
-    energy = (data**2).sum(axis=1)  # channel-summed, per sample
-    block, hop = int(round(BLOCK_S * fs)), int(round(BLOCK_HOP_S * fs))
+    sections = _k_weighting_coefficients(fs)
+    states = [np.zeros((2, data.shape[1])) for _ in sections]  # biquads: order 2
+    energy = np.empty(len(data))
+    step = max(1, int(round(chunk_s * fs)))
+    for start in range(0, len(data), step):
+        x = data[start : start + step]
+        for k, (b, a) in enumerate(sections):
+            x, states[k] = lfilter(b, a, x, axis=0, zi=states[k])
+        energy[start : start + step] = (x**2).sum(axis=1)
+    return energy
+
+
+def _block_mean_squares(
+    energy: np.ndarray, fs: int, *, block_s: float, hop_s: float
+) -> np.ndarray:
+    """Mean square of every ``block_s`` window at ``hop_s`` spacing (one block if short)."""
+    block, hop = int(round(block_s * fs)), int(round(hop_s * fs))
     if len(energy) < block:
         block, hop = len(energy), len(energy)
     cumulative = np.concatenate([[0.0], np.cumsum(energy)])
     starts = np.arange(0, len(energy) - block + 1, hop)
-    block_ms = (cumulative[starts + block] - cumulative[starts]) / block
-    block_lufs = np.array([_lufs(ms) for ms in block_ms])
+    return (cumulative[starts + block] - cumulative[starts]) / block
 
-    kept = block_ms[block_lufs > ABSOLUTE_GATE_LUFS]
-    if len(kept) == 0:
+
+def _gated(block_ms: np.ndarray, relative_gate_lu: float):
+    """``(block_ms, block_lufs)`` surviving the absolute and relative gates."""
+    with np.errstate(divide="ignore"):
+        block_lufs = _LUFS_OFFSET + 10.0 * np.log10(block_ms)  # -inf where silent
+    absolute = block_lufs > ABSOLUTE_GATE_LUFS
+    if not absolute.any():
+        return block_ms[:0], block_lufs[:0]
+    relative_gate = _lufs(block_ms[absolute].mean()) + relative_gate_lu
+    keep = absolute & (block_lufs > relative_gate)
+    return block_ms[keep], block_lufs[keep]
+
+
+def _integrated_lufs(
+    data: np.ndarray, fs: int, *, chunk_s: float = FILTER_CHUNK_S
+) -> float:
+    """BS.1770-4 gated integrated loudness of float samples ``(n, channels)``."""
+    if len(data) == 0:
         return -np.inf
-    relative_gate = _lufs(kept.mean()) + RELATIVE_GATE_LU
-    kept = block_ms[(block_lufs > ABSOLUTE_GATE_LUFS) & (block_lufs > relative_gate)]
+    energy = _k_weighted_energy(data, fs, chunk_s=chunk_s)
+    block_ms = _block_mean_squares(energy, fs, block_s=BLOCK_S, hop_s=BLOCK_HOP_S)
+    kept, _ = _gated(block_ms, RELATIVE_GATE_LU)
     return float(_lufs(kept.mean())) if len(kept) else -np.inf
 
 
@@ -187,8 +205,55 @@ def loudness(audio: Union[str, Path, Audio]) -> float:
     Every channel is weighted 1 (right for mono and stereo). A clip shorter
     than one 400 ms block is measured as a single block.
     """
-    audio = audio if isinstance(audio, Audio) else Audio(audio)
-    return _integrated_lufs(*_samples(audio))
+    return _integrated_lufs(*audio_samples(as_audio(audio)))
+
+
+def loudness_range(audio: Union[str, Path, Audio]) -> float:
+    """Loudness range (LRA) of ``audio`` in LU (EBU Tech 3342).
+
+    The spread between the 10th and 95th percentile of the gated 3 s
+    short-term loudness. 0.0 for silence or a clip shorter than 3 s.
+    """
+    data, fs = audio_samples(as_audio(audio))
+    if len(data) == 0:
+        return 0.0
+    energy = _k_weighted_energy(data, fs, chunk_s=FILTER_CHUNK_S)
+    if len(energy) < round(LRA_WINDOW_S * fs):
+        return 0.0
+    windows = _block_mean_squares(energy, fs, block_s=LRA_WINDOW_S, hop_s=LRA_HOP_S)
+    _, lufs = _gated(windows, LRA_RELATIVE_GATE_LU)
+    if len(lufs) == 0:
+        return 0.0
+    low, high = np.percentile(lufs, LRA_PERCENTILES)
+    return float(high - low)
+
+
+def true_peak_db(
+    audio: Union[str, Path, Audio], *, oversampling: Optional[int] = None
+) -> float:
+    """True peak of ``audio`` in dBTP: the sample peak after upsampling.
+
+    Catches inter-sample peaks a sample-peak meter misses. ``oversampling``
+    defaults to 4x, raised for rates under 48 kHz so the oversampled rate is at
+    least ``TRUE_PEAK_MIN_RATE``. ``-inf`` for silence.
+    """
+    from scipy.signal import resample_poly
+
+    data, fs = audio_samples(as_audio(audio))
+    if len(data) == 0:
+        return -np.inf
+    factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
+    step = max(1, int(round(FILTER_CHUNK_S * fs)))
+    margin = int(round(TRUE_PEAK_MARGIN_S * fs))
+    peak = 0.0
+    for start in range(0, len(data), step):
+        stop = min(start + step, len(data))
+        lo, hi = max(0, start - margin), min(len(data), stop + margin)
+        up = resample_poly(data[lo:hi], factor, 1, axis=0)
+        peak = max(
+            peak, float(np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max())
+        )
+    return float(20.0 * np.log10(peak)) if peak > 0 else -np.inf
 
 
 def _noise_floor(
@@ -211,7 +276,7 @@ def noise_floor_db(
     percentile: float = NOISE_PERCENTILE,
 ) -> float:
     """Noise floor estimate: a low percentile of the ``frame_s`` RMS levels (dBFS)."""
-    return _noise_floor(*_samples(audio), frame_s=frame_s, percentile=percentile)
+    return _noise_floor(*audio_samples(audio), frame_s=frame_s, percentile=percentile)
 
 
 def apply_gain(audio: Audio, db: float) -> Audio:
@@ -221,9 +286,9 @@ def apply_gain(audio: Audio, db: float) -> Audio:
     pushed beyond full scale saturate; :func:`level_turns` keeps its gains in
     float and only converts after its limiter.
     """
-    data, _ = _samples(audio)
+    data, _ = audio_samples(audio)
     gained = data * 10.0 ** (db / 20.0)
-    return _to_audio(gained, audio._get_segment(), time_unit=audio.time_unit)
+    return to_audio(gained, audio._get_segment(), time_unit=audio.time_unit)
 
 
 # --- ffmpeg filters -----------------------------------------------------------
@@ -323,7 +388,7 @@ def apply_ffmpeg_filter(
     :func:`filter_latency`, up to ``max_latency_s``) and removed, so onsets
     stay put. Leave it off for filters without one (EQ, compressors).
     """
-    data, fs = _samples(audio)
+    data, fs = audio_samples(audio)
     out = _run_filter(
         data,
         fs,
@@ -331,7 +396,7 @@ def apply_ffmpeg_filter(
         compensate_latency=compensate_latency,
         max_latency_s=max_latency_s,
     )
-    return _to_audio(out, audio._get_segment(), time_unit=audio.time_unit)
+    return to_audio(out, audio._get_segment(), time_unit=audio.time_unit)
 
 
 def _as_stage(
@@ -343,8 +408,8 @@ def _as_stage(
     if callable(spec):
 
         def via_audio(x: np.ndarray) -> np.ndarray:
-            out = spec(_to_audio(x, like))  # integer PCM: saturates above 0 dBFS
-            return _segment_samples(conform_segment(out._get_segment(), like))
+            out = spec(to_audio(x, like))  # integer PCM: saturates above 0 dBFS
+            return segment_samples(conform_segment(out._get_segment(), like))
 
         return via_audio
     return lambda x: _run_filter(x, fs, spec, compensate_latency=compensate_latency)
@@ -457,7 +522,7 @@ def level_turns(
 
     def process(speaker: str, padded: Audio, core: Core) -> Audio:
         like = padded._get_segment()
-        data, fs = _segment_samples(like), like.frame_rate
+        data, fs = segment_samples(like), like.frame_rate
         a, b = int(round(core[0] * fs)), int(round(core[1] * fs))
 
         def measure(x: np.ndarray) -> float:
@@ -513,7 +578,7 @@ def level_turns(
                 _as_stage(limiter, fs, like),
             ]
         )(data)
-        return _to_audio(data, like)
+        return to_audio(data, like)
 
     result = process_turns(audio, turns, process, pad_s=pad_s)
     return deliver(
