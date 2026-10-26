@@ -10,12 +10,16 @@ Two pieces, in the order they are needed when "one speaker sounds too low":
    voice that *sounds* low is often just quieter and boomier (fix: EQ plus
    :func:`mixing.audio.level_turns`), not lower in f0.
 2. :func:`shift_pitch` shifts pitch by a number of semitones, keeping duration
-   exactly. ``method="rubberband"`` uses ffmpeg's ``rubberband`` filter, which can
-   **preserve formants** (the voice stays the same person, just higher/lower);
-   it needs an ffmpeg built with ``librubberband``. ``method="librosa"``
-   (phase vocoder + resampling, extra ``beats``) moves formants with the pitch.
-   ``method="auto"`` prefers rubberband and falls back to librosa with a warning
-   when formants were asked to be preserved.
+   exactly and (by default) the integrated loudness. ``method="rubberband"``
+   uses ffmpeg's ``rubberband`` filter, which can **preserve formants** (the
+   voice stays the same person, just higher/lower); it needs an ffmpeg built
+   with ``librubberband``. ``method="resample"`` needs only stock ffmpeg
+   (``asetrate`` + ``aresample`` + ``atempo``) and ``method="librosa"`` (phase
+   vocoder + resampling, extra ``beats``); both move formants with the pitch.
+   ``method="auto"`` prefers rubberband and falls back to resample, with a
+   warning when formants were asked to be preserved. The ffmpeg methods'
+   delay depends on the shift ratio; it is measured per ratio
+   (:func:`shift_latency`) and removed.
 
 Spans are given in **seconds** whatever the ``Audio.time_unit``; all slicing is
 done in sample frames of the underlying segment (as in
@@ -48,7 +52,6 @@ from .leveling import (
     _integrated_lufs,
     _segment_samples,
     _to_audio,
-    filter_latency,
 )
 from .turns import TURN_BOUND_TOLERANCE_S
 
@@ -65,11 +68,13 @@ BEATS_INSTALL_HINT = "pip install 'mixing[beats]'"
 # --- voice_profile defaults ---------------------------------------------------
 #: pyin search range (Hz): covers low male (~65 Hz) to high female/child speech.
 DEFAULT_F0_FMIN_HZ = 65.0
-DEFAULT_F0_FMAX_HZ = 400.0
-#: Rate (Hz) the f0 tracker runs at; ample for f0 <= 400 Hz and keeps pyin fast.
+DEFAULT_F0_FMAX_HZ = 600.0
+#: Rate (Hz) the f0 tracker runs at; ample for f0 <= 600 Hz and keeps pyin fast.
 DEFAULT_F0_SAMPLE_RATE = 16000
 #: pyin frame (samples at ``DEFAULT_F0_SAMPLE_RATE``): 128 ms, > 8 periods of fmin.
 DEFAULT_F0_FRAME_LENGTH = 2048
+#: librosa ``pyin``'s default hop is a quarter frame.
+PYIN_HOPS_PER_FRAME = 4
 #: pyin frames flagged voiced but less likely than this are dropped: on noise
 #: pyin flags some frames (near ``fmin``) voiced at ~0.01 probability, while
 #: real voicing scores well above 0.2.
@@ -85,16 +90,41 @@ WHOLE_AUDIO_LABEL = "all"
 #: Accepted ``|semitones|`` (two octaves).
 MAX_SEMITONES = 24.0
 SEMITONES_PER_OCTAVE = 12.0
-PITCH_METHODS = ("auto", "rubberband", "librosa")
-#: Longest rubberband processing delay (s) searched for and removed.
-MAX_RUBBERBAND_LATENCY_S = 0.5
+PITCH_METHODS = ("auto", "rubberband", "resample", "librosa")
+#: Largest processing delay (s), either sign, searched for and removed.
+MAX_SHIFT_LATENCY_S = 0.5
+#: Silence (s) appended to the input of an ffmpeg shifter so its last block is
+#: flushed (no tail is lost), on top of the measured delay.
+SHIFT_FLUSH_S = 0.25
+#: A custom strategy's output may differ from the input length by at most this
+#: much (s); within it the result is zero-padded or cut, beyond it ``ValueError``.
+LENGTH_TOLERANCE_S = 0.005
+#: rubberband ``pitchq`` values; ``"quality"`` dulls less and has a smaller delay.
+RUBBERBAND_PITCHQ = ("speed", "quality", "consistency")
+DEFAULT_RUBBERBAND_PITCHQ = "speed"
+#: ``atempo`` accepts a factor in this range per stage (older ffmpeg builds).
+ATEMPO_RANGE = (0.5, 2.0)
+# The delay of a pitch shifter depends on the ratio (rubberband: ~1024/ratio -
+# 1024 samples plus a signal-dependent part), so it is measured per filter on a
+# seeded voice-like probe: harmonic bursts (random f0, length, gap). A pitch
+# shift leaves the amplitude envelope in place, so the delay is the lag that
+# best aligns the smoothed energy envelopes of probe and output.
+LATENCY_PROBE_S = 8.0
+LATENCY_PROBE_SEED = 1770
+LATENCY_PROBE_F0_HZ = (80.0, 300.0)
+LATENCY_PROBE_BURST_S = (0.06, 0.3)
+LATENCY_PROBE_GAP_S = (0.05, 0.25)
+LATENCY_PROBE_HARMONICS = 8
+LATENCY_PROBE_AMPLITUDE = 0.2
+#: Moving-average length (s) of the energy envelope used for the delay.
+LATENCY_ENVELOPE_S = 0.005
 RUBBERBAND_INSTALL_HINT = (
     "ffmpeg's 'rubberband' filter is not available in {exe!r}. Install an ffmpeg "
     "built with --enable-librubberband (macOS: `brew tap homebrew-ffmpeg/ffmpeg && "
     "brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-rubberband`; Debian/Ubuntu: "
     "`apt install ffmpeg`, whose build includes it) and point mixing at it with "
-    "the IMAGEIO_FFMPEG_EXE environment variable, or use method='librosa' (which "
-    "does not preserve formants)."
+    "the IMAGEIO_FFMPEG_EXE environment variable, or use method='resample' or "
+    "'librosa' (neither preserves formants)."
 )
 
 
@@ -120,7 +150,18 @@ def _spans_by_label(spans: Optional[Spans], duration: float) -> dict:
     if spans is None:
         grouped = {WHOLE_AUDIO_LABEL: [(0.0, duration)]}
     elif isinstance(spans, Mapping):
-        grouped = {label: list(ranges) for label, ranges in spans.items()}
+        grouped = {}
+        for label, ranges in spans.items():
+            if (
+                isinstance(ranges, tuple)
+                and len(ranges) == 2
+                and all(isinstance(x, (int, float)) for x in ranges)
+            ):
+                raise TypeError(
+                    f"spans[{label!r}] is a single span {ranges!r}; map each label "
+                    f"to a list of (start_s, end_s) spans: {{{label!r}: [{ranges!r}]}}"
+                )
+            grouped[label] = list(ranges)
     else:
         grouped = {}
         for label, start, end in spans:
@@ -182,17 +223,22 @@ def _voiced_f0(
     sample_rate: int,
     frame_length: int,
     min_voiced_prob: float,
-) -> tuple[Optional[float], float]:
-    """``(median f0 over voiced frames or None, voiced fraction)`` of mono ``pieces``.
+) -> tuple[Optional[float], Optional[float]]:
+    """``(median f0 over voiced frames, voiced fraction)`` of mono ``pieces``.
 
     Each piece (one span) is tracked separately, so span seams make no false
-    pitch; pieces shorter than one frame are skipped.
+    pitch; pieces shorter than one frame are skipped, digital silence counts
+    as unvoiced frames. ``(None, None)`` when no piece is a frame long; the f0
+    is ``None`` when no frame is voiced.
     """
     librosa = _require_librosa("f0 estimation (voice_profile)")
     voiced, n_frames = [], 0
     for piece in pieces:
         y = _resample(piece, fs, sample_rate)
-        if len(y) < frame_length or not np.any(y):
+        if len(y) < frame_length:
+            continue
+        if not np.any(y):  # pyin's frame count (centred frames, default hop)
+            n_frames += 1 + len(y) // (frame_length // PYIN_HOPS_PER_FRAME)
             continue
         f0, flags, probs = librosa.pyin(
             y, fmin=fmin, fmax=fmax, sr=sample_rate, frame_length=frame_length
@@ -200,8 +246,9 @@ def _voiced_f0(
         n_frames += len(f0)
         voiced.append(f0[flags & (probs >= min_voiced_prob) & np.isfinite(f0)])
     values = np.concatenate(voiced) if voiced else np.array([])
-    fraction = len(values) / n_frames if n_frames else 0.0
-    return (float(np.median(values)) if len(values) else None), float(fraction)
+    if not n_frames:
+        return None, None
+    return (float(np.median(values)) if len(values) else None), len(values) / n_frames
 
 
 def voice_profile(
@@ -230,7 +277,9 @@ def voice_profile(
             label ``WHOLE_AUDIO_LABEL``. Spans of different labels may overlap.
         f0: estimate f0 (needs librosa, extra ``beats``); ``False`` skips it
             (``f0_hz`` and ``voiced_fraction`` are then ``None``).
-        fmin, fmax: pyin f0 search range (Hz).
+        fmin, fmax: pyin f0 search range (Hz). A voice whose pitch is above
+            ``fmax`` is reported at a subharmonic (e.g. half its f0), not as
+            unvoiced.
         f0_sample_rate, f0_frame_length: the f0 tracker's rate and frame size.
         min_voiced_prob: pyin voicing probability below which a frame counts
             as unvoiced (keeps noise from producing a spurious f0).
@@ -242,12 +291,17 @@ def voice_profile(
 
         - ``duration_s``: total length of the label's (merged) spans;
         - ``f0_hz``: median f0 over voiced frames (``None`` if none are voiced);
-        - ``voiced_fraction``: share of pyin frames judged voiced;
+        - ``voiced_fraction``: share of pyin frames judged voiced (``None``,
+          like ``f0_hz``, when no span is one pyin frame long: 128 ms by
+          default);
         - ``loudness_lufs``: BS.1770 integrated loudness of the union
           (``None`` when below the -70 LUFS gate, i.e. silence);
         - ``spectral_centroid_hz``: power-weighted mean frequency;
         - ``low_band_db``: ``10 log10`` of the ``low_band`` energy over the
-          full-band energy (higher = boomier; ``None`` for silence).
+          full-band energy (higher = boomier; ``None`` for silence). The
+          default 60-150 Hz band overlaps a low male voice's fundamental
+          (~85-155 Hz), so compare it between takes of the same speaker, or
+          read it next to ``f0_hz``, rather than as pure "boom".
     """
     audio = _as_audio(audio)
     segment = audio._get_segment()
@@ -314,30 +368,141 @@ def has_rubberband(ffmpeg: Optional[str] = None) -> bool:
     return "rubberband" in _ffmpeg_filters(ffmpeg or ffmpeg_exe())
 
 
-def _rubberband_filter(ratio: float, preserve_formants: bool) -> str:
+def _ratio(semitones: float) -> float:
+    return 2.0 ** (semitones / SEMITONES_PER_OCTAVE)
+
+
+def _latency_probe(fs: int) -> np.ndarray:
+    """The seeded voice-like probe (mono float) the shift delay is measured on."""
+    rng = np.random.default_rng(LATENCY_PROBE_SEED)
+    n = int(round(LATENCY_PROBE_S * fs))
+    t = np.arange(n) / fs
+    probe = np.zeros(n)
+    at = LATENCY_PROBE_BURST_S[1]
+    while at < LATENCY_PROBE_S - 2 * LATENCY_PROBE_BURST_S[1]:
+        length = rng.uniform(*LATENCY_PROBE_BURST_S)
+        a, b = int(at * fs), int((at + length) * fs)
+        f0 = rng.uniform(*LATENCY_PROBE_F0_HZ)
+        wave = sum(
+            np.sin(2 * np.pi * f0 * h * t[a:b] + rng.uniform(0, 2 * np.pi)) / h
+            for h in range(1, LATENCY_PROBE_HARMONICS + 1)
+        )
+        probe[a:b] = LATENCY_PROBE_AMPLITUDE * wave / np.max(np.abs(wave))
+        at += length + rng.uniform(*LATENCY_PROBE_GAP_S)
+    return probe
+
+
+def _energy_envelope(x: np.ndarray, fs: int) -> np.ndarray:
+    from scipy.ndimage import uniform_filter1d
+
+    env = uniform_filter1d(x**2, max(1, int(round(LATENCY_ENVELOPE_S * fs))))
+    return env - env.mean()
+
+
+@lru_cache(maxsize=64)
+def shift_latency(filters: str, fs: int) -> int:
+    """Delay (samples, may be negative) of a pitch-shifting ffmpeg ``filters`` chain.
+
+    The lag (within ``MAX_SHIFT_LATENCY_S``) that best aligns the energy
+    envelopes of a seeded voice-like probe (see ``LATENCY_PROBE_S``) and its
+    shifted output: pitch shifting moves the partials but not the envelope.
+    Cached per (filters, rate). Positive means the output is late.
+    """
+    max_lag = int(round(MAX_SHIFT_LATENCY_S * fs))
+    probe = _latency_probe(fs)
+    padded = np.concatenate([np.zeros(max_lag), probe, np.zeros(max_lag)])
+    out = _ffmpeg_float(padded[:, None], fs, filters)[:, 0]
+    ref, res = _energy_envelope(padded, fs), _energy_envelope(out, fs)
+    size = 1 << int(np.ceil(np.log2(len(ref) + len(res))))
+    xcorr = np.fft.irfft(np.fft.rfft(res, size) * np.conj(np.fft.rfft(ref, size)), size)
+    lags = np.concatenate([xcorr[-max_lag:], xcorr[: max_lag + 1]])
+    return int(np.argmax(lags)) - max_lag
+
+
+def _run_aligned(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
+    """``data`` through ``filters``, its measured delay removed, exactly ``len(data)``.
+
+    The input is padded on both sides so that neither the head (negative delay)
+    nor the tail (positive delay) of the signal is lost.
+    """
+    n, ch = data.shape
+    lag = shift_latency(filters, fs)
+    pre, post = max(0, -lag), max(0, lag) + int(round(SHIFT_FLUSH_S * fs))
+    padded = np.vstack([np.zeros((pre, ch)), data, np.zeros((post, ch))])
+    out = _ffmpeg_float(padded, fs, filters)[pre + lag :][:n]
+    if len(out) < n:
+        out = np.vstack([out, np.zeros((n - len(out), ch))])
+    return out
+
+
+def _rubberband_filter(
+    ratio: float, preserve_formants: bool, pitchq: str = DEFAULT_RUBBERBAND_PITCHQ
+) -> str:
     formant = "preserved" if preserve_formants else "shifted"
-    return f"rubberband=pitch={ratio:.10f}:formant={formant}"
+    return f"rubberband=pitch={ratio:.10f}:formant={formant}:pitchq={pitchq}"
 
 
 def rubberband_strategy(
-    data: np.ndarray, fs: int, semitones: float, preserve_formants: bool
+    data: np.ndarray,
+    fs: int,
+    semitones: float,
+    preserve_formants: bool,
+    *,
+    pitchq: str = DEFAULT_RUBBERBAND_PITCHQ,
 ) -> np.ndarray:
     """Pitch-shift float ``data`` with ffmpeg ``rubberband``; delay-compensated.
 
-    Rubberband's delay is measured on its identity setting (``pitch=1``, same
-    formant mode), since a shifted output does not correlate with its input.
+    The delay depends on the ratio (and a little on the signal), so it is
+    measured for the actual filter by :func:`shift_latency` (e.g. +60, +22,
+    -11 ms at -24, -12, +12 semitones, 44.1 kHz). On harmonic tone bursts the
+    residual timing error then averages under 4 ms at 44.1/48 kHz, with a
+    per-burst jitter from rubberband's block processing of up to ~13 ms at -24
+    semitones (and a larger mean residual, ~13 ms, at 16 kHz and -24).
+    ``functools.partial(rubberband_strategy, pitchq="quality")`` as ``method``
+    dulls less and has a smaller delay.
     """
+    if pitchq not in RUBBERBAND_PITCHQ:
+        raise ValueError(f"pitchq must be one of {RUBBERBAND_PITCHQ}, got {pitchq!r}")
     exe = ffmpeg_exe()
     if not has_rubberband(exe):
         raise RuntimeError(RUBBERBAND_INSTALL_HINT.format(exe=exe))
-    n, ch = data.shape
-    max_lag = int(round(MAX_RUBBERBAND_LATENCY_S * fs))
-    lag = filter_latency(
-        _rubberband_filter(1.0, preserve_formants), fs, ch, max_lag=max_lag
+    filters = _rubberband_filter(_ratio(semitones), preserve_formants, pitchq)
+    return _run_aligned(data, fs, filters)
+
+
+def _atempo_chain(factor: float) -> list:
+    """``atempo`` stages whose product is ``factor``, each within ``ATEMPO_RANGE``."""
+    lo, hi = ATEMPO_RANGE
+    stages = []
+    while factor > hi or factor < lo:
+        step = hi if factor > hi else lo
+        stages.append(step)
+        factor /= step
+    return [*stages, factor]
+
+
+def _resample_filter(ratio: float, fs: int) -> str:
+    rate = int(round(fs * ratio))  # asetrate takes an integer rate
+    tempos = _atempo_chain(fs / rate)
+    return ",".join(
+        [f"asetrate={rate}", f"aresample={fs}"] + [f"atempo={t:.10f}" for t in tempos]
     )
-    ratio = 2.0 ** (semitones / SEMITONES_PER_OCTAVE)
-    filters = _rubberband_filter(ratio, preserve_formants)
-    return _ffmpeg_float(np.vstack([data, np.zeros((lag, ch))]), fs, filters)[lag:]
+
+
+def resample_strategy(
+    data: np.ndarray, fs: int, semitones: float, preserve_formants: bool
+) -> np.ndarray:
+    """Pitch-shift float ``data`` with stock ffmpeg filters; delay-compensated.
+
+    ``asetrate`` (play faster or slower: pitch and tempo move), ``aresample``
+    back to ``fs``, then ``atempo`` (WSOLA) restores the duration. Needs no
+    optional dependency. Formants move with the pitch whatever
+    ``preserve_formants`` says. Its delay is measured and removed like
+    rubberband's; ``atempo``'s timing varies more with the signal (on tone
+    bursts the mean residual is a few ms within an octave, 10-20 ms at
+    +-24 semitones).
+    """
+    return _run_aligned(data, fs, _resample_filter(_ratio(semitones), fs))
 
 
 def librosa_strategy(
@@ -354,33 +519,52 @@ def librosa_strategy(
     return np.atleast_2d(shifted).T
 
 
-def _pick_strategy(method, preserve_formants: bool) -> PitchStrategy:
-    if callable(method):
-        return method
-    if method not in PITCH_METHODS:
+def _check_method(method) -> None:
+    if not callable(method) and method not in PITCH_METHODS:
         raise ValueError(
             f"method must be one of {PITCH_METHODS} or a callable, got {method!r}"
         )
-    if method == "rubberband":
-        return rubberband_strategy
-    if method == "librosa":
-        return librosa_strategy
+
+
+def _pick_strategy(method, preserve_formants: bool) -> PitchStrategy:
+    _check_method(method)
+    if callable(method):
+        return method
+    named = {
+        "rubberband": rubberband_strategy,
+        "resample": resample_strategy,
+        "librosa": librosa_strategy,
+    }
+    if method in named:
+        return named[method]
     if has_rubberband():
         return rubberband_strategy
     if preserve_formants:
         warnings.warn(
-            "ffmpeg has no 'rubberband' filter, so shift_pitch falls back to librosa, "
-            "which moves the formants with the pitch (the voice changes character). "
-            "Pass preserve_formants=False to silence this, or install an ffmpeg with "
-            "librubberband (see RUBBERBAND_INSTALL_HINT).",
+            "ffmpeg has no 'rubberband' filter, so shift_pitch falls back to "
+            "method='resample', which moves the formants with the pitch (the voice "
+            "changes character). Pass preserve_formants=False to silence this, or "
+            "install an ffmpeg with librubberband (see RUBBERBAND_INSTALL_HINT).",
             stacklevel=3,
         )
-    return librosa_strategy
+    return resample_strategy
 
 
-def _fit_length(out: np.ndarray, n: int, channels: int) -> np.ndarray:
-    """``out`` zero-padded or cut to exactly ``n`` frames."""
-    out = out.reshape(-1, channels)[:n]
+def _fit_length(
+    out: np.ndarray, n: int, channels: int, *, tolerance: int
+) -> np.ndarray:
+    """``out`` checked to be ``(~n, channels)`` and padded or cut to exactly ``n``."""
+    if out.ndim != 2 or out.shape[1] != channels:
+        raise ValueError(
+            f"a pitch strategy must return float samples of shape (n, {channels}), "
+            f"got shape {out.shape}"
+        )
+    if abs(len(out) - n) > tolerance:
+        raise ValueError(
+            f"a pitch strategy must keep the length: got {len(out)} frames for "
+            f"{n} (tolerance {tolerance}, see LENGTH_TOLERANCE_S)"
+        )
+    out = out[:n]
     if len(out) < n:
         out = np.vstack([out, np.zeros((n - len(out), channels))])
     return out
@@ -391,6 +575,7 @@ def shift_pitch(
     semitones: float,
     *,
     preserve_formants: bool = True,
+    preserve_loudness: bool = True,
     method: Union[str, PitchStrategy] = "auto",
     max_semitones: float = MAX_SEMITONES,
     output: Output = None,
@@ -403,20 +588,28 @@ def shift_pitch(
         semitones: shift; ``+12`` is an octave up, ``0`` returns an equal copy.
         preserve_formants: keep the vocal-tract resonances in place (only the
             rubberband method can).
+        preserve_loudness: give the result the input's integrated loudness
+            (BS.1770); skipped when either is silent (below the -70 LUFS gate).
         method: ``"rubberband"`` (ffmpeg with librubberband; never falls back,
             raises ``RuntimeError`` naming how to get such a build),
-            ``"librosa"`` (extra ``beats``; formants move), ``"auto"``
-            (rubberband if available, else librosa -- warning when
-            ``preserve_formants``), or a :data:`PitchStrategy` callable.
+            ``"resample"`` (stock ffmpeg ``asetrate``/``aresample``/``atempo``,
+            no optional dependency; formants move), ``"librosa"`` (extra
+            ``beats``; formants move), ``"auto"`` (rubberband if available,
+            else resample -- warning when ``preserve_formants``), or a
+            :data:`PitchStrategy` callable, which must return ``(n, channels)``
+            float samples within ``LENGTH_TOLERANCE_S`` of the input length.
         max_semitones: largest accepted ``|semitones|``.
         output: see :mod:`mixing.egress` (``None`` returns the ``Audio``).
 
-    The result has the input's frame count, rate, channels and sample width.
-    Processing is in float; if the shifted signal would exceed full scale it is
-    scaled down to the input's peak, so no clipping is introduced.
+    The result has the input's frame count, rate, channels and sample width;
+    the ffmpeg methods remove their (ratio-dependent) delay. Processing is in
+    float; if the shifted (and loudness-restored) signal would exceed full
+    scale it is scaled down to the input's peak, so no clipping is introduced
+    (the loudness then stays below the input's).
     """
     if not abs(semitones) <= max_semitones:
         raise ValueError(f"|semitones| must be <= {max_semitones}, got {semitones}")
+    _check_method(method)
     audio = _as_audio(audio)
     segment = audio._get_segment()
     if semitones == 0:
@@ -424,14 +617,18 @@ def shift_pitch(
     else:
         strategy = _pick_strategy(method, preserve_formants)
         data = _segment_samples(segment)
+        fs = segment.frame_rate
         n, ch = data.shape
         out = _fit_length(
-            np.asarray(
-                strategy(data, segment.frame_rate, semitones, preserve_formants)
-            ),
+            np.asarray(strategy(data, fs, semitones, preserve_formants), dtype=float),
             n,
             ch,
+            tolerance=int(round(LENGTH_TOLERANCE_S * fs)),
         )
+        if preserve_loudness:
+            before, after = _integrated_lufs(data, fs), _integrated_lufs(out, fs)
+            if np.isfinite(before) and np.isfinite(after):
+                out = out * 10.0 ** ((before - after) / 20.0)
         peak, in_peak = (
             float(np.max(np.abs(out), initial=0.0)),
             float(np.max(np.abs(data), initial=0.0)),
@@ -451,6 +648,8 @@ __all__ = [
     "voice_profile",
     "shift_pitch",
     "has_rubberband",
+    "shift_latency",
     "rubberband_strategy",
+    "resample_strategy",
     "librosa_strategy",
 ]

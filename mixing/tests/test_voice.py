@@ -12,6 +12,12 @@ from pydub import AudioSegment
 
 from mixing.audio import Audio, has_rubberband, loudness, shift_pitch, voice_profile
 from mixing.audio import voice as voice_module
+from mixing.util import has_ffmpeg
+
+needs_ffmpeg = pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg not on PATH")
+needs_rubberband = pytest.mark.skipif(
+    not has_rubberband(), reason="ffmpeg has no rubberband filter"
+)
 
 RATE = 22050
 
@@ -124,6 +130,21 @@ def test_bad_span_raises():
         voice_profile(_audio(_harmonic(1.0, 150.0)), [("a", 0.5, 3.0)], f0=False)
 
 
+def test_mapping_to_a_single_span_is_a_clear_type_error():
+    audio = _audio(_harmonic(1.0, 150.0))
+    with pytest.raises(TypeError, match=r"list of \(start_s, end_s\) spans"):
+        voice_profile(audio, {"a": (0.0, 0.5)}, f0=False)
+
+
+def test_spans_shorter_than_a_pyin_frame_have_no_f0_and_no_voiced_fraction():
+    pytest.importorskip("librosa")
+    audio = _audio(_harmonic(1.0, 150.0))
+    short = voice_profile(audio, [("a", 0.0, 0.05)])["a"]  # < 128 ms frame
+    assert short["f0_hz"] is None and short["voiced_fraction"] is None
+    silent = voice_profile(Audio(AudioSegment.silent(1000, frame_rate=RATE)))["all"]
+    assert silent["voiced_fraction"] == 0.0
+
+
 # --- shift_pitch ----------------------------------------------------------------
 
 
@@ -140,6 +161,8 @@ def test_semitone_range_and_method_validated():
         shift_pitch(audio, 25)
     with pytest.raises(ValueError):
         shift_pitch(audio, 2, method="nope")
+    with pytest.raises(ValueError):  # validated before the semitones == 0 shortcut
+        shift_pitch(audio, 0, method="nope")
 
 
 @pytest.mark.parametrize("sample_width,channels", [(2, 1), (1, 1), (4, 2)])
@@ -170,8 +193,15 @@ def test_shift_does_not_clip_beyond_input():
     assert np.max(np.abs(samples)) < 32767
 
 
-def test_auto_without_rubberband_warns_about_formants(monkeypatch):
-    pytest.importorskip("librosa")
+@needs_ffmpeg
+def test_auto_without_rubberband_falls_back_to_resample_and_warns(monkeypatch):
+    calls = []
+    real = voice_module.resample_strategy
+    monkeypatch.setattr(
+        voice_module,
+        "resample_strategy",
+        lambda *a: calls.append(1) or real(*a),
+    )
     monkeypatch.setattr(voice_module, "has_rubberband", lambda ffmpeg=None: False)
     audio = _audio(_harmonic(0.5, 150.0))
     with pytest.warns(UserWarning, match="formants"):
@@ -179,6 +209,7 @@ def test_auto_without_rubberband_warns_about_formants(monkeypatch):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         shift_pitch(audio, 3, preserve_formants=False)
+    assert len(calls) == 2
 
 
 def test_forced_rubberband_raises_when_unavailable(monkeypatch):
@@ -187,13 +218,122 @@ def test_forced_rubberband_raises_when_unavailable(monkeypatch):
         shift_pitch(_audio(_harmonic(0.5, 150.0)), 3, method="rubberband")
 
 
-def test_callable_strategy_and_exact_length():
-    audio = _audio(_harmonic(1.0, 150.0))
-    out = shift_pitch(audio, 2, method=lambda x, fs, s, pf: x[: len(x) // 2])
+def test_callable_strategy_output_is_validated():
+    audio = _audio(_harmonic(1.0, 150.0), channels=2)
+    slack = int(voice_module.LENGTH_TOLERANCE_S * RATE)
+    out = shift_pitch(audio, 2, method=lambda x, fs, s, pf: x[: len(x) - slack])
     assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+    with pytest.raises(ValueError, match="keep the length"):
+        shift_pitch(audio, 2, method=lambda x, fs, s, pf: x[: len(x) // 2])
+    with pytest.raises(ValueError, match="shape"):
+        shift_pitch(audio, 2, method=lambda x, fs, s, pf: x.mean(axis=1))
+    with pytest.raises(ValueError, match="shape"):
+        shift_pitch(audio, 2, method=lambda x, fs, s, pf: x[:, :1])
 
 
-@pytest.mark.skipif(not has_rubberband(), reason="ffmpeg has no rubberband filter")
+def test_atempo_chain_stays_in_range():
+    lo, hi = voice_module.ATEMPO_RANGE
+    for factor in (0.25, 0.3, 0.5, 0.9, 1.7, 2.0, 3.1, 4.0):
+        stages = voice_module._atempo_chain(factor)
+        assert all(lo <= t <= hi for t in stages)
+        assert np.prod(stages) == pytest.approx(factor)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("semitones", [-5, 7])
+def test_loudness_is_preserved(semitones):
+    audio = _audio(_harmonic(2.0, 150.0))
+    out = shift_pitch(audio, semitones, method="resample")
+    assert abs(loudness(out) - loudness(audio)) < 0.5
+    silent = Audio(AudioSegment.silent(1000, frame_rate=RATE))
+    assert loudness(shift_pitch(silent, semitones, method="resample")) == -np.inf
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("channels", [1, 2])
+def test_resample_octave_up_doubles_f0_and_keeps_shape(channels):
+    pytest.importorskip("librosa")
+    audio = _audio(_harmonic(2.0, 110.0), channels=channels)
+    out = shift_pitch(audio, 12, method="resample")
+    a, b = audio._get_segment(), out._get_segment()
+    assert len(b.raw_data) == len(a.raw_data) and b.channels == channels
+    assert _median_f0(out) == pytest.approx(220.0, rel=0.05)
+
+
+# --- timing: the ratio-dependent delay is removed ------------------------------
+
+TIMING_RATE = 44100
+#: (start_s, length_s) of each harmonic tone burst; the last one runs to the end.
+BURST_LENGTH_S = 0.2
+BURST_STARTS_S = np.arange(0.37, 5.5, 0.61)
+TIMING_SECONDS = 6.0
+TAIL_S = 0.15
+
+
+def _tone_bursts():
+    fs = TIMING_RATE
+    t = np.arange(int(TIMING_SECONDS * fs)) / fs
+    wave = sum(np.sin(2 * np.pi * 220.0 * h * t) / h for h in range(1, 9))
+    wave = 0.3 * wave / np.max(np.abs(wave))
+    on = np.zeros_like(t, dtype=bool)
+    for start in BURST_STARTS_S:
+        on |= (t >= start) & (t < start + BURST_LENGTH_S)
+    on |= t >= TIMING_SECONDS - TAIL_S
+    return np.where(on, wave, 0.0)[:, None]
+
+
+def _burst_delays_ms(signal, shifted):
+    """Per-burst lag (ms) best aligning the energy envelopes of input and output."""
+    fs, search = TIMING_RATE, int(0.05 * TIMING_RATE)
+    delays = []
+    for start in BURST_STARTS_S:
+        lo, hi = int((start - 0.1) * fs), int((start + BURST_LENGTH_S + 0.1) * fs)
+        ref = voice_module._energy_envelope(signal[lo:hi, 0], fs)
+        res = voice_module._energy_envelope(shifted[lo - search : hi + search, 0], fs)
+        delays.append((np.argmax(np.correlate(res, ref, "valid")) - search) / fs)
+    return 1000 * np.array(delays)
+
+
+def _check_timing(strategy, semitones, *, tolerance_ms, **kw):
+    signal = _tone_bursts()
+    shifted = strategy(signal, TIMING_RATE, semitones, **kw)
+    assert shifted.shape == signal.shape
+    delays = _burst_delays_ms(signal, shifted)
+    assert abs(delays.mean()) <= tolerance_ms, delays
+    # the burst running to the very end survives (no tail is lost)
+    n_tail, mid = int(0.1 * TIMING_RATE), int((BURST_STARTS_S[3] + 0.05) * TIMING_RATE)
+
+    def tail_share(x):
+        rms = lambda y: np.sqrt(np.mean(y**2))  # noqa: E731
+        return rms(x[-n_tail:]) / rms(x[mid : mid + n_tail])
+
+    assert tail_share(shifted) > 0.5 * tail_share(signal)
+
+
+@needs_rubberband
+@pytest.mark.parametrize("preserve_formants", [True, False])
+@pytest.mark.parametrize("semitones", [-12, 12, -24])
+def test_rubberband_timing_is_compensated(semitones, preserve_formants):
+    _check_timing(
+        voice_module.rubberband_strategy,
+        semitones,
+        tolerance_ms=3.0,
+        preserve_formants=preserve_formants,
+    )
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("semitones", [-12, 12])
+def test_resample_timing_is_compensated(semitones):
+    _check_timing(
+        voice_module.resample_strategy,
+        semitones,
+        tolerance_ms=5.0,
+        preserve_formants=False,
+    )
+
+
+@needs_rubberband
 @pytest.mark.parametrize("preserve_formants", [True, False])
 def test_rubberband_octave_up(preserve_formants):
     pytest.importorskip("librosa")

@@ -13,7 +13,7 @@ description: >
   offset between these takes", "split a concert into songs", "separate speech
   from music", "find the songs in this radio show / tape", "songs vs jingles
   vs DJ talk", "what did the host say before each song", "trim the DJ talk off the start/end of each song", "where does the host stop talking", "loop this ambient clip to N seconds", "duck the music under
-  the dialogue". For video audio (replace/normalize a video's track) use
+  the dialogue", "level the speakers", "one speaker is too quiet", "match loudness per speaker / LUFS", "this voice sounds too low", "measure the pitch / f0 of each speaker", "shift the pitch up two semitones". For video audio (replace/normalize a video's track) use
   mixing-video; this skill is audio-file → audio-file.
 ---
 
@@ -477,6 +477,37 @@ Needs `pip install mixing[beats]` (`librosa`) — `import mixing.audio` stays
 light without it; the import happens lazily inside `beat_grid` itself. First
 customer is muvid's footage-scoring layer (computes one grid on the master
 song, maps clips onto it via their known offset).
+
+## Speaker turns: loudness, voice diagnosis, pitch
+
+Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), non-overlapping, boundaries in pauses.
+
+```python
+from mixing.audio import loudness, level_turns, process_turns, voice_profile, shift_pitch
+
+loudness("talk.wav")  # BS.1770-4 integrated LUFS; -inf for silence
+
+# one speaker much quieter than the other: bring every turn to -16 LUFS
+# (pregain -> compressor -> optional denoise -> gain -> -1.5 dBFS limiter, per turn)
+turns = [("host", 0.0, 12.4), ("guest", 12.9, 30.2), ("host", 30.6, 41.0)]
+level_turns("talk.wav", turns, target_lufs=-16, chains={"guest": "highpass=f=90"}, output="leveled.wav")
+
+# any per-turn edit: process(speaker, padded, core) -> padded'; gaps untouched, exact length
+process_turns("talk.wav", turns, lambda spk, padded, core: padded)
+
+# "the guest sounds too low": diagnose BEFORE shifting pitch
+voice_profile("talk.wav", turns)  # or {"guest": [(12.9, 30.2)]} -- a LIST of spans per label
+# {"host": {"duration_s", "f0_hz", "voiced_fraction", "loudness_lufs",
+#           "spectral_centroid_hz", "low_band_db"}, "guest": {...}}
+
+shift_pitch("guest.wav", 2, output="guest_up.wav")  # +2 semitones, same duration and loudness
+```
+
+- `voice_profile`: `f0_hz` is the median pyin f0 over voiced frames (needs `mixing[beats]`; `f0=False` skips it). Search range `fmin=65`, `fmax=600` Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than one pyin frame (128 ms) give `f0_hz=None, voiced_fraction=None`. `low_band_db` is the 60-150 Hz share of the energy: it overlaps a low male fundamental, so compare it across takes of one speaker rather than across speakers. A voice that *sounds* low is often just quieter and boomier: fix with EQ in `level_turns(chains=...)`, not with pitch.
+- `shift_pitch(audio, semitones, *, preserve_formants=True, preserve_loudness=True, method="auto")`: `"rubberband"` (ffmpeg built with librubberband; the only method that keeps formants, so the voice stays the same person), `"resample"` (stock ffmpeg `asetrate`+`aresample`+`atempo`, no extra dependency), `"librosa"` (`mixing[beats]`), or a callable `(samples (n, ch) float, rate, semitones, preserve_formants) -> (n, ch)` (length within 5 ms, else `ValueError`). `"auto"` = rubberband if `has_rubberband()`, else resample with a warning when `preserve_formants=True`. Point mixing at a rubberband ffmpeg with `IMAGEIO_FFMPEG_EXE`.
+- The ffmpeg methods' delay depends on the ratio (rubberband at 44.1 kHz: +60 ms at -24 st, +22 at -12, -11 at +12); it is measured per ratio on a probe (`shift_latency`, cached) and removed, and the tail is kept. Residual on tone bursts: rubberband under 4 ms on average at 44.1/48 kHz (per-burst jitter up to ~13 ms at -24 st); resample a few ms within an octave, 10-20 ms at +-24 st.
+- Loudness is restored unless that would clip: the result is never louder in peak than the input (above full scale it is scaled back to the input's peak).
+- `functools.partial(rubberband_strategy, pitchq="quality")` as `method` dulls the sound less (smaller delay too).
 
 ## Common recipes
 
