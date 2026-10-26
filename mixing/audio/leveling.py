@@ -1,12 +1,11 @@
 """Loudness measurement and per-turn loudness matching across speakers.
 
-``loudness_range`` (EBU Tech 3342 LRA) and ``true_peak_db`` (4x oversampled) sit beside it.
-
 ``loudness(audio)`` is an ITU-R BS.1770-4 / EBU R128 *integrated* loudness
 meter (K-weighting, 400 ms blocks, absolute and relative gating) in pure
 numpy/scipy, so measuring needs no ffmpeg. ``level_turns`` uses it to bring
 every speaker turn of a recording to the same loudness, which whole-track peak
-normalisation (:meth:`Audio.normalize`) cannot do.
+normalisation (:meth:`Audio.normalize`) cannot do. ``loudness_range`` (EBU
+Tech 3342 LRA) and ``true_peak_db`` (4x oversampled) sit beside it.
 
 ``level_turns`` is :func:`mixing.audio.turns.process_turns` with a chain of
 stages per turn, all run on the turn padded by ``pad_s`` (so filters settle):
