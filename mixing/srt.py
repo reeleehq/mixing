@@ -280,9 +280,7 @@ def parse_vtt_words(vtt_text: str) -> list[dict]:
                 if text:
                     timed.append((t, text, cue.end))
     if not timed:
-        timed = [
-            (c.start, c.text, c.end) for c in parse_vtt(vtt_text) if c.text
-        ]
+        timed = [(c.start, c.text, c.end) for c in parse_vtt(vtt_text) if c.text]
     words = []
     for i, (start, text, cue_end) in enumerate(timed):
         end = min(timed[i + 1][0], cue_end) if i + 1 < len(timed) else cue_end
