@@ -14,7 +14,7 @@ Main exports:
   speech vs music, etc.) using pluggable strategies; ``strategy="audioset"``
   (extra ``ml``) tells sung songs from talk on radio shows
 - text_before_segments: transcript words just before each segment (song intros)
-- loudness, level_turns: BS.1770 integrated LUFS meter; per-speaker-turn loudness
+- loudness, loudness_range, true_peak_db, level_turns: BS.1770 LUFS meter, LRA, true peak; per-speaker-turn loudness
   matching (EQ, compress, gain to a target LUFS)
 - process_turns: run a callable on each (padded) turn of a recording and splice
   the results back at exact length
@@ -84,7 +84,13 @@ from .segmentation import (
 from .tagging import WindowProbabilities, ast_audioset_classifier
 from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
 from .beats import beat_grid, BeatGrid
-from .leveling import loudness, level_turns, noise_floor_db
+from .leveling import (
+    loudness,
+    loudness_range,
+    true_peak_db,
+    level_turns,
+    noise_floor_db,
+)
 from .turns import process_turns
 from .voice import voice_profile, shift_pitch, has_rubberband
 from ..errors import MixingError, WindowTooWideForClip
@@ -128,6 +134,8 @@ __all__ = [
     "segment_by_audioset",
     "text_before_segments",
     "loudness",
+    "loudness_range",
+    "true_peak_db",
     "level_turns",
     "noise_floor_db",
     "process_turns",

@@ -88,6 +88,7 @@ import numpy as np
 
 from ..util import require_package
 from .audio_util import AudioSource, _normalize_audio_source
+from .samples import segment_samples
 from .tagging import AST_SAMPLE_RATE, AudioClassifier, ast_audioset_classifier
 
 if TYPE_CHECKING:
@@ -211,9 +212,7 @@ def _to_mono_floats(
 ) -> tuple[np.ndarray, int]:
     """Downmix to mono, resample, return float64 in [-1, 1] and the sample rate."""
     seg = audio.set_channels(1).set_frame_rate(sample_rate)
-    samples = np.array(seg.get_array_of_samples(), dtype=np.float64)
-    samples /= float(1 << (8 * seg.sample_width - 1))
-    return samples, sample_rate
+    return segment_samples(seg)[:, 0], sample_rate
 
 
 def _frame_rms(
@@ -699,8 +698,7 @@ def _mono_float32(
 ) -> tuple[np.ndarray, int]:
     """Mono float32 samples in [-1, 1]; resampled (anti-aliased) only if asked."""
     seg = audio.set_channels(1)
-    x = np.array(seg.get_array_of_samples(), dtype=np.float32)
-    x /= float(1 << (8 * seg.sample_width - 1))
+    x = segment_samples(seg, dtype=np.float32)[:, 0]
     sr = seg.frame_rate
     if sample_rate is not None and sample_rate != sr and len(x):
         g = np.gcd(int(sr), int(sample_rate))

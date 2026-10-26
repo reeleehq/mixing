@@ -445,3 +445,38 @@ def test_turn_below_gate_is_left_untouched_with_warning():
     with pytest.warns(UserWarning, match="gate"):
         out = level_turns(audio, [("q", 0.2, 1.8)])
     assert out._get_segment().raw_data == audio._get_segment().raw_data
+
+
+# --- chunked metering, LRA, true peak -----------------------------------------
+
+
+def test_chunked_loudness_matches_single_pass():
+    from mixing.audio.leveling import _integrated_lufs
+    from mixing.audio.samples import audio_samples
+
+    data, fs = audio_samples(Audio(_voice(4, 0.3)))
+    whole = _integrated_lufs(data, fs, chunk_s=1e6)
+    assert _integrated_lufs(data, fs, chunk_s=0.37) == pytest.approx(whole, abs=1e-9)
+
+
+def test_loudness_range_separates_quiet_and_loud_passages():
+    from mixing.audio import loudness_range
+
+    quiet, loud = _voice(8, 0.05), _voice(8, 0.4, seed=1)
+    assert loudness_range(Audio(quiet)) < 2.0
+    mixed = Audio(quiet + loud)
+    assert loudness_range(mixed) > 10.0
+    assert loudness_range(Audio(AudioSegment.silent(5000))) == 0.0
+    assert loudness_range(Audio(_voice(1, 0.3))) == 0.0  # shorter than one window
+
+
+def test_true_peak_exceeds_sample_peak_for_intersample_peaks():
+    from mixing.audio import true_peak_db
+
+    # fs/4 sine with a 45 degree phase: samples sit at +-0.707 of the true peak
+    n = np.arange(RATE)
+    pcm = (np.sin(2 * np.pi * n / 4 + np.pi / 4) * 0.9 * 32767).astype(np.int16)
+    seg = AudioSegment(pcm.tobytes(), frame_rate=RATE, sample_width=2, channels=1)
+    sample_peak_db = 20 * np.log10(np.abs(pcm).max() / 32768)
+    assert true_peak_db(Audio(seg)) > sample_peak_db + 1.0
+    assert true_peak_db(Audio(AudioSegment.silent(500))) == -np.inf

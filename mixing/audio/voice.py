@@ -47,12 +47,8 @@ import numpy as np
 from ..egress import Output, deliver
 from ..util import ffmpeg_exe
 from .audio_ops import Audio
-from .leveling import (
-    _ffmpeg_float,
-    _integrated_lufs,
-    _segment_samples,
-    _to_audio,
-)
+from .leveling import _ffmpeg_float, _integrated_lufs
+from .samples import as_audio, resample, segment_samples, to_audio
 from .turns import TURN_BOUND_TOLERANCE_S
 
 Label = Hashable
@@ -145,10 +141,6 @@ def _require_librosa(purpose: str):
     return librosa
 
 
-def _as_audio(audio: Union[str, Path, Audio]) -> Audio:
-    return audio if isinstance(audio, Audio) else Audio(audio)
-
-
 # --- spans --------------------------------------------------------------------
 
 
@@ -212,15 +204,6 @@ def _band_stats(
     return centroid, (float(low_db) if np.isfinite(low_db) else None)
 
 
-def _resample(mono: np.ndarray, fs: int, target: int) -> np.ndarray:
-    from scipy.signal import resample_poly
-
-    if fs == target:
-        return mono
-    g = gcd(fs, target)
-    return resample_poly(mono, target // g, fs // g)
-
-
 def _voiced_f0(
     pieces: Sequence[np.ndarray],
     fs: int,
@@ -241,7 +224,7 @@ def _voiced_f0(
     librosa = _require_librosa("f0 estimation (voice_profile)")
     voiced, n_frames = [], 0
     for piece in pieces:
-        y = _resample(piece, fs, sample_rate)
+        y = resample(piece, fs, sample_rate)
         if len(y) < frame_length:
             continue
         if not np.any(y):  # pyin's frame count (centred frames, default hop)
@@ -310,10 +293,10 @@ def voice_profile(
           (~85-155 Hz), so compare it between takes of the same speaker, or
           read it next to ``f0_hz``, rather than as pure "boom".
     """
-    audio = _as_audio(audio)
+    audio = as_audio(audio)
     segment = audio._get_segment()
     fs = segment.frame_rate
-    data = _segment_samples(segment)
+    data = segment_samples(segment)
     grouped = _spans_by_label(spans, len(data) / fs)
 
     def profile(ranges) -> dict:
@@ -653,13 +636,13 @@ def shift_pitch(
     if not abs(semitones) <= max_semitones:
         raise ValueError(f"|semitones| must be <= {max_semitones}, got {semitones}")
     _check_method(method)
-    audio = _as_audio(audio)
+    audio = as_audio(audio)
     segment = audio._get_segment()
     if semitones == 0:
         result = Audio(segment._spawn(segment.raw_data), time_unit=audio.time_unit)
     else:
         strategy = _pick_strategy(method, preserve_formants)
-        data = _segment_samples(segment)
+        data = segment_samples(segment)
         fs = segment.frame_rate
         n, ch = data.shape
         out = _fit_length(
@@ -675,7 +658,7 @@ def shift_pitch(
         peak = float(np.max(np.abs(out), initial=0.0))
         if peak > CLIP_CEILING:
             out = out * (CLIP_CEILING / peak)
-        result = _to_audio(out, segment, time_unit=audio.time_unit)
+        result = to_audio(out, segment, time_unit=audio.time_unit)
     return deliver(
         result,
         output,
