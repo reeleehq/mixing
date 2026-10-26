@@ -16,6 +16,8 @@ Main exports:
 - text_before_segments: transcript words just before each segment (song intros)
 - loudness, level_turns: BS.1770 integrated LUFS meter; per-speaker-turn loudness
   matching (EQ, compress, gain to a target LUFS)
+- process_turns: run a callable on each (padded) turn of a recording and splice
+  the results back at exact length
 - find_talk_edges: the host's talk at the start/end of a carved song (talk over
   music counts), with the music proper's clean start/end
 
@@ -80,6 +82,7 @@ from .tagging import WindowProbabilities, ast_audioset_classifier
 from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
 from .beats import beat_grid, BeatGrid
 from .loudness import loudness, level_turns, noise_floor_db
+from .turns import process_turns
 from ..errors import MixingError, WindowTooWideForClip
 
 __all__ = [
@@ -122,6 +125,8 @@ __all__ = [
     "text_before_segments",
     "loudness",
     "level_turns",
+    "noise_floor_db",
+    "process_turns",
     "WindowProbabilities",
     "ast_audioset_classifier",
     "TalkEdges",

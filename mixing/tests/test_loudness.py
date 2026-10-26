@@ -11,8 +11,13 @@ pytest.importorskip("scipy")
 
 from pydub import AudioSegment
 
-from mixing.audio import Audio, level_turns, loudness
-from mixing.audio.loudness import _check_turns, noise_floor_db
+from mixing.audio import Audio, level_turns, loudness, process_turns
+from mixing.audio.loudness import (
+    MAX_GAIN_DB,
+    _check_turns,
+    apply_ffmpeg_filter,
+    noise_floor_db,
+)
 from mixing.util import ffmpeg_exe
 
 RATE = 44100
@@ -59,7 +64,7 @@ def test_loudness_matches_ffmpeg_ebur128(tmp_path, amplitude):
     segment = _voice(6, amplitude)
     path = tmp_path / "v.wav"
     segment.export(str(path), format="wav")
-    assert loudness(Audio(segment)) == pytest.approx(_ffmpeg_lufs(path), abs=0.3)
+    assert loudness(Audio(segment)) == pytest.approx(_ffmpeg_lufs(path), abs=0.1)
 
 
 def test_loudness_silence_and_gain():
@@ -118,3 +123,164 @@ def test_chains_and_callables_and_egress(tmp_path):
 def test_noise_floor_db_is_low_for_quiet_gaps():
     mixed = Audio(_voice(1, 0.3) + _silence(2))
     assert noise_floor_db(mixed) < -80
+
+
+# --- meter accuracy: stereo, 48 kHz ---------------------------------------------
+
+
+def _stereo(left, right):
+    return AudioSegment.from_mono_audiosegments(left, right)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        pytest.param(lambda: _voice(6, 0.2).set_frame_rate(48000), id="mono-48k"),
+        pytest.param(
+            lambda: _stereo(_voice(6, 0.3, seed=1), _voice(6, 0.08, freq=150, seed=2)),
+            id="stereo-44k",
+        ),
+        pytest.param(
+            lambda: _stereo(_voice(6, 0.1), _voice(6, 0.25, freq=330)).set_frame_rate(
+                48000
+            ),
+            id="stereo-48k",
+        ),
+    ],
+)
+def test_loudness_matches_ffmpeg_ebur128_stereo_and_rates(tmp_path, make):
+    segment = make()
+    path = tmp_path / "v.wav"
+    segment.export(str(path), format="wav")
+    assert loudness(Audio(segment)) == pytest.approx(_ffmpeg_lufs(path), abs=0.1)
+
+
+# --- level_turns regressions ----------------------------------------------------
+
+
+def _peak_dbfs(audio):
+    return audio._get_segment().max_dBFS
+
+
+def _three_speakers():
+    gaps = _silence(0.8)
+    audio = Audio(
+        _voice(3, 0.9, seed=1) + gaps + _voice(3, 0.06, freq=140, seed=2) + gaps
+        + _voice(3, 0.2, freq=310, seed=3)
+    )  # fmt: skip
+    return audio, [("a", 0.0, 3.0), ("b", 3.8, 6.8), ("c", 7.6, 10.6)]
+
+
+def test_default_path_hits_target_under_ceiling():
+    """The default limiter must not auto-level to 0 dBFS (alimiter's default)."""
+    audio, turns = _three_speakers()
+    out = level_turns(audio, turns, target_lufs=-16)  # default ceiling_db=-1.5
+    for _, s, e in turns:
+        assert loudness(out[s:e]) == pytest.approx(-16, abs=0.5)
+    assert _peak_dbfs(out) <= -1.5 + 0.1
+
+
+@pytest.mark.parametrize("time_unit", ["milliseconds", "samples"])
+def test_time_unit_does_not_break_slicing(time_unit):
+    audio, turns = _three_speakers()
+    ref = level_turns(audio, turns, ceiling_db=None, denoise=None)
+    out = level_turns(
+        Audio(audio._get_segment(), time_unit=time_unit),
+        turns,
+        ceiling_db=None,
+        denoise=None,
+    )
+    assert out.time_unit == time_unit
+    assert out._get_segment().raw_data == ref._get_segment().raw_data
+    assert out.duration == pytest.approx(audio.duration, abs=1e-3)
+
+
+def _onset_s(audio, start, end, *, fraction=0.3):
+    """Time (s, from ``start``) the signal first exceeds ``fraction`` of its peak."""
+    seg = audio._get_segment()
+    data = np.abs(np.array(seg.get_array_of_samples(), dtype=float))
+    window = data[int(start * RATE) : int(end * RATE)]
+    return int(np.argmax(window > fraction * window.max())) / RATE
+
+
+def test_denoise_and_compressor_keep_onsets_in_place():
+    """afftdn delays ~25 ms; levelling must not shift a turn's content."""
+    rng = np.random.default_rng(0)
+    pieces = []
+    for i in range(3):
+        hiss = (0.003 * rng.standard_normal(int(0.4 * RATE)) * 32767).astype(np.int16)
+        pieces.append(
+            AudioSegment(hiss.tobytes(), frame_rate=RATE, sample_width=2, channels=1)
+            + _voice(1.5, 0.3, seed=i)
+            + _silence(0.5)
+        )
+    audio = Audio(sum(pieces[1:], pieces[0]))
+    turns = [("s", i * 2.4 + 0.05, i * 2.4 + 2.2) for i in range(3)]
+    out = level_turns(audio, turns, denoise_above=-200, ceiling_db=None)
+    for _, s, e in turns:
+        before, after = _onset_s(audio, s, e), _onset_s(out, s, e)
+        assert abs(after - before) < 0.005, (before, after)
+
+
+def test_many_turns_join_is_fast():
+    import time
+
+    audio = Audio(_voice(60, 0.2))
+    turns = [("ab"[i % 2], i * 0.3, i * 0.3 + 0.25) for i in range(200)]
+    t0 = time.perf_counter()
+    out = level_turns(
+        audio, turns, compressor=None, denoise=None, ceiling_db=None, pad_s=0.1
+    )
+    assert time.perf_counter() - t0 < 10
+    assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+
+
+def test_gain_is_capped_with_a_warning():
+    audio = Audio(_voice(3, 0.0005, seed=4) + _silence(0.5))
+    with pytest.warns(UserWarning, match="capped"):
+        out = level_turns(
+            audio, [("q", 0.0, 3.0)], compressor=None, denoise=None, ceiling_db=None
+        )
+    gained = loudness(out[0:3]) - loudness(audio[0:3])
+    assert gained == pytest.approx(MAX_GAIN_DB, abs=0.5)
+
+
+@pytest.mark.parametrize("delta_s", [-0.7, 0.4])
+def test_stage_changing_length_keeps_total_duration(delta_s):
+    def shrink_or_grow(audio):
+        seg = audio._get_segment()
+        if delta_s < 0:
+            return Audio(seg[: int((audio.duration + delta_s) * 1000)])
+        return Audio(seg + AudioSegment.silent(int(delta_s * 1000), RATE))
+
+    audio, turns = _three_speakers()
+    out = level_turns(
+        audio,
+        turns,
+        chains={"a": shrink_or_grow, "b": shrink_or_grow},
+        ceiling_db=None,
+        denoise=None,
+    )
+    raw_in, raw_out = audio._get_segment().raw_data, out._get_segment().raw_data
+    assert len(raw_out) == len(raw_in)
+    # the untouched gaps stay byte-identical, so nothing after a turn shifted
+    gap = slice(int(3.2 * RATE) * 2, int(3.6 * RATE) * 2)
+    assert raw_out[gap] == raw_in[gap]
+
+
+def test_process_turns_identity_is_lossless_and_fade_longer_than_turn():
+    audio, turns = _three_speakers()
+    same = process_turns(audio, turns, lambda speaker, a, core: a)
+    assert same._get_segment().raw_data == audio._get_segment().raw_data
+    out = level_turns(
+        audio, [("x", 1.0, 1.01)], fade_s=5, compressor=None, denoise=None
+    )
+    assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+
+
+def test_apply_ffmpeg_filter_keeps_sample_width():
+    seg = _voice(1, 0.2).set_sample_width(4)
+    out = apply_ffmpeg_filter(Audio(seg), "volume=0.5")
+    out_seg = out._get_segment()
+    assert out_seg.sample_width == 4
+    assert len(out_seg.raw_data) == len(seg.raw_data)
