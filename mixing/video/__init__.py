@@ -49,3 +49,12 @@ from mixing.video.video_util import (
 )
 
 from mixing.video.shot_boundaries import shots, contact_sheet, adaptive_threshold
+from mixing.video.cutaways import (
+    Cutaway,
+    MediaInfo,
+    CutawayPlan,
+    cutaways,
+    plan_cutaways,
+    probe_media,
+    render_cutaways,
+)

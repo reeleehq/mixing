@@ -112,13 +112,13 @@ def spans_from_changes(
     return [(float(a), float(b)) for a, b in zip(edges[:-1], edges[1:])]
 
 
-_DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 
 
 def probe_duration(video) -> float | None:
     """Container duration in seconds via ``ffmpeg -i``, or ``None`` if unknown."""
     proc = subprocess.run([ffmpeg_exe(), "-i", str(video)], capture_output=True)
-    match = _DURATION_RE.search(proc.stderr.decode(errors="replace"))
+    match = DURATION_RE.search(proc.stderr.decode(errors="replace"))
     if match is None:
         return None
     h, m, sec = match.groups()

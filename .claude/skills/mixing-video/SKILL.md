@@ -159,6 +159,18 @@ assemble_audio_track(
 Each segment occupies exactly its `duration_s` (audio then silence padding; an
 over-long clip is trimmed). `sample_rate=44100` by default.
 
+## Cutaways — timed inserts over an unbroken base video
+
+`cutaways(base, inserts, overlay=...)` (documentary-style B-roll): the base keeps its timeline and audio; each `Cutaway(src, src_in, t0, t1, audio_gain=None)` covers `[t0, t1)` with a clip (or a still image), scaled by `fit` (`"fill"` crops to cover, `"fit"` letterboxes, `"stretch"`). One ffmpeg pass, no moviepy. An insert's own audio is mixed under the base only when `audio_gain` is set (linear; `amix normalize=0`, so the base level is kept). `overlay` (a caption PNG) shows only while an insert does. `insert_grade` / `base_grade` take a `looks.vf(...)` fragment.
+
+```python
+from mixing.video import cutaways, plan_cutaways, Cutaway
+cutaways("talk.mp4", [Cutaway("imagined.mp4", 0.0, 12.0, 16.5, audio_gain=0.3),
+                      Cutaway("still.png", 0.0, 20.0, 23.0)],
+         overlay="ai_imagining.png", output="talk_cutaways.mp4")
+plan = plan_cutaways("talk.mp4", items)   # inspect first: plan.filter_complex, plan.command(out)
+```
+
 ## Thumbnails
 
 ```python
