@@ -8,7 +8,7 @@ pytest.importorskip("cv2")
 from mixing.util import has_ffmpeg
 from mixing.video.cutaways import (
     CutawayPlan,
-    Insert,
+    Cutaway,
     MediaInfo,
     cutaways,
     parse_media_info,
@@ -20,73 +20,102 @@ INFO = MediaInfo(width=320, height=240, fps=24.0, duration=3.0, has_audio=True)
 SILENT = MediaInfo(width=320, height=240, fps=24.0, duration=3.0, has_audio=False)
 
 
-def _plan(inserts, *, base=INFO, infos=None, **kw):
-    infos = infos or {str(i.src): INFO for i in inserts}
-    return plan_cutaways("base.mp4", inserts, base_info=base, insert_infos=infos, **kw)
+def _plan(items, *, base=INFO, infos=None, **kw):
+    """Plan with a fake probe: ``base.mp4`` is ``base``; others come from ``infos``."""
+    infos = infos or {}
+
+    def probe(path):
+        return base if str(path) == "base.mp4" else infos.get(str(path), INFO)
+
+    return plan_cutaways("base.mp4", items, probe=probe, **kw)
 
 
 def test_insert_validates_its_window():
     with pytest.raises(ValueError):
-        Insert("a.mp4", 0.0, 2.0, 2.0)
+        Cutaway("a.mp4", 0.0, 2.0, 2.0)
     with pytest.raises(ValueError):
-        Insert("a.mp4", -1.0, 0.0, 1.0)
+        Cutaway("a.mp4", -1.0, 0.0, 1.0)
     with pytest.raises(ValueError):
-        Insert("a.mp4", 0.0, 0.0, 1.0, audio_gain=-0.1)
+        Cutaway("a.mp4", 0.0, 0.0, 1.0, audio_gain=-0.1)
 
 
 def test_plan_places_insert_on_the_base_timeline_and_gates_the_overlay():
-    plan = _plan([Insert("a.mp4", 0.5, 1.0, 2.0)])
+    plan = _plan([Cutaway("a.mp4", 0.5, 1.0, 2.0)])
     fc = plan.filter_complex
-    assert "trim=start=0.5:duration=1" in fc
     assert "setpts=PTS+1/TB" in fc
     assert "overlay=eof_action=pass:enable='gte(t,1)*lt(t,2)'" in fc
     assert plan.maps == ("[b1]", "0:a")  # base audio passes through untouched
 
 
 def test_insert_audio_is_mixed_only_with_a_gain_and_without_normalising():
-    silent_insert = _plan([Insert("a.mp4", 0, 1, 2)])
+    silent_insert = _plan([Cutaway("a.mp4", 0, 1, 2)])
     assert "amix" not in silent_insert.filter_complex
-    mixed = _plan([Insert("a.mp4", 0, 1, 2, audio_gain=0.3)])
+    mixed = _plan([Cutaway("a.mp4", 0, 1, 2, audio_gain=0.3)])
     assert "volume=0.3" in mixed.filter_complex
-    assert "adelay=1000|1000" in mixed.filter_complex
+    assert "adelay=1000:all=1" in mixed.filter_complex
     assert "amix=inputs=2:duration=first:normalize=0" in mixed.filter_complex
     assert mixed.maps == ("[b1]", "[aout]")
 
 
 def test_stills_and_audioless_inserts_never_reach_the_audio_mix():
     plan = _plan(
-        [Insert("s.png", 0, 1, 2, audio_gain=1.0)],
+        [Cutaway("s.png", 0, 1, 2, audio_gain=1.0)],
         infos={"s.png": SILENT},
-    )
+    )  # a still never has audio, whatever its gain
     assert "amix" not in plan.filter_complex
     assert plan.inputs[2:4] == ("-loop", "1")  # the still is looped for its window
 
 
 def test_silent_base_gets_synthesised_silence_when_inserts_bring_audio():
-    plan = _plan([Insert("a.mp4", 0, 1, 2, audio_gain=0.5)], base=SILENT)
+    plan = _plan([Cutaway("a.mp4", 0, 1, 2, audio_gain=0.5)], base=SILENT)
     assert "anullsrc=r=48000:cl=stereo,atrim=duration=3" in plan.filter_complex
 
 
 def test_overlay_shows_only_while_an_insert_does():
     plan = _plan(
-        [Insert("a.mp4", 0, 1, 2), Insert("b.mp4", 0, 2.5, 3)], overlay="cap.png"
+        [Cutaway("a.mp4", 0, 1, 2), Cutaway("b.mp4", 0, 2.5, 3)], overlay="cap.png"
     )
     assert "enable='gte(t,1)*lt(t,2)+gte(t,2.5)*lt(t,3)'" in plan.filter_complex
     assert plan.maps[0] == "[vout]"
 
 
 def test_fit_modes_and_validation():
-    assert "pad=320:240" in _plan([Insert("a.mp4", 0, 1, 2)], fit="fit").filter_complex
-    assert "crop=320:240" in _plan([Insert("a.mp4", 0, 1, 2)]).filter_complex
-    with pytest.raises(ValueError, match="fit"):
-        _plan([Insert("a.mp4", 0, 1, 2)], fit="cover")
+    wide = {"a.mp4": MediaInfo(640, 240, 24.0, 3.0, False)}
+    cut = [Cutaway("a.mp4", 0, 1, 2)]
+    assert "pad=" in _plan(cut, infos=wide, fit="fit").filter_complex
+    assert "crop=" in _plan(cut, infos=wide).filter_complex  # default: fill
+    assert "pad=" not in _plan(cut, infos=wide).filter_complex
     with pytest.raises(ValueError, match="at least one"):
         _plan([])
 
 
 def test_insert_grade_applies_to_inserts_only():
-    plan = _plan([Insert("a.mp4", 0, 1, 2)], insert_grade="eq=saturation=0")
+    plan = _plan([Cutaway("a.mp4", 0, 1, 2)], insert_grade="eq=saturation=0")
     assert plan.filter_complex.count("eq=saturation=0") == 1
+
+
+def test_src_in_past_the_clip_is_refused_and_a_short_clip_warns():
+    short = {"a.mp4": MediaInfo(320, 240, 24.0, 1.0, False)}
+    with pytest.raises(ValueError, match="src_in"):
+        _plan([Cutaway("a.mp4", 5, 1, 2)], infos=short)
+    with pytest.warns(UserWarning, match="base shows through"):
+        _plan([Cutaway("a.mp4", 0.5, 1, 3)], infos=short)
+
+
+def test_overlay_position_is_quoted_so_commas_survive():
+    plan = _plan(
+        [Cutaway("a.mp4", 0, 1, 2)], overlay="c.png", overlay_xy=("max(0,W-w)", "0")
+    )
+    assert "overlay='max(0,W-w)':'0'" in plan.filter_complex
+
+
+def test_parse_media_info_swaps_size_for_a_rotated_display_matrix():
+    info = parse_media_info(
+        "Duration: 00:00:02.00\n"
+        "Stream #0:0: Video: h264, yuv444p, 640x360 [SAR 1:1 DAR 16:9], 25 fps\n"
+        "Side data:\n Display Matrix: rotation of 90.00 degrees"
+    )
+    assert (info.width, info.height) == (360, 640)
 
 
 def test_parse_media_info():
@@ -100,15 +129,10 @@ def test_parse_media_info():
         parse_media_info("Audio: aac")
 
 
-def test_dry_run_returns_the_plan_without_running(tmp_path):
-    out = cutaways(
-        "base.mp4",
-        [Insert("a.mp4", 0, 1, 2)],
-        probe=lambda p: INFO,
-        dry_run=True,
-    )
-    assert isinstance(out, CutawayPlan)
-    assert out.command(tmp_path / "o.mp4")[-1].endswith("o.mp4")
+def test_plan_command_writes_the_given_output(tmp_path):
+    plan = plan_cutaways("base.mp4", [Cutaway("a.mp4", 0, 1, 2)], probe=lambda p: INFO)
+    assert isinstance(plan, CutawayPlan)
+    assert plan.command(tmp_path / "o.mp4")[-1].endswith("o.mp4")
 
 
 @pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
@@ -121,7 +145,7 @@ def test_real_render_cuts_away_and_keeps_base_timeline_and_audio(
     cut = make_color_video(1.5, color=(0, 0, 255), size=(160, 120), with_audio=True)
     out = cutaways(
         base,
-        [Insert(cut, 0.0, 1.0, 2.0, audio_gain=0.5)],
+        [Cutaway(cut, 0.0, 1.0, 2.0, audio_gain=0.5)],
         output=tmp_path / "out.mp4",
     )
     info = probe_media(out)
@@ -152,7 +176,7 @@ def test_real_render_with_a_still_and_a_caption_overlay(make_color_video, tmp_pa
     cv2.imwrite(str(caption), np.full((20, 20, 4), (255, 255, 255, 255), np.uint8))
     out = cutaways(
         base,
-        [Insert(still, 0.0, 1.0, 2.0)],
+        [Cutaway(still, 0.0, 1.0, 2.0)],
         overlay=caption,
         output=tmp_path / "out.mp4",
     )

@@ -64,7 +64,7 @@ _LAZY: dict[str, str] = {
     "shots": "mixing.video",
     "cutaways": "mixing.video",
     "plan_cutaways": "mixing.video",
-    "Insert": "mixing.video",
+    "Cutaway": "mixing.video",
     # video transitions (transform_clips-shaped: list[clip] -> Iterable[clip])
     "crossfade_transition": "mixing.video",
     # …and how a transition declares the overlapped join it needs
@@ -175,7 +175,7 @@ if TYPE_CHECKING:  # help static analyzers see the lazy names
         overlay_ambient_bed,
         replace_audio,
         shots,
-        Insert,
+        Cutaway,
         cutaways,
         plan_cutaways,
         resize_to_dimensions,
