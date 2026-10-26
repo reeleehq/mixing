@@ -33,6 +33,7 @@ __all__ = [
     "parse_srt",
     "dump_srt",
     "shift_srt_timestamps",
+    "parse_vtt",
     "parse_vtt_words",
 ]
 
@@ -209,6 +210,25 @@ def _vtt_cues(vtt_text: str) -> list[Cue]:
             in_cue = False
         elif in_cue and line.strip():
             cues[-1].text += ("\n" if cues[-1].text else "") + line.strip()
+    return cues
+
+
+def parse_vtt(vtt_text: str, *, clean: bool = True) -> list[Cue]:
+    """Parse WebVTT into cues; the counterpart of :func:`parse_srt`.
+
+    Tolerates a missing hour field, cue identifiers, and ``NOTE``/``STYLE`` blocks.
+    With ``clean`` (default) inline timestamp and ``<c>`` tags are stripped,
+    entities unescaped and whitespace collapsed; ``clean=False`` keeps each
+    cue's text as written (lines joined by newlines).
+
+    >>> [(c.start, c.end, c.text) for c in parse_vtt(
+    ...     "WEBVTT\\n\\n01:02.500 --> 01:04.000\\n<c>Hi</c> there")]
+    [(62.5, 64.0, 'Hi there')]
+    """
+    cues = _vtt_cues(vtt_text)
+    if clean:
+        for cue in cues:
+            cue.text = _vtt_clean(cue.text)
     return cues
 
 
