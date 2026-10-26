@@ -363,13 +363,15 @@ def _check_timing(strategy, semitones, *, tolerance_ms, **kw):
 @pytest.mark.parametrize("preserve_formants", [True, False])
 @pytest.mark.parametrize("semitones", [-12, 12, -24])
 def test_rubberband_timing_is_compensated(semitones, preserve_formants):
-    # at -24 st the delay depends on the signal by several ms (per-probe lags
-    # spread 2644-2936 samples at 44.1 kHz): the probe median cannot be within
-    # 3 ms of this tone-burst signal's own delay, so allow 5 ms there
+    # Measured mean timing error differs between rubberband builds (Homebrew
+    # ffmpeg@6, Debian apt, Windows): up to 3.1 ms within an octave and 5.9 ms at
+    # -24 st, where per-probe delays also spread by several ms. The bounds below
+    # keep clear margin over those and still fail on the uncompensated error
+    # (22 ms at -12 st, 60 ms at -24 st).
     _check_timing(
         voice_module.rubberband_strategy,
         semitones,
-        tolerance_ms=5.0 if abs(semitones) > 12 else 3.0,
+        tolerance_ms=9.0 if abs(semitones) > 12 else 6.0,
         preserve_formants=preserve_formants,
     )
 
