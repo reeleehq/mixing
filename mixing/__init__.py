@@ -113,6 +113,8 @@ _LAZY: dict[str, str] = {
     # srt / timeline (pure)
     "Cue": "mixing.srt",
     "parse_srt": "mixing.srt",
+    "parse_vtt": "mixing.srt",
+    "parse_vtt_words": "mixing.srt",
     "dump_srt": "mixing.srt",
     "srt_time_to_seconds": "mixing.srt",
     "seconds_to_srt_time": "mixing.srt",

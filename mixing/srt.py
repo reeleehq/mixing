@@ -33,6 +33,7 @@ __all__ = [
     "parse_srt",
     "dump_srt",
     "shift_srt_timestamps",
+    "parse_vtt",
     "parse_vtt_words",
 ]
 
@@ -212,6 +213,27 @@ def _vtt_cues(vtt_text: str) -> list[Cue]:
     return cues
 
 
+def parse_vtt(vtt_text: str, *, clean: bool = True) -> list[Cue]:
+    """Parse WebVTT into cues; the counterpart of :func:`parse_srt`.
+
+    Tolerates a missing hour field, cue settings, and ``NOTE``/``STYLE`` blocks.
+    Cue identifiers are dropped: ``Cue.index`` is the cue's 1-based position in
+    the file. A cue with no text is kept (``text=""``). With ``clean`` (default)
+    inline timestamp and ``<c>`` tags are stripped, entities unescaped and all
+    whitespace, line breaks included, collapsed to single spaces; ``clean=False``
+    keeps each cue's text as written (lines joined by newlines).
+
+    >>> [(c.start, c.end, c.text) for c in parse_vtt(
+    ...     "WEBVTT\\n\\n01:02.500 --> 01:04.000\\n<c>Hi</c> there")]
+    [(62.5, 64.0, 'Hi there')]
+    """
+    cues = _vtt_cues(vtt_text)
+    if clean:
+        for cue in cues:
+            cue.text = _vtt_clean(cue.text)
+    return cues
+
+
 def parse_vtt_words(vtt_text: str) -> list[dict]:
     r"""Parse a WebVTT caption file into a word list shaped like Scribe's.
 
@@ -259,7 +281,7 @@ def parse_vtt_words(vtt_text: str) -> list[dict]:
                     timed.append((t, text, cue.end))
     if not timed:
         timed = [
-            (c.start, _vtt_clean(c.text), c.end) for c in cues if _vtt_clean(c.text)
+            (c.start, c.text, c.end) for c in parse_vtt(vtt_text) if c.text
         ]
     words = []
     for i, (start, text, cue_end) in enumerate(timed):
