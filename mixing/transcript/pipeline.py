@@ -67,7 +67,7 @@ def remove_fillers(
         output_media: Output cleaned media path. Defaults to
             ``output_dir / f"{stem}.cleaned.mp4"``.
         fillers / audio_events: Override the default filler / event sets.
-        api_key: ElevenLabs API key (else env ``ELEVENLABS_API_KEY``).
+        api_key: ElevenLabs API key (else env ``ELEVENLABS_API_KEY`` or ``ELEVEN_API_KEY``).
         scribe_kwargs: Extra kwargs forwarded to :func:`transcribe`.
         apply_keeps_kwargs: Extra kwargs forwarded to :func:`apply_keeps`.
         keep_intermediate: If ``False``, delete the extracted audio file.

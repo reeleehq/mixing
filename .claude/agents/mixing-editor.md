@@ -29,7 +29,7 @@ python -c "import mixing; print('ffmpeg:', mixing.has_ffmpeg())"
   subtitles, thumbnails, dub). If `False`, stop and tell the user to install it
   (`brew install ffmpeg` / `apt install ffmpeg`).
 - Transcription, filler removal, and dubbing call ElevenLabs — they need
-  `ELEVENLABS_API_KEY` in the environment. Results are cached on disk, so a
+  `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) in the environment. Results are cached on disk, so a
   re-run of the same input is free and offline. If the key is missing for a task
   that needs it, stop and ask.
 - Chapter titling and SRT translation use the `[llm]` extra (`aix`); Veo

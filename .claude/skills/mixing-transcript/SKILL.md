@@ -37,7 +37,7 @@ print(result.cleaned_media)  # out/talk.cleaned.mp4
 resp = transcribe("talk.mp4", cache=True)  # dict with resp["words"]
 ```
 
-**Needs `ELEVENLABS_API_KEY`** (env var, or pass `api_key=`). Responses are cached
+**Needs `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`)** (env var, or pass `api_key=`). Responses are cached
 on disk, so re-running the same input is free and offline (`cache=`/`refresh=`).
 
 ## Key functions
@@ -169,7 +169,7 @@ extract_audio("talk.mp4", "talk.mp3")  # mono 16k mp3 for STT -> Path
 
 ## Gotchas
 
-- Needs `ELEVENLABS_API_KEY`; without it `transcribe`/`srt_for_media`/`remove_fillers`
+- Needs `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`); without it `transcribe`/`srt_for_media`/`remove_fillers`
   raise `RuntimeError`. The disk cache makes repeat runs free and offline.
 - `transcribe(...)` defaults to `cache=False`; pass `cache=True` to persist.
 - `srt_for_media` won't overwrite an existing `.srt` unless `refresh=True` — it

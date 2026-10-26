@@ -80,3 +80,11 @@ def test_eleven_api_key_alias_and_precedence(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "PRIMARY")
     assert resolve_api_key(None) == "PRIMARY"
     assert resolve_api_key("explicit") == "explicit"
+
+
+def test_empty_primary_falls_through_to_alias(monkeypatch):
+    from mixing._elevenlabs import resolve_api_key
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("ELEVEN_API_KEY", "ALIAS")
+    assert resolve_api_key(None) == "ALIAS"

@@ -7,7 +7,7 @@ timeline-aware cuts of audio/video. Produces editable transcripts
 The HTTP client uses stdlib only (no `requests` or `elevenlabs` SDK
 dependency), so the package adds no required deps. The runtime needs
 ffmpeg on PATH for media operations, and an ElevenLabs API key (env
-var `ELEVENLABS_API_KEY` or explicit `api_key=`) for transcription.
+var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) or explicit `api_key=`) for transcription.
 
 Quick start:
     >>> from mixing.transcript import remove_fillers  # doctest: +SKIP
