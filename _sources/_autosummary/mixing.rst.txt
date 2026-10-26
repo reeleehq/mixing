@@ -12,6 +12,8 @@
       dump_srt
       has_ffmpeg
       parse_srt
+      parse_vtt
+      parse_vtt_words
       remove_fillers
       seconds_to_srt_time
       srt_for_media

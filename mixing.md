@@ -1,4 +1,4 @@
-> built 2026-10-26 19:17 UTC from 4b972ab (main) · mixing 0.0.64. Details: build_info.json
+> built 2026-10-26 22:07 UTC from b5e601d (main) · mixing 0.0.65. Details: build_info.json
 
 # index.html.md
 
@@ -1110,18 +1110,20 @@ it directly (`from mixing.audio import ...`).
 
 ### Functions
 
-| [`detect_chapters`](_autosummary/mixing.html.md#mixing.detect_chapters)(transcript, \*[, duration, ...])   | Detect chapter markers from a `transcript`.                                                 |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| [`dump_srt`](_autosummary/mixing.html.md#mixing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                        |
-| [`has_ffmpeg`](_autosummary/mixing.html.md#mixing.has_ffmpeg)()                                       | Return True if the `ffmpeg` binary is available on `PATH`.                                  |
-| [`parse_srt`](_autosummary/mixing.html.md#mixing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](_autosummary/mixing.html.md#mixing.Cue) objects. |
-| [`remove_fillers`](_autosummary/mixing.html.md#mixing.remove_fillers)(input_media, output_dir, \*[, ...]) | End-to-end filler removal.                                                                  |
-| [`seconds_to_srt_time`](_autosummary/mixing.html.md#mixing.seconds_to_srt_time)(seconds)                       | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                |
-| [`srt_for_media`](_autosummary/mixing.html.md#mixing.srt_for_media)(media, \*[, srt_path, reuse, ...])   | Return `(srt_text, srt_path)` for `media`, transcribing if needed.                          |
-| [`srt_time_to_seconds`](_autosummary/mixing.html.md#mixing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
-| [`text_to_speech`](_autosummary/mixing.html.md#mixing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                         |
-| [`transcribe`](_autosummary/mixing.html.md#mixing.transcribe)(audio, \*[, api_key, model_id, ...])    | Transcribe `audio` with ElevenLabs Scribe.                                                  |
-| [`translate_srt`](_autosummary/mixing.html.md#mixing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                     |
+| [`detect_chapters`](_autosummary/mixing.html.md#mixing.detect_chapters)(transcript, \*[, duration, ...])   | Detect chapter markers from a `transcript`.                                                              |
+|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| [`dump_srt`](_autosummary/mixing.html.md#mixing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                                     |
+| [`has_ffmpeg`](_autosummary/mixing.html.md#mixing.has_ffmpeg)()                                       | Return True if the `ffmpeg` binary is available on `PATH`.                                               |
+| [`parse_srt`](_autosummary/mixing.html.md#mixing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](_autosummary/mixing.html.md#mixing.Cue) objects.              |
+| [`parse_vtt`](_autosummary/mixing.html.md#mixing.parse_vtt)(vtt_text, \*[, clean])                   | Parse WebVTT into cues; the counterpart of [`parse_srt()`](_autosummary/mixing.html.md#mixing.parse_srt). |
+| [`parse_vtt_words`](_autosummary/mixing.html.md#mixing.parse_vtt_words)(vtt_text)                          | Parse a WebVTT caption file into a word list shaped like Scribe's.                                       |
+| [`remove_fillers`](_autosummary/mixing.html.md#mixing.remove_fillers)(input_media, output_dir, \*[, ...]) | End-to-end filler removal.                                                                               |
+| [`seconds_to_srt_time`](_autosummary/mixing.html.md#mixing.seconds_to_srt_time)(seconds)                       | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                             |
+| [`srt_for_media`](_autosummary/mixing.html.md#mixing.srt_for_media)(media, \*[, srt_path, reuse, ...])   | Return `(srt_text, srt_path)` for `media`, transcribing if needed.                                       |
+| [`srt_time_to_seconds`](_autosummary/mixing.html.md#mixing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                                            |
+| [`text_to_speech`](_autosummary/mixing.html.md#mixing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                                      |
+| [`transcribe`](_autosummary/mixing.html.md#mixing.transcribe)(audio, \*[, api_key, model_id, ...])    | Transcribe `audio` with ElevenLabs Scribe.                                                               |
+| [`translate_srt`](_autosummary/mixing.html.md#mixing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                                  |
 
 ### Classes
 
@@ -1306,6 +1308,60 @@ the millisecond separator. Cues without a valid time line are skipped.
 
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]
+
+### mixing.parse_vtt(vtt_text, , clean=True)
+
+Parse WebVTT into cues; the counterpart of [`parse_srt()`](_autosummary/mixing.html.md#mixing.parse_srt).
+
+Tolerates a missing hour field, cue settings, and `NOTE`/`STYLE` blocks.
+Cue identifiers are dropped: `Cue.index` is the cue’s 1-based position in
+the file. A cue with no text is kept (`text=""`). With `clean` (default)
+inline timestamp and `<c>` tags are stripped, entities unescaped and all
+whitespace, line breaks included, collapsed to single spaces; `clean=False`
+keeps each cue’s text as written (lines joined by newlines).
+
+```pycon
+>>> [(c.start, c.end, c.text) for c in parse_vtt(
+...     "WEBVTT\n\n01:02.500 --> 01:04.000\n<c>Hi</c> there")]
+[(62.5, 64.0, 'Hi there')]
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]
+
+### mixing.parse_vtt_words(vtt_text)
+
+Parse a WebVTT caption file into a word list shaped like Scribe’s.
+
+Each entry is `{"text", "start", "end", "type": "word"}` (seconds), the same
+shape [`mixing.transcript.transcribe()`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe) returns under `"words"`, so the
+result plugs into the word-level helpers (`words_to_srt`,
+`mixing.audio.segmentation.text_before_segments()`, …).
+
+YouTube auto-captions carry per-word timings as inline `<hh:mm:ss.mmm>`
+tags; text before a line’s first tag takes the cue start (or, on a later
+line of the same cue, the latest timing seen), and the rolling duplicate lines
+(no inline timings) are ignored. A file with no inline timings falls back to
+one entry per cue (its whole text). A word ends where the next one starts
+(capped at its cue end). Tags are stripped and HTML entities unescaped.
+
+```pycon
+>>> vtt = '''WEBVTT
+...
+... 00:00:12.240 --> 00:00:15.509 align:start position:0%
+... Music<00:00:12.639><c> with</c><00:00:12.800><c> meaning</c>
+...
+... 00:00:15.509 --> 00:00:15.519 align:start position:0%
+... Music with meaning
+... '''
+>>> [(w["text"], w["start"]) for w in parse_vtt_words(vtt)]
+[('Music', 12.24), ('with', 12.639), ('meaning', 12.8)]
+>>> parse_vtt_words("1\n00:01.000 --> 00:02.500\nRock &amp; roll\n\nNOTE hi\n")
+[{'text': 'Rock & roll', 'start': 1.0, 'end': 2.5, 'type': 'word'}]
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]
 
 ### mixing.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, keep_intermediate=True, scribe_data=None)
 
@@ -1514,15 +1570,16 @@ Times are always seconds (`float`) everywhere except the timestamp string.
 
 ### Functions
 
-| [`srt_time_to_seconds`](_autosummary/mixing.srt.html.md#mixing.srt.srt_time_to_seconds)(timestamp)                  | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
-|--------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| [`seconds_to_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.seconds_to_srt_time)(seconds)                    | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                |
-| [`fmt_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.fmt_srt_time)(seconds)                           | Back-compat aliases — historically these names lived in different modules.                  |
-| [`to_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.to_srt_time)(seconds)                            | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                |
-| [`parse_srt`](_autosummary/mixing.srt.html.md#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects. |
-| [`dump_srt`](_autosummary/mixing.srt.html.md#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                        |
-| [`shift_srt_timestamps`](_autosummary/mixing.srt.html.md#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                 |
-| [`parse_vtt_words`](_autosummary/mixing.srt.html.md#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                          |
+| [`srt_time_to_seconds`](_autosummary/mixing.srt.html.md#mixing.srt.srt_time_to_seconds)(timestamp)                  | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                                            |
+|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| [`seconds_to_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.seconds_to_srt_time)(seconds)                    | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                             |
+| [`fmt_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.fmt_srt_time)(seconds)                           | Back-compat aliases — historically these names lived in different modules.                               |
+| [`to_srt_time`](_autosummary/mixing.srt.html.md#mixing.srt.to_srt_time)(seconds)                            | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                             |
+| [`parse_srt`](_autosummary/mixing.srt.html.md#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue) objects.              |
+| [`dump_srt`](_autosummary/mixing.srt.html.md#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                                     |
+| [`shift_srt_timestamps`](_autosummary/mixing.srt.html.md#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                              |
+| [`parse_vtt`](_autosummary/mixing.srt.html.md#mixing.srt.parse_vtt)(vtt_text, \*[, clean])                | Parse WebVTT into cues; the counterpart of [`parse_srt()`](_autosummary/mixing.srt.html.md#mixing.srt.parse_srt). |
+| [`parse_vtt_words`](_autosummary/mixing.srt.html.md#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                                       |
 
 ### Classes
 
@@ -1591,6 +1648,26 @@ Parse SRT text into a list of [`Cue`](_autosummary/mixing.srt.html.md#mixing.srt
 
 Tolerant of blank-line spacing variations and of either `,` or `.` as
 the millisecond separator. Cues without a valid time line are skipped.
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]
+
+### mixing.srt.parse_vtt(vtt_text, , clean=True)
+
+Parse WebVTT into cues; the counterpart of [`parse_srt()`](_autosummary/mixing.srt.html.md#mixing.srt.parse_srt).
+
+Tolerates a missing hour field, cue settings, and `NOTE`/`STYLE` blocks.
+Cue identifiers are dropped: `Cue.index` is the cue’s 1-based position in
+the file. A cue with no text is kept (`text=""`). With `clean` (default)
+inline timestamp and `<c>` tags are stripped, entities unescaped and all
+whitespace, line breaks included, collapsed to single spaces; `clean=False`
+keeps each cue’s text as written (lines joined by newlines).
+
+```pycon
+>>> [(c.start, c.end, c.text) for c in parse_vtt(
+...     "WEBVTT\n\n01:02.500 --> 01:04.000\n<c>Hi</c> there")]
+[(62.5, 64.0, 'Hi there')]
+```
 
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](_autosummary/mixing.srt.html.md#mixing.srt.Cue)]
@@ -2464,7 +2541,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-26 19:17 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/4b972abeaeaf14f218eb8819984ab15bcadd4720"><code>4b972ab</code></a> on branch <code>main</code>, for **mixing 0.0.64** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-26 22:07 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/b5e601dfd6ea3aea4080b1df231486ebe487562b"><code>b5e601d</code></a> on branch <code>main</code>, for **mixing 0.0.65** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -2473,9 +2550,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/4b972abeaeaf14f218eb8819984ab15bcadd4720"><code>4b972abeaeaf14f218eb8819984ab15bcadd4720</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/b5e601dfd6ea3aea4080b1df231486ebe487562b"><code>b5e601dfd6ea3aea4080b1df231486ebe487562b</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.64</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.65</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2484,9 +2561,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40384061451">40384061451</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40398024098">40398024098</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>3c2baa6f8f2f525bde3bfd308a6bfc777e522008</code> (in the history of the built commit) |
+| Event commit | <code>d03765b27f804cf16912f1f7c91e5d0db50e66ba</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2511,13 +2588,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.64/">0.0.64</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.65/">0.0.65</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 4b972abeaeaf14f218eb8819984ab15bcadd4720
+git checkout b5e601dfd6ea3aea4080b1df231486ebe487562b
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

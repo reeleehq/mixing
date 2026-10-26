@@ -171,7 +171,10 @@ in seconds, and <code class="docutils literal notranslate"><span class="pre">tex
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.srt.shift_srt_timestamps" title="mixing.srt.shift_srt_timestamps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">shift_srt_timestamps</span></code></a>(srt_text[, shift_seconds])</p></td>
 <td><p>Shift every cue time line in <code class="docutils literal notranslate"><span class="pre">srt_text</span></code> by <code class="docutils literal notranslate"><span class="pre">shift_seconds</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.srt.parse_vtt_words" title="mixing.srt.parse_vtt_words"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_vtt_words</span></code></a>(vtt_text)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.srt.parse_vtt" title="mixing.srt.parse_vtt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_vtt</span></code></a>(vtt_text, *[, clean])</p></td>
+<td><p>Parse WebVTT into cues; the counterpart of <a class="reference internal" href="#mixing.srt.parse_srt" title="mixing.srt.parse_srt"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_srt()</span></code></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.srt.parse_vtt_words" title="mixing.srt.parse_vtt_words"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_vtt_words</span></code></a>(vtt_text)</p></td>
 <td><p>Parse a WebVTT caption file into a word list shaped like Scribe's.</p></td>
 </tr>
 </tbody>
@@ -268,6 +271,27 @@ in seconds, and <code class="docutils literal notranslate"><span class="pre">tex
 <dd><p>Parse SRT text into a list of <a class="reference internal" href="#mixing.srt.Cue" title="mixing.srt.Cue"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cue</span></code></a> objects.</p>
 <p>Tolerant of blank-line spacing variations and of either <code class="docutils literal notranslate"><span class="pre">,</span></code> or <code class="docutils literal notranslate"><span class="pre">.</span></code> as
 the millisecond separator. Cues without a valid time line are skipped.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference internal" href="#mixing.srt.Cue" title="mixing.srt.Cue"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cue</span></code></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.srt.parse_vtt">
+<span class="sig-prename descclassname"><span class="pre">mixing.srt.</span></span><span class="sig-name descname"><span class="pre">parse_vtt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vtt_text</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">clean</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/srt.html#parse_vtt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.srt.parse_vtt" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.srt.parse_vtt'">¶</a></dt>
+<dd><p>Parse WebVTT into cues; the counterpart of <a class="reference internal" href="#mixing.srt.parse_srt" title="mixing.srt.parse_srt"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_srt()</span></code></a>.</p>
+<p>Tolerates a missing hour field, cue settings, and <code class="docutils literal notranslate"><span class="pre">NOTE</span></code>/<code class="docutils literal notranslate"><span class="pre">STYLE</span></code> blocks.
+Cue identifiers are dropped: <code class="docutils literal notranslate"><span class="pre">Cue.index</span></code> is the cue’s 1-based position in
+the file. A cue with no text is kept (<code class="docutils literal notranslate"><span class="pre">text=""</span></code>). With <code class="docutils literal notranslate"><span class="pre">clean</span></code> (default)
+inline timestamp and <code class="docutils literal notranslate"><span class="pre">&lt;c&gt;</span></code> tags are stripped, entities unescaped and all
+whitespace, line breaks included, collapsed to single spaces; <code class="docutils literal notranslate"><span class="pre">clean=False</span></code>
+keeps each cue’s text as written (lines joined by newlines).</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="p">[(</span><span class="n">c</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">text</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">parse_vtt</span><span class="p">(</span>
+</span><span id="line-2"><span class="gp">... </span>    <span class="s2">"WEBVTT</span><span class="se">\n\n</span><span class="s2">01:02.500 --&gt; 01:04.000</span><span class="se">\n</span><span class="s2">&lt;c&gt;Hi&lt;/c&gt; there"</span><span class="p">)]</span>
+</span><span id="line-3"><span class="go">[(62.5, 64.0, 'Hi there')]</span>
+</span></code></pre></div>
+</div>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference internal" href="#mixing.srt.Cue" title="mixing.srt.Cue"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cue</span></code></a>]</span></p>
@@ -396,6 +420,7 @@ and negative inputs clamp to zero.</p>
 <li><a :data-current="activeSection === '#mixing.srt.dump_srt'" class="reference internal" href="#mixing.srt.dump_srt"><code class="docutils literal notranslate"><span class="pre">dump_srt()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.fmt_srt_time'" class="reference internal" href="#mixing.srt.fmt_srt_time"><code class="docutils literal notranslate"><span class="pre">fmt_srt_time()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.parse_srt'" class="reference internal" href="#mixing.srt.parse_srt"><code class="docutils literal notranslate"><span class="pre">parse_srt()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.srt.parse_vtt'" class="reference internal" href="#mixing.srt.parse_vtt"><code class="docutils literal notranslate"><span class="pre">parse_vtt()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.parse_vtt_words'" class="reference internal" href="#mixing.srt.parse_vtt_words"><code class="docutils literal notranslate"><span class="pre">parse_vtt_words()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.seconds_to_srt_time'" class="reference internal" href="#mixing.srt.seconds_to_srt_time"><code class="docutils literal notranslate"><span class="pre">seconds_to_srt_time()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.srt.shift_srt_timestamps'" class="reference internal" href="#mixing.srt.shift_srt_timestamps"><code class="docutils literal notranslate"><span class="pre">shift_srt_timestamps()</span></code></a></li>
@@ -414,7 +439,7 @@ and negative inputs clamp to zero.</p>
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=b153cf10"></script>
+<script src="../_static/documentation_options.js?v=152b4b09"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -25,15 +25,16 @@ Times are always seconds (`float`) everywhere except the timestamp string.
 
 ### Functions
 
-| [`srt_time_to_seconds`](#mixing.srt.srt_time_to_seconds)(timestamp)                  | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
-|--------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| [`seconds_to_srt_time`](#mixing.srt.seconds_to_srt_time)(seconds)                    | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                |
-| [`fmt_srt_time`](#mixing.srt.fmt_srt_time)(seconds)                           | Back-compat aliases — historically these names lived in different modules.                  |
-| [`to_srt_time`](#mixing.srt.to_srt_time)(seconds)                            | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                |
-| [`parse_srt`](#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](#mixing.srt.Cue) objects. |
-| [`dump_srt`](#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                        |
-| [`shift_srt_timestamps`](#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                 |
-| [`parse_vtt_words`](#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                          |
+| [`srt_time_to_seconds`](#mixing.srt.srt_time_to_seconds)(timestamp)                  | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                                            |
+|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| [`seconds_to_srt_time`](#mixing.srt.seconds_to_srt_time)(seconds)                    | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                             |
+| [`fmt_srt_time`](#mixing.srt.fmt_srt_time)(seconds)                           | Back-compat aliases — historically these names lived in different modules.                               |
+| [`to_srt_time`](#mixing.srt.to_srt_time)(seconds)                            | Format a time in seconds as an SRT timestamp `HH:MM:SS,mmm`.                                             |
+| [`parse_srt`](#mixing.srt.parse_srt)(srt_text)                             | Parse SRT text into a list of [`Cue`](#mixing.srt.Cue) objects.              |
+| [`dump_srt`](#mixing.srt.dump_srt)(cues)                                  | Serialize cues back to SRT text, renumbering from 1.                                                     |
+| [`shift_srt_timestamps`](#mixing.srt.shift_srt_timestamps)(srt_text[, shift_seconds]) | Shift every cue time line in `srt_text` by `shift_seconds`.                                              |
+| [`parse_vtt`](#mixing.srt.parse_vtt)(vtt_text, \*[, clean])                | Parse WebVTT into cues; the counterpart of [`parse_srt()`](#mixing.srt.parse_srt). |
+| [`parse_vtt_words`](#mixing.srt.parse_vtt_words)(vtt_text)                       | Parse a WebVTT caption file into a word list shaped like Scribe's.                                       |
 
 ### Classes
 
@@ -102,6 +103,26 @@ Parse SRT text into a list of [`Cue`](#mixing.srt.Cue) objects.
 
 Tolerant of blank-line spacing variations and of either `,` or `.` as
 the millisecond separator. Cues without a valid time line are skipped.
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](#mixing.srt.Cue)]
+
+### mixing.srt.parse_vtt(vtt_text, , clean=True)
+
+Parse WebVTT into cues; the counterpart of [`parse_srt()`](#mixing.srt.parse_srt).
+
+Tolerates a missing hour field, cue settings, and `NOTE`/`STYLE` blocks.
+Cue identifiers are dropped: `Cue.index` is the cue’s 1-based position in
+the file. A cue with no text is kept (`text=""`). With `clean` (default)
+inline timestamp and `<c>` tags are stripped, entities unescaped and all
+whitespace, line breaks included, collapsed to single spaces; `clean=False`
+keeps each cue’s text as written (lines joined by newlines).
+
+```pycon
+>>> [(c.start, c.end, c.text) for c in parse_vtt(
+...     "WEBVTT\n\n01:02.500 --> 01:04.000\n<c>Hi</c> there")]
+[(62.5, 64.0, 'Hi there')]
+```
 
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`Cue`](#mixing.srt.Cue)]
