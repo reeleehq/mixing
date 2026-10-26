@@ -49,4 +49,5 @@
    transcript
    util
    audio
+   loudness
    video

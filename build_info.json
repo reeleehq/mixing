@@ -1,34 +1,34 @@
 {
   "schema_version": 1,
-  "built_at": "2026-10-26T17:27:44Z",
+  "built_at": "2026-10-26T19:17:50Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.63",
+    "version": "0.0.64",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "468b8b0ce05806129891200d277503211e392a23",
-    "short_commit": "468b8b0",
+    "commit": "4b972abeaeaf14f218eb8819984ab15bcadd4720",
+    "short_commit": "4b972ab",
     "branch": "main",
     "tags": [
-      "0.0.63"
+      "0.0.64"
     ],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/468b8b0ce05806129891200d277503211e392a23",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/4b972abeaeaf14f218eb8819984ab15bcadd4720",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "2da5bd8f6b822eac2c8ccef9dabf8b173458e18c",
+    "sha": "3c2baa6f8f2f525bde3bfd308a6bfc777e522008",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "40367185138",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/40367185138",
+    "run_id": "40384061451",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/40384061451",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -62,16 +62,14 @@
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.62",
-    "relation": "ahead",
+    "latest": "0.0.64",
+    "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 468b8b0ce05806129891200d277503211e392a23\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 4b972abeaeaf14f218eb8819984ab15bcadd4720\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
-    "aligned": false,
-    "notes": [
-      "The documented version (0.0.63) is ahead of the latest release on PyPI (0.0.62): these docs describe unreleased code."
-    ]
+    "aligned": true,
+    "notes": []
   }
 }
