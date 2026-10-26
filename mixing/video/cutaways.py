@@ -42,7 +42,7 @@ from looks.geometry import FitMode, Size, ffmpeg_chain, placement
 
 from mixing.egress import Output, write_egress
 from mixing.util import ffmpeg_exe
-from mixing.video.shot_boundaries import _DURATION_RE
+from mixing.video.shot_boundaries import DURATION_RE
 
 #: ``fit`` is a ``looks.geometry.FitMode``: ``fill`` scales to cover the base
 #: frame and crops the excess, ``fit`` letterboxes, ``stretch`` ignores aspect.
@@ -57,6 +57,8 @@ DEFAULT_AUDIO_FADE_OUT_S = 0.25
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
 #: Silent base track synthesised when the base has no audio but inserts do.
 SILENCE_SAMPLE_RATE = 48000
+#: Channel layout every mixed cutaway audio is brought to (the silent base is too).
+MIX_CHANNEL_LAYOUT = "stereo"
 #: Default encode of the single pass.
 DEFAULT_FFMPEG_ARGS = (
     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "medium",
@@ -155,7 +157,7 @@ def parse_media_info(ffmpeg_stderr: str) -> MediaInfo:
     if rotation and abs(round(float(rotation.group(1)))) % 360 in _QUARTER_TURNS:
         width, height = height, width
     fps = _FPS.search(line.group(0))
-    duration = _DURATION_RE.search(ffmpeg_stderr)
+    duration = DURATION_RE.search(ffmpeg_stderr)
     h, m, s = duration.groups() if duration else (0, 0, 0)
     return MediaInfo(
         width=width,
@@ -231,6 +233,8 @@ def _item_audio(i: int, item: Cutaway, *, fade_in_s: float, fade_out_s: float) -
         f"[{i}:a]"
         + _chain(
             "asetpts=PTS-STARTPTS",
+            # downmix ourselves: amix's automatic one is ~2.6x too loud for 5.1
+            f"aresample=ochl={MIX_CHANNEL_LAYOUT}:rematrix_maxval=1",
             f"afade=t=in:d={_num(fade_in_s)}",
             f"afade=t=out:st={_num(max(d - fade_out_s, 0))}:d={_num(fade_out_s)}",
             f"volume={_num(item.audio_gain)}",
@@ -245,7 +249,7 @@ def _base_audio(info: MediaInfo) -> str:
     if info.has_audio:
         return "[0:a]anull[a0]"
     return (
-        f"anullsrc=r={SILENCE_SAMPLE_RATE}:cl=stereo,"
+        f"anullsrc=r={SILENCE_SAMPLE_RATE}:cl={MIX_CHANNEL_LAYOUT},"
         f"atrim=duration={_num(info.duration)}[a0]"
     )
 
@@ -321,6 +325,7 @@ def plan_cutaways(
     fc = [
         "[0:v]"
         + _chain(
+            "sidedata=mode=delete:type=DISPLAYMATRIX",  # decode already rotated it
             f"fps={_num(fps)}",
             f"scale={base_info.width}:{base_info.height}",
             "setsar=1",
@@ -332,6 +337,12 @@ def plan_cutaways(
     last, mixed = "b0", []
     for i, (item, info) in enumerate(zip(items, infos), start=1):
         _check_source(item, info)
+        if base_info.duration and item.t0 >= base_info.duration:
+            warnings.warn(
+                f"cutaway window starts at {item.t0}s, after the base ends "
+                f"({base_info.duration:.2f}s): it will not show",
+                stacklevel=3,
+            )
         inputs += _input_args(item, fps)
         fc.append(
             _item_video(

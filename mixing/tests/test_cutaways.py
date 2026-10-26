@@ -194,3 +194,72 @@ def test_real_render_with_a_still_and_a_caption_overlay(make_color_video, tmp_pa
     assert (during[5, 5] > 200).all()  # caption present in the window
     assert not (outside[5, 5] > 200).all()  # ...and absent outside it
     assert probe_media(out).duration == pytest.approx(3.0, abs=0.2)
+
+
+def _ffmpeg(*args):
+    import subprocess
+
+    from mixing.util import ffmpeg_exe
+
+    subprocess.run([ffmpeg_exe(), "-v", "error", "-y", *map(str, args)], check=True)
+
+
+def _frame_bgr(path, t):
+    import cv2
+
+    cap = cv2.VideoCapture(str(path))
+    cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+    ok, frame = cap.read()
+    cap.release()
+    assert ok
+    return frame.reshape(-1, 3).mean(axis=0)
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_seeks_to_src_in(make_color_video, tmp_path):
+    base = make_color_video(4.0, color=(0, 255, 0))
+    red_then_blue = tmp_path / "rb.mp4"
+    _ffmpeg(
+        "-f", "lavfi", "-i", "color=c=red:s=160x120:r=25:d=2",
+        "-f", "lavfi", "-i", "color=c=blue:s=160x120:r=25:d=2",
+        "-filter_complex", "[0][1]concat=n=2:v=1:a=0", "-pix_fmt", "yuv420p",
+        red_then_blue,
+    )  # fmt: skip
+    out = cutaways(
+        base, [Cutaway(red_then_blue, 1.0, 1.0, 3.0)], output=tmp_path / "o.mp4"
+    )
+    # the window shows the clip from 1.0 s: red until 2.0 s on the base, then blue
+    assert _frame_bgr(out, 1.5)[2] > 150  # red
+    assert _frame_bgr(out, 2.5)[0] > 150  # blue
+    assert _frame_bgr(out, 3.5)[1] > 150  # base (green) again
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_of_a_rotated_base_is_not_rotated_twice(tmp_path):
+    from mixing.util import ffmpeg_exe
+    import subprocess
+
+    plain, rotated = tmp_path / "plain.mp4", tmp_path / "rot.mp4"
+    _ffmpeg("-f", "lavfi", "-i", "testsrc=size=320x180:rate=25:d=2", "-pix_fmt",
+            "yuv420p", plain)  # fmt: skip
+    probe = subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-display_rotation", "90", "-i", plain,
+         "-c", "copy", rotated], capture_output=True)  # fmt: skip
+    if probe.returncode != 0:
+        pytest.skip("this ffmpeg cannot write a display matrix")
+    still = tmp_path / "s.png"
+    _ffmpeg("-f", "lavfi", "-i", "color=c=red:s=64x64", "-frames:v", "1", still)
+    out = cutaways(rotated, [Cutaway(still, 0, 0.5, 1.5)], output=tmp_path / "o.mp4")
+    info = probe_media(out)
+    assert (info.width, info.height) == (180, 320)  # displayed size, no 2nd rotation
+
+
+def test_cutaway_audio_is_downmixed_before_amix():
+    plan = _plan([Cutaway("a.mp4", 0, 1, 2, audio_gain=1.0)])
+    assert "aresample=ochl=stereo:rematrix_maxval=1" in plan.filter_complex
+    assert "sidedata=mode=delete:type=DISPLAYMATRIX" in plan.filter_complex
+
+
+def test_cutaway_starting_after_the_base_warns():
+    with pytest.warns(UserWarning, match="after the base ends"):
+        _plan([Cutaway("a.mp4", 0, 10, 12)])
