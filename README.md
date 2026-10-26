@@ -118,7 +118,7 @@ logging.basicConfig(level=logging.INFO)  # or level=logging.ERROR for errors onl
   Debian/Ubuntu: `sudo apt install ffmpeg`; Windows: download from
   [ffmpeg.org](https://ffmpeg.org/download.html) and add `bin` to PATH.
 - **ElevenLabs API key** for `mixing.transcript` / `mixing.dubbing`
-  (`ELEVENLABS_API_KEY`, or pass `api_key=`). Responses are cached on disk, so
+  (`ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`, or pass `api_key=`). Responses are cached on disk, so
   re-runs are free and offline.
 - **Google Cloud** auth for AI video generation
   (`mixing.video.genai`, Vertex AI Veo).

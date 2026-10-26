@@ -69,3 +69,22 @@ def test_no_key_anywhere_raises(monkeypatch):
     monkeypatch.delenv("ELEVEN_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         text_to_speech("hello", "voice-x", cache=False)
+
+
+def test_eleven_api_key_alias_and_precedence(monkeypatch):
+    from mixing._elevenlabs import resolve_api_key
+
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setenv("ELEVEN_API_KEY", "ALIAS")
+    assert resolve_api_key(None) == "ALIAS"
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "PRIMARY")
+    assert resolve_api_key(None) == "PRIMARY"
+    assert resolve_api_key("explicit") == "explicit"
+
+
+def test_empty_primary_falls_through_to_alias(monkeypatch):
+    from mixing._elevenlabs import resolve_api_key
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("ELEVEN_API_KEY", "ALIAS")
+    assert resolve_api_key(None) == "ALIAS"

@@ -20,7 +20,7 @@ SRT — all from `mixing.dubbing`. TTS + SRT primitives are stdlib-light;
 
 ## Prereqs (read once)
 
-- **`ELEVENLABS_API_KEY`** must be set (or pass `api_key=`) for any TTS / voice
+- **`ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`)** must be set (or pass `api_key=`) for any TTS / voice
   call. Results are **cached on disk** (keyed by text + voice + model +
   settings), so re-running the same line is free and offline.
 - **ffmpeg on PATH** for `dub_video_from_srt` (`mixing.has_ffmpeg()`).

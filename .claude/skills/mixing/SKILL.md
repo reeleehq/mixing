@@ -90,7 +90,7 @@ with Video("clip.mp4") as v:
   for chapter titles + SRT translation), `[widget]`, `[clipboard]`, `[beats]` (librosa),
   `[ml]` (torch + transformers: `find_segments(strategy="audioset")` for radio shows, `find_talk_edges` for the host talk at each song's edges).
 - ElevenLabs features (`mixing.transcript`, `mixing.dubbing`) need
-  `ELEVENLABS_API_KEY` (or pass `api_key=`). Responses are cached on disk, so a
+  `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) (or pass `api_key=`). Responses are cached on disk, so a
   re-run of the same input is free and offline.
 - Veo (`mixing.video.genai`) needs Google Cloud auth (`GOOGLE_CLOUD_PROJECT` +
   application-default or service-account credentials).

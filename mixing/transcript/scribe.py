@@ -57,7 +57,7 @@ def transcribe(
 
     Args:
         audio: Path to an audio/video file, or raw bytes.
-        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.
+        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).
         model_id: Scribe model id (currently ``scribe_v1``).
         timestamps_granularity: ``"word"`` (default), ``"character"``, or ``"none"``.
         tag_audio_events: Whether to surface ``(laughs)`` / ``(coughs)`` etc.
@@ -82,7 +82,7 @@ def transcribe(
         ``tag_audio_events=True``.
 
     Raises:
-        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.
+        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.
         urllib.error.HTTPError: Request failed (4xx/5xx).
     """
     if isinstance(audio, (str, Path)):

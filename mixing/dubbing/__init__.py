@@ -14,7 +14,7 @@ Building blocks:
 
 The HTTP clients use stdlib only (no ``requests`` / ``elevenlabs`` SDK), so
 this adds no required deps. Needs ffmpeg on PATH and an ElevenLabs API key
-(env var ``ELEVENLABS_API_KEY`` or explicit ``api_key=``). Translation needs
+(env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) or explicit ``api_key=``). Translation needs
 either the ``aix`` package (``pip install 'mixing[llm]'``) or a custom
 ``translate_fn``.
 
