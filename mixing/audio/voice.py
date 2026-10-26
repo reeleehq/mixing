@@ -110,7 +110,10 @@ ATEMPO_RANGE = (0.5, 2.0)
 # shift leaves the amplitude envelope in place, so the delay is the lag that
 # best aligns the smoothed energy envelopes of probe and output.
 LATENCY_PROBE_S = 8.0
-LATENCY_PROBE_SEED = 1770
+#: The delay is the median of the lags measured on one probe per seed, so no
+#: single probe sets it: per-probe lags of one filter spread by ~5 ms (rubberband
+#: at -12 and -24 st, 44.1 kHz), and three seeds still left the median ~5 ms off.
+LATENCY_PROBE_SEEDS = (1770, 1771, 1772, 1773, 1774)
 LATENCY_PROBE_F0_HZ = (80.0, 300.0)
 LATENCY_PROBE_BURST_S = (0.06, 0.3)
 LATENCY_PROBE_GAP_S = (0.05, 0.25)
@@ -118,6 +121,10 @@ LATENCY_PROBE_HARMONICS = 8
 LATENCY_PROBE_AMPLITUDE = 0.2
 #: Moving-average length (s) of the energy envelope used for the delay.
 LATENCY_ENVELOPE_S = 0.005
+#: Peak (linear, ~-0.1 dBFS) the result is scaled to when the shifted, loudness-
+#: restored signal would exceed full scale; just under 1.0 so that rounding to
+#: the integer sample width (8-bit included) cannot clip.
+CLIP_CEILING = 10.0 ** (-0.1 / 20.0)
 RUBBERBAND_INSTALL_HINT = (
     "ffmpeg's 'rubberband' filter is not available in {exe!r}. Install an ffmpeg "
     "built with --enable-librubberband (macOS: `brew tap homebrew-ffmpeg/ffmpeg && "
@@ -346,21 +353,32 @@ def voice_profile(
 # --- pitch shifting -------------------------------------------------------------
 
 
-@lru_cache(maxsize=8)
+_FFMPEG_FILTERS_CACHE: dict = {}
+
+
 def _ffmpeg_filters(exe: str) -> frozenset:
-    """Names of the filters ``exe`` was built with (probed once per executable)."""
+    """Names of the filters ``exe`` was built with.
+
+    Probed once per executable; a failed probe (no such executable, or no
+    filter listed) returns an empty set that is *not* cached, so a later call
+    probes again.
+    """
+    if exe in _FFMPEG_FILTERS_CACHE:
+        return _FFMPEG_FILTERS_CACHE[exe]
     try:
         proc = subprocess.run(
             [exe, "-hide_banner", "-filters"], capture_output=True, text=True
         )
     except OSError:
         return frozenset()
-    names = set()
-    for line in proc.stdout.splitlines():
-        parts = line.split()
-        if len(parts) >= 3 and "->" in parts[2]:
-            names.add(parts[1])
-    return frozenset(names)
+    names = frozenset(
+        parts[1]
+        for parts in map(str.split, proc.stdout.splitlines())
+        if len(parts) >= 3 and "->" in parts[2]
+    )
+    if names:
+        _FFMPEG_FILTERS_CACHE[exe] = names
+    return names
 
 
 def has_rubberband(ffmpeg: Optional[str] = None) -> bool:
@@ -372,9 +390,9 @@ def _ratio(semitones: float) -> float:
     return 2.0 ** (semitones / SEMITONES_PER_OCTAVE)
 
 
-def _latency_probe(fs: int) -> np.ndarray:
+def _latency_probe(fs: int, seed: int) -> np.ndarray:
     """The seeded voice-like probe (mono float) the shift delay is measured on."""
-    rng = np.random.default_rng(LATENCY_PROBE_SEED)
+    rng = np.random.default_rng(seed)
     n = int(round(LATENCY_PROBE_S * fs))
     t = np.arange(n) / fs
     probe = np.zeros(n)
@@ -399,24 +417,47 @@ def _energy_envelope(x: np.ndarray, fs: int) -> np.ndarray:
     return env - env.mean()
 
 
-@lru_cache(maxsize=64)
-def shift_latency(filters: str, fs: int) -> int:
-    """Delay (samples, may be negative) of a pitch-shifting ffmpeg ``filters`` chain.
-
-    The lag (within ``MAX_SHIFT_LATENCY_S``) that best aligns the energy
-    envelopes of a seeded voice-like probe (see ``LATENCY_PROBE_S``) and its
-    shifted output: pitch shifting moves the partials but not the envelope.
-    Cached per (filters, rate). Positive means the output is late.
-    """
-    max_lag = int(round(MAX_SHIFT_LATENCY_S * fs))
-    probe = _latency_probe(fs)
-    padded = np.concatenate([np.zeros(max_lag), probe, np.zeros(max_lag)])
+def _probe_lag(filters: str, fs: int, seed: int, max_lag: int) -> int:
+    """Lag (samples, ``-max_lag..max_lag``) best aligning one probe's envelopes."""
+    padded = np.concatenate(
+        [np.zeros(max_lag), _latency_probe(fs, seed), np.zeros(max_lag)]
+    )
     out = _ffmpeg_float(padded[:, None], fs, filters)[:, 0]
     ref, res = _energy_envelope(padded, fs), _energy_envelope(out, fs)
     size = 1 << int(np.ceil(np.log2(len(ref) + len(res))))
     xcorr = np.fft.irfft(np.fft.rfft(res, size) * np.conj(np.fft.rfft(ref, size)), size)
     lags = np.concatenate([xcorr[-max_lag:], xcorr[: max_lag + 1]])
     return int(np.argmax(lags)) - max_lag
+
+
+@lru_cache(maxsize=64)
+def _shift_latency(filters: str, fs: int, exe: str) -> int:
+    max_lag = int(round(MAX_SHIFT_LATENCY_S * fs))
+    lag = int(
+        np.median([_probe_lag(filters, fs, s, max_lag) for s in LATENCY_PROBE_SEEDS])
+    )
+    if abs(lag) >= max_lag:
+        raise RuntimeError(
+            f"could not measure the delay of ffmpeg filter {filters!r} at {fs} Hz: "
+            f"the best lag sits at the search limit (MAX_SHIFT_LATENCY_S = "
+            f"{MAX_SHIFT_LATENCY_S} s), so the filter outputs silence or delays "
+            "by more than that"
+        )
+    return lag
+
+
+def shift_latency(filters: str, fs: int) -> int:
+    """Delay (samples, may be negative) of a pitch-shifting ffmpeg ``filters`` chain.
+
+    The median, over the ``LATENCY_PROBE_SEEDS`` probes, of the lag (within
+    ``MAX_SHIFT_LATENCY_S``) that best aligns the energy envelopes of a seeded
+    voice-like probe (see ``LATENCY_PROBE_S``) and its shifted output: pitch
+    shifting moves the partials but not the envelope. Positive means the
+    output is late. Cached per (filters, rate, ffmpeg executable). Raises
+    ``RuntimeError`` when the lag hits the search limit (e.g. a filter that
+    outputs silence).
+    """
+    return _shift_latency(filters, fs, ffmpeg_exe())
 
 
 def _run_aligned(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
@@ -455,9 +496,10 @@ def rubberband_strategy(
     The delay depends on the ratio (and a little on the signal), so it is
     measured for the actual filter by :func:`shift_latency` (e.g. +60, +22,
     -11 ms at -24, -12, +12 semitones, 44.1 kHz). On harmonic tone bursts the
-    residual timing error then averages under 4 ms at 44.1/48 kHz, with a
-    per-burst jitter from rubberband's block processing of up to ~13 ms at -24
-    semitones (and a larger mean residual, ~13 ms, at 16 kHz and -24).
+    residual timing error then averages under 4 ms at 44.1/48 kHz, but the
+    per-burst error from rubberband's block processing grows with the ratio:
+    at the extremes (+-24 semitones) single bursts can be off by tens of ms
+    (and the mean residual is larger, ~13 ms, at 16 kHz and -24).
     ``functools.partial(rubberband_strategy, pitchq="quality")`` as ``method``
     dulls less and has a smaller delay.
     """
@@ -498,9 +540,9 @@ def resample_strategy(
     back to ``fs``, then ``atempo`` (WSOLA) restores the duration. Needs no
     optional dependency. Formants move with the pitch whatever
     ``preserve_formants`` says. Its delay is measured and removed like
-    rubberband's; ``atempo``'s timing varies more with the signal (on tone
-    bursts the mean residual is a few ms within an octave, 10-20 ms at
-    +-24 semitones).
+    rubberband's, but ``atempo`` (WSOLA) varies more with the signal: it
+    smears each burst's onset by 10-30 ms, and at +-24 semitones single
+    bursts can be off by tens of ms.
     """
     return _run_aligned(data, fs, _resample_filter(_ratio(semitones), fs))
 
@@ -604,8 +646,9 @@ def shift_pitch(
     The result has the input's frame count, rate, channels and sample width;
     the ffmpeg methods remove their (ratio-dependent) delay. Processing is in
     float; if the shifted (and loudness-restored) signal would exceed full
-    scale it is scaled down to the input's peak, so no clipping is introduced
-    (the loudness then stays below the input's).
+    scale it is scaled down so its peak lands at ``CLIP_CEILING`` (just under
+    full scale), so no clipping is introduced and the loudness drops only by
+    the overshoot.
     """
     if not abs(semitones) <= max_semitones:
         raise ValueError(f"|semitones| must be <= {max_semitones}, got {semitones}")
@@ -629,12 +672,9 @@ def shift_pitch(
             before, after = _integrated_lufs(data, fs), _integrated_lufs(out, fs)
             if np.isfinite(before) and np.isfinite(after):
                 out = out * 10.0 ** ((before - after) / 20.0)
-        peak, in_peak = (
-            float(np.max(np.abs(out), initial=0.0)),
-            float(np.max(np.abs(data), initial=0.0)),
-        )
-        if peak > 1.0:
-            out = out * (in_peak / peak)
+        peak = float(np.max(np.abs(out), initial=0.0))
+        if peak > CLIP_CEILING:
+            out = out * (CLIP_CEILING / peak)
         result = _to_audio(out, segment, time_unit=audio.time_unit)
     return deliver(
         result,

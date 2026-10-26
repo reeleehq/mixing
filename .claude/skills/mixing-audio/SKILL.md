@@ -483,30 +483,46 @@ song, maps clips onto it via their known offset).
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), non-overlapping, boundaries in pauses.
 
 ```python
-from mixing.audio import loudness, level_turns, process_turns, voice_profile, shift_pitch
+from mixing.audio import (
+    loudness,
+    level_turns,
+    process_turns,
+    voice_profile,
+    shift_pitch,
+)
 
 loudness("talk.wav")  # BS.1770-4 integrated LUFS; -inf for silence
 
 # one speaker much quieter than the other: bring every turn to -16 LUFS
 # (pregain -> compressor -> optional denoise -> gain -> -1.5 dBFS limiter, per turn)
 turns = [("host", 0.0, 12.4), ("guest", 12.9, 30.2), ("host", 30.6, 41.0)]
-level_turns("talk.wav", turns, target_lufs=-16, chains={"guest": "highpass=f=90"}, output="leveled.wav")
+level_turns(
+    "talk.wav",
+    turns,
+    target_lufs=-16,
+    chains={"guest": "highpass=f=90"},
+    output="leveled.wav",
+)
 
 # any per-turn edit: process(speaker, padded, core) -> padded'; gaps untouched, exact length
 process_turns("talk.wav", turns, lambda spk, padded, core: padded)
 
 # "the guest sounds too low": diagnose BEFORE shifting pitch
-voice_profile("talk.wav", turns)  # or {"guest": [(12.9, 30.2)]} -- a LIST of spans per label
+voice_profile(
+    "talk.wav", turns
+)  # or {"guest": [(12.9, 30.2)]} -- a LIST of spans per label
 # {"host": {"duration_s", "f0_hz", "voiced_fraction", "loudness_lufs",
 #           "spectral_centroid_hz", "low_band_db"}, "guest": {...}}
 
-shift_pitch("guest.wav", 2, output="guest_up.wav")  # +2 semitones, same duration and loudness
+shift_pitch(
+    "guest.wav", 2, output="guest_up.wav"
+)  # +2 semitones, same duration and loudness
 ```
 
 - `voice_profile`: `f0_hz` is the median pyin f0 over voiced frames (needs `mixing[beats]`; `f0=False` skips it). Search range `fmin=65`, `fmax=600` Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than one pyin frame (128 ms) give `f0_hz=None, voiced_fraction=None`. `low_band_db` is the 60-150 Hz share of the energy: it overlaps a low male fundamental, so compare it across takes of one speaker rather than across speakers. A voice that *sounds* low is often just quieter and boomier: fix with EQ in `level_turns(chains=...)`, not with pitch.
 - `shift_pitch(audio, semitones, *, preserve_formants=True, preserve_loudness=True, method="auto")`: `"rubberband"` (ffmpeg built with librubberband; the only method that keeps formants, so the voice stays the same person), `"resample"` (stock ffmpeg `asetrate`+`aresample`+`atempo`, no extra dependency), `"librosa"` (`mixing[beats]`), or a callable `(samples (n, ch) float, rate, semitones, preserve_formants) -> (n, ch)` (length within 5 ms, else `ValueError`). `"auto"` = rubberband if `has_rubberband()`, else resample with a warning when `preserve_formants=True`. Point mixing at a rubberband ffmpeg with `IMAGEIO_FFMPEG_EXE`.
-- The ffmpeg methods' delay depends on the ratio (rubberband at 44.1 kHz: +60 ms at -24 st, +22 at -12, -11 at +12); it is measured per ratio on a probe (`shift_latency`, cached) and removed, and the tail is kept. Residual on tone bursts: rubberband under 4 ms on average at 44.1/48 kHz (per-burst jitter up to ~13 ms at -24 st); resample a few ms within an octave, 10-20 ms at +-24 st.
-- Loudness is restored unless that would clip: the result is never louder in peak than the input (above full scale it is scaled back to the input's peak).
+- The ffmpeg methods' delay depends on the ratio (rubberband at 44.1 kHz: +60 ms at -24 st, +22 at -12, -11 at +12); it is measured per ratio on five seeded probes (median; `shift_latency`, cached per filter, rate and ffmpeg executable; `RuntimeError` if the lag hits the 0.5 s search limit, e.g. a filter that outputs silence) and removed, and the tail is kept. Residual on tone bursts: rubberband under 4 ms on average at 44.1/48 kHz; resample's `atempo` smears each burst by 10-30 ms; at the extremes (+-24 st) single bursts can be off by tens of ms with either method.
+- Loudness is restored unless that would clip: if the restored peak would exceed full scale, the result is scaled so its peak lands at `CLIP_CEILING` (~-0.1 dBFS), costing only the overshoot in loudness.
 - `functools.partial(rubberband_strategy, pitchq="quality")` as `method` dulls the sound less (smaller delay too).
 
 ## Common recipes

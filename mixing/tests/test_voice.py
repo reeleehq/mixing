@@ -231,6 +231,55 @@ def test_callable_strategy_output_is_validated():
         shift_pitch(audio, 2, method=lambda x, fs, s, pf: x[:, :1])
 
 
+def _overshoot_strategy(x, fs, semitones, preserve_formants):
+    """Identity plus one spike that lands just over full scale once loudness is
+    restored (one sample barely moves the integrated loudness)."""
+    out = x.copy()
+    out[len(out) // 2] = 1.02
+    return out
+
+
+def test_clip_guard_scales_to_the_ceiling_not_the_input_peak():
+    audio = _audio(_harmonic(2.0, 150.0, amplitude=0.3))
+    out = shift_pitch(audio, 2, method=_overshoot_strategy)
+    samples = np.array(out._get_segment().get_array_of_samples())
+    assert np.max(np.abs(samples)) < 32767  # no clipping
+    assert np.max(np.abs(samples)) / 32768 == pytest.approx(
+        voice_module.CLIP_CEILING, abs=1e-4
+    )
+    assert abs(loudness(out) - loudness(audio)) < 1.0
+
+
+def test_preserve_loudness_false_keeps_the_strategy_level():
+    audio = _audio(_harmonic(2.0, 150.0))
+    halve = lambda x, fs, s, pf: 0.5 * x  # noqa: E731
+    kept = shift_pitch(audio, 2, method=halve)
+    raw = shift_pitch(audio, 2, method=halve, preserve_loudness=False)
+    assert abs(loudness(kept) - loudness(audio)) < 0.1
+    assert loudness(raw) - loudness(audio) == pytest.approx(-6.02, abs=0.1)
+
+
+def test_output_path_writes_the_file(tmp_path):
+    audio = _audio(_harmonic(1.0, 150.0))
+    target = tmp_path / "shifted.wav"
+    got = shift_pitch(audio, 2, method=lambda x, fs, s, pf: x, output=target)
+    assert got == target and target.is_file()
+    assert len(AudioSegment.from_file(target)) == len(audio._get_segment())
+
+
+def test_failed_filter_probe_is_not_cached(tmp_path):
+    exe = str(tmp_path / "no-such-ffmpeg")
+    assert voice_module._ffmpeg_filters(exe) == frozenset()
+    assert exe not in voice_module._FFMPEG_FILTERS_CACHE
+    assert not voice_module.has_rubberband(exe)
+
+
+@needs_ffmpeg
+def test_shift_latency_raises_when_the_filter_outputs_silence():
+    with pytest.raises(RuntimeError, match="search limit"):
+        voice_module.shift_latency("volume=0", 16000)
+
+
 def test_atempo_chain_stays_in_range():
     lo, hi = voice_module.ATEMPO_RANGE
     for factor in (0.25, 0.3, 0.5, 0.9, 1.7, 2.0, 3.1, 4.0):
@@ -314,10 +363,13 @@ def _check_timing(strategy, semitones, *, tolerance_ms, **kw):
 @pytest.mark.parametrize("preserve_formants", [True, False])
 @pytest.mark.parametrize("semitones", [-12, 12, -24])
 def test_rubberband_timing_is_compensated(semitones, preserve_formants):
+    # at -24 st the delay depends on the signal by several ms (per-probe lags
+    # spread 2644-2936 samples at 44.1 kHz): the probe median cannot be within
+    # 3 ms of this tone-burst signal's own delay, so allow 5 ms there
     _check_timing(
         voice_module.rubberband_strategy,
         semitones,
-        tolerance_ms=3.0,
+        tolerance_ms=5.0 if abs(semitones) > 12 else 3.0,
         preserve_formants=preserve_formants,
     )
 
@@ -343,3 +395,19 @@ def test_rubberband_octave_up(preserve_formants):
     )
     assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
     assert _median_f0(out) == pytest.approx(220.0, rel=0.05)
+
+
+@needs_rubberband
+def test_rubberband_pitchq_via_partial():
+    from functools import partial
+
+    audio = _audio(_harmonic(2.0, 150.0))
+    quality = partial(voice_module.rubberband_strategy, pitchq="quality")
+    out = shift_pitch(audio, 5, method=quality)
+    assert len(out._get_segment().raw_data) == len(audio._get_segment().raw_data)
+    assert abs(loudness(out) - loudness(audio)) < 0.5
+    _check_timing(quality, 12, tolerance_ms=3.0, preserve_formants=True)
+    with pytest.raises(ValueError, match="pitchq"):
+        shift_pitch(
+            audio, 5, method=partial(voice_module.rubberband_strategy, pitchq="x")
+        )

@@ -22,7 +22,7 @@ Main exports:
   music counts), with the music proper's clean start/end
 - voice_profile, shift_pitch: per-speaker median f0, loudness, spectral centroid
   and low-band (boom) ratio; pitch shift by semitones (ffmpeg rubberband with
-  formant preservation, or librosa -- extra ``beats``)
+  formant preservation, stock-ffmpeg resample, or librosa -- extra ``beats``)
 
 Examples:
     >>> from mixing.audio import Audio, fade_in, concatenate_audio  # doctest: +SKIP
