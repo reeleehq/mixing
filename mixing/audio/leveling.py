@@ -37,7 +37,7 @@ import numpy as np
 from ..egress import Output, deliver
 from ..util import ffmpeg_exe
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
-from .samples import as_audio, audio_samples, segment_samples, to_audio
+from .samples import as_audio, ffmpeg_float, audio_samples, segment_samples, to_audio
 from .turns import DEFAULT_PAD_S, Core, Turn, conform_segment, process_turns
 
 AudioFilter = Union[str, Callable[[Audio], Audio]]  # ffmpeg filter string or callable
@@ -109,8 +109,6 @@ LATENCY_SETTLE_FRACTION = 0.25
 LATENCY_MIN_CORRELATION = 0.5
 #: ...and at least this much above the correlation at lag 0; otherwise 0.
 LATENCY_MIN_ADVANTAGE = 0.05
-
-_FLOAT_PCM = "f64le"
 
 
 # --- measurement ----------------------------------------------------------------
@@ -186,7 +184,7 @@ def _gated(block_ms: np.ndarray, relative_gate_lu: float):
     return block_ms[keep], block_lufs[keep]
 
 
-def _integrated_lufs(
+def integrated_lufs(
     data: np.ndarray, fs: int, *, chunk_s: float = FILTER_CHUNK_S
 ) -> float:
     """BS.1770-4 gated integrated loudness of float samples ``(n, channels)``."""
@@ -205,7 +203,7 @@ def loudness(audio: Union[str, Path, Audio]) -> float:
     Every channel is weighted 1 (right for mono and stereo). A clip shorter
     than one 400 ms block is measured as a single block.
     """
-    return _integrated_lufs(*audio_samples(as_audio(audio)))
+    return integrated_lufs(*audio_samples(as_audio(audio)))
 
 
 def loudness_range(audio: Union[str, Path, Audio]) -> float:
@@ -294,24 +292,6 @@ def apply_gain(audio: Audio, db: float) -> Audio:
 # --- ffmpeg filters -----------------------------------------------------------
 
 
-def _ffmpeg_float(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
-    """``data`` (float ``(n, channels)``) through an ffmpeg ``-af`` chain, unclipped."""
-    ch = data.shape[1]
-    proc = subprocess.run(
-        [ffmpeg_exe(), "-v", "error", "-f", _FLOAT_PCM, "-ar", str(fs), "-ac", str(ch),
-         "-i", "pipe:0", "-af", filters, "-f", _FLOAT_PCM, "-ar", str(fs),
-         "-ac", str(ch), "pipe:1"],
-        input=np.ascontiguousarray(data, dtype="<f8").tobytes(),
-        capture_output=True,
-    )  # fmt: skip
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg filter {filters!r} failed: {proc.stderr.decode(errors='replace')}"
-        )
-    out = np.frombuffer(proc.stdout, dtype="<f8")
-    return out[: len(out) // ch * ch].reshape(-1, ch)
-
-
 @lru_cache(maxsize=64)
 def filter_latency(filters: str, fs: int, channels: int, *, max_lag: int) -> int:
     """Delay (samples, ``0..max_lag``) ffmpeg ``filters`` add at rate ``fs``.
@@ -326,7 +306,7 @@ def filter_latency(filters: str, fs: int, channels: int, *, max_lag: int) -> int
     n = int(round(LATENCY_PROBE_S * fs))
     rng = np.random.default_rng(LATENCY_PROBE_SEED)
     probe = LATENCY_PROBE_AMPLITUDE * rng.standard_normal((n, channels))
-    out = _ffmpeg_float(np.vstack([probe, np.zeros((max_lag, channels))]), fs, filters)
+    out = ffmpeg_float(np.vstack([probe, np.zeros((max_lag, channels))]), fs, filters)
     ref, res = probe.mean(axis=1), out.mean(axis=1)
     lo = int(n * LATENCY_SETTLE_FRACTION)
     ref = ref[lo:]
@@ -364,7 +344,7 @@ def _run_filter(
     if compensate_latency:
         max_lag = int(round(max_latency_s * fs))
         lag = filter_latency(filters, fs, ch, max_lag=max_lag)
-    out = _ffmpeg_float(np.vstack([data, np.zeros((lag, ch))]), fs, filters)[lag:]
+    out = ffmpeg_float(np.vstack([data, np.zeros((lag, ch))]), fs, filters)[lag:]
     if len(out) < n:
         out = np.vstack([out, np.zeros((n - len(out), ch))])
     return out[:n]
@@ -526,7 +506,7 @@ def level_turns(
         a, b = int(round(core[0] * fs)), int(round(core[1] * fs))
 
         def measure(x: np.ndarray) -> float:
-            return _integrated_lufs(x[a:b], fs)
+            return integrated_lufs(x[a:b], fs)
 
         def gain_to(target_db: float) -> FloatStage:
             def stage(x: np.ndarray) -> np.ndarray:

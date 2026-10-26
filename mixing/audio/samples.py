@@ -10,6 +10,7 @@ share a single implementation instead of each carrying its own copy.
   segment (values beyond full scale saturate).
 - :func:`as_audio`: accept a path or an ``Audio``.
 - :func:`resample`: polyphase resampling of a float array.
+- :func:`ffmpeg_float`: float samples through an ffmpeg ``-af`` chain, unclipped.
 
 >>> from pydub import AudioSegment
 >>> segment_samples(AudioSegment.silent(100, frame_rate=8000)).shape
@@ -18,14 +19,18 @@ share a single implementation instead of each carrying its own copy.
 
 from __future__ import annotations
 
+import subprocess
 from math import gcd
 from pathlib import Path
 from typing import Union
 
 import numpy as np
 
+from ..util import ffmpeg_exe
 from .audio_ops import Audio
 
+#: ffmpeg raw sample format used to pipe unclipped float samples.
+FLOAT_PCM = "f64le"
 _INT_DTYPES = {1: np.int8, 2: np.int16, 4: np.int32}  # pydub stores 8-bit signed
 
 
@@ -71,3 +76,21 @@ def resample(data: np.ndarray, fs: int, target: int) -> np.ndarray:
         return data
     g = gcd(fs, target)
     return resample_poly(data, target // g, fs // g, axis=0)
+
+
+def ffmpeg_float(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
+    """``data`` (float ``(n, channels)``) through an ffmpeg ``-af`` chain, unclipped."""
+    ch = data.shape[1]
+    proc = subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-f", FLOAT_PCM, "-ar", str(fs), "-ac", str(ch),
+         "-i", "pipe:0", "-af", filters, "-f", FLOAT_PCM, "-ar", str(fs),
+         "-ac", str(ch), "pipe:1"],
+        input=np.ascontiguousarray(data, dtype="<f8").tobytes(),
+        capture_output=True,
+    )  # fmt: skip
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg filter {filters!r} failed: {proc.stderr.decode(errors='replace')}"
+        )
+    out = np.frombuffer(proc.stdout, dtype="<f8")
+    return out[: len(out) // ch * ch].reshape(-1, ch)

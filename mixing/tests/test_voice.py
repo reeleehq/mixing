@@ -413,3 +413,30 @@ def test_rubberband_pitchq_via_partial():
         shift_pitch(
             audio, 5, method=partial(voice_module.rubberband_strategy, pitchq="x")
         )
+
+
+def test_voice_profile_accepts_a_custom_f0_tracker():
+    calls = []
+
+    def tracker(y, fs):
+        calls.append((len(y), fs))
+        return np.array([100.0, 120.0, 140.0, np.nan]), np.array([True, True, True, False])
+
+    audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
+    out = voice_profile(audio, [("a", 0.0, 0.5)], f0_tracker=tracker)
+    assert calls and calls[0][1] == 16000
+    assert out["a"]["f0_hz"] == 120.0
+    assert out["a"]["voiced_fraction"] == 0.75
+
+
+def test_require_package_names_the_beats_extra_for_librosa(monkeypatch):
+    import importlib
+
+    from mixing.util import require_package
+
+    def deny(name, *a, **k):
+        raise ImportError(name)
+
+    monkeypatch.setattr(importlib, "import_module", deny)
+    with pytest.raises(ImportError, match=r"mixing\[beats\]"):
+        require_package("librosa")

@@ -451,13 +451,13 @@ def test_turn_below_gate_is_left_untouched_with_warning():
 
 
 def test_chunked_loudness_matches_single_pass():
-    from mixing.audio.leveling import _integrated_lufs
+    from mixing.audio.leveling import integrated_lufs
     from mixing.audio.samples import audio_samples
 
     mono, fs = audio_samples(Audio(_voice(4, 0.3)))
     data = np.hstack([mono, 0.5 * mono[::-1]])  # stereo
-    whole = _integrated_lufs(data, fs, chunk_s=1e6)
-    assert _integrated_lufs(data, fs, chunk_s=0.37) == pytest.approx(whole, abs=1e-9)
+    whole = integrated_lufs(data, fs, chunk_s=1e6)
+    assert integrated_lufs(data, fs, chunk_s=0.37) == pytest.approx(whole, abs=1e-9)
 
 
 def test_loudness_range_separates_quiet_and_loud_passages():
