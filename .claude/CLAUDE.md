@@ -33,7 +33,7 @@ Focused subpackages, each with a clear dependency footprint:
 
 | Module | Purpose | Heavy deps |
 |---|---|---|
-| `mixing.loudness` | array-only loudness: `integrated_lufs(meter=)` (numpy / ffmpeg_ebur128 / pyloudnorm / callable), `level_group`, `limit_peaks` (sample or true peak), `true_peak_db`; `mixing.audio.leveling` re-exports and adds the `Audio` layer | `numpy`, `scipy` (extra `loudness`; no media stack) |
+| `mixing.loudness` | array-only loudness: `integrated_lufs(meter=)` (numpy / ffmpeg_ebur128 / pyloudnorm / callable), `level_group`, `limit_peaks` (sample or true peak), `true_peak_db`; `mixing.audio.leveling` builds its `Audio` layer on it | `numpy`, `scipy` (extra `loudness`; no media stack) |
 | `mixing.audio` | `Audio`/`AudioSamples`, fades, crop, concat, overlay, `loop_audio`, `duck_audio`, `find_audio_offset`, segmentation | `pydub`, `numpy`, `scipy` |
 | `mixing.audio.beats` | `beat_grid`/`BeatGrid` — beat/downbeat/onset analysis | `librosa` (extra `beats`, lazy-imported) |
 | `mixing.audio.tagging` | `WindowProbabilities` + `ast_audioset_classifier`: the classifier seam behind `find_segments(strategy="audioset")` (songs vs jingles vs talk on radio shows) | `torch`, `transformers` (extra `ml`, lazy-imported) |

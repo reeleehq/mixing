@@ -130,3 +130,49 @@ def test_true_peak_option_holds_intersample_peaks():
 def test_loudness_range_of_steady_signal_is_small():
     assert loudness_range_lu(_voice(10, 0.3), FS) < 2.0
     assert loudness_range_lu(np.zeros((0, 1)), FS) == 0.0
+
+
+def test_true_peak_limiter_holds_the_ceiling_with_its_default_window():
+    rng = np.random.default_rng(5)
+    data = rng.standard_normal((FS * 2, 2)) * 0.7
+    data[FS] = 3.0
+    ceiling = 10 ** (-1.0 / 20)
+    out = limit_peaks(data, ceiling=ceiling, true_peak=True, fs=FS)
+    assert true_peak_db(out, FS) <= -1.0 + 0.1
+
+
+def test_silence_reads_as_silence_in_every_meter_and_gets_no_gain():
+    silent = np.zeros((FS, 2))
+    assert integrated_lufs(silent, FS) == -np.inf
+    assert level_group([silent], FS, target_lufs=-16.0)[0] == 0.0
+    if has_ffmpeg():
+        assert integrated_lufs(silent, FS, meter="ffmpeg_ebur128") == -np.inf
+        assert level_group([silent], FS, target_lufs=-16.0, meter="ffmpeg_ebur128") == (
+            0.0,
+            -np.inf,
+        )
+
+
+def test_one_dimensional_arrays_are_mono():
+    mono = _voice(3, 0.3)
+    flat = mono[:, 0]
+    assert integrated_lufs(flat, FS) == integrated_lufs(mono, FS)
+    assert true_peak_db(flat, FS) == true_peak_db(mono, FS)
+    assert level_group([flat], FS, target_lufs=-20.0) == level_group(
+        [mono], FS, target_lufs=-20.0
+    )
+    assert limit_peaks(flat * 20, ceiling=0.5).shape == (len(flat), 1)
+
+
+def test_ceiling_must_be_linear_and_min_measure_one_block():
+    with pytest.raises(ValueError, match="linear"):
+        limit_peaks(np.ones((10, 1)), ceiling=-1.5)
+    with pytest.raises(ValueError, match="gate block"):
+        level_group([_voice(1, 0.3)], FS, target_lufs=-20.0, min_measure_s=0.1)
+
+
+def test_mixed_channel_counts_are_downmixed_and_measured():
+    mono, stereo = _voice(2, 0.3), _voice(2, 0.3, channels=2)
+    _, measured = level_group([mono, stereo], FS, target_lufs=-20.0)
+    both_mono = np.vstack([mono, stereo.mean(axis=1, keepdims=True)])
+    assert measured == pytest.approx(integrated_lufs(both_mono, FS))

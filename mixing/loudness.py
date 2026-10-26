@@ -4,7 +4,7 @@ Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
 plus a sample rate, and needs only numpy and scipy (extra ``loudness``,
 ``pip install 'mixing[loudness]'``), so a package that holds samples (not an
 :class:`~mixing.audio.Audio`) can measure and level without the media stack.
-:mod:`mixing.audio.leveling` re-exports these and adds the ``Audio`` layer.
+:mod:`mixing.audio.leveling` builds its ``Audio`` layer on these.
 
 - :func:`integrated_lufs`: BS.1770-4 gated integrated loudness. ``meter`` picks
   the strategy: ``"numpy"`` (default, no ffmpeg), ``"ffmpeg_ebur128"``,
@@ -85,6 +85,12 @@ _EBUR128_I = re.compile(r"I:\s*(-?\d+(?:\.\d+)?|-inf)\s*LUFS")
 _FFMPEG_FLOAT = "f32le"
 
 
+def _as_2d(data: np.ndarray) -> np.ndarray:
+    """``data`` as ``(n, channels)``: a 1-D array is one channel."""
+    data = np.asarray(data)
+    return data[:, None] if data.ndim == 1 else data
+
+
 # --- BS.1770 meter (numpy) ---------------------------------------------------
 
 
@@ -159,7 +165,13 @@ def _gated(block_ms: np.ndarray, relative_gate_lu: float):
 
 
 def numpy_lufs(data: np.ndarray, fs: int, *, chunk_s: float = FILTER_CHUNK_S) -> float:
-    """BS.1770-4 gated integrated loudness of float samples ``(n, channels)``, in numpy."""
+    """BS.1770-4 gated integrated loudness of float samples, in numpy.
+
+    Every channel is weighted 1.0 (right for mono and stereo; BS.1770's
+    surround weights and LFE exclusion for >2 channels are not applied, so
+    the ffmpeg meter reads differently there).
+    """
+    data = _as_2d(data)
     if len(data) == 0:
         return -np.inf
     energy = _k_weighted_energy(data, fs, chunk_s=chunk_s)
@@ -191,7 +203,12 @@ def loudness_range_lu(data: np.ndarray, fs: int) -> float:
 
 
 def ebur128_lufs(data: np.ndarray, fs: int) -> float:
-    """Integrated loudness by ffmpeg's ``ebur128`` filter (``-inf`` for silence)."""
+    """Integrated loudness by ffmpeg's ``ebur128`` filter (``-inf`` for silence).
+
+    Needs at least one 400 ms block (shorter reads as silence), and ffmpeg
+    assumes a channel layout beyond stereo.
+    """
+    data = _as_2d(data)
     proc = subprocess.run(
         [ffmpeg_exe(), "-hide_banner", "-nostats", "-nostdin", "-f", _FFMPEG_FLOAT,
          "-ar", str(fs), "-ac", str(data.shape[1]), "-i", "pipe:0",
@@ -206,11 +223,13 @@ def ebur128_lufs(data: np.ndarray, fs: int) -> float:
             f"ffmpeg could not measure loudness (rc={proc.returncode}): "
             f"{stderr.strip()[-400:]}"
         )
-    return float("-inf") if found[-1] == "-inf" else float(found[-1])
+    value = float(found[-1])  # ebur128 reports silence as -70, not -inf
+    return value if value > ABSOLUTE_GATE_LUFS else float("-inf")
 
 
 def pyloudnorm_lufs(data: np.ndarray, fs: int) -> float:
-    """Integrated loudness by ``pyloudnorm`` (needs it installed; >= 0.4 s of audio)."""
+    """Integrated loudness by ``pyloudnorm`` (needs it installed; >= 0.4 s of
+    audio, at most 5 channels -- it raises otherwise)."""
     from mixing.util import require_package
 
     meter = require_package("pyloudnorm").Meter(fs)
@@ -229,7 +248,7 @@ def integrated_lufs(data: np.ndarray, fs: int, *, meter: Meter = "numpy") -> flo
     """Integrated loudness (LUFS) of float samples ``(n, channels)`` at ``fs``.
 
     ``meter`` is a name from :data:`METERS` or any ``(data, fs) -> lufs``
-    callable. ``-inf`` for silence.
+    callable. ``-inf`` for silence. A 1-D array is one channel.
     """
     if callable(meter):
         return float(meter(data, fs))
@@ -254,6 +273,7 @@ def true_peak_envelope(
     """
     from scipy.signal import resample_poly
 
+    data = _as_2d(data)
     factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
     margin = int(round(TRUE_PEAK_MARGIN_S * fs))
@@ -271,6 +291,7 @@ def true_peak_db(
     data: np.ndarray, fs: int, *, oversampling: Optional[int] = None
 ) -> float:
     """True peak of float samples in dBTP (``-inf`` for silence)."""
+    data = _as_2d(data)
     if len(data) == 0:
         return -np.inf
     peak = float(true_peak_envelope(data, fs, oversampling=oversampling).max())
@@ -284,7 +305,7 @@ def _join(segments: Sequence[np.ndarray], fs: int, min_measure_s: float) -> np.n
     """Segments back to back, keeping their channels when all have the same
     count (BS.1770 weights channels; a downmix of uncorrelated stereo reads
     ~3 dB low), else downmixed to mono; looped up to ``min_measure_s``."""
-    segments = [np.asarray(s, dtype=np.float64) for s in segments]
+    segments = [_as_2d(np.asarray(s, dtype=np.float64)) for s in segments]
     if not segments:
         return np.zeros((0, 1))
     keep = len({s.shape[1] for s in segments}) == 1
@@ -311,13 +332,15 @@ def level_group(
     The group (a voice's lines, say) is measured **back to back**, so its
     members keep their relative dynamics instead of each being pulled to the
     target. A group shorter than ``min_measure_s`` is looped to that length for
-    the measurement. Silence (``measured_lufs == -inf``) gets gain 0. A gain
+    the measurement. Silence (at or below the -70 LUFS gate) gets gain 0. A gain
     above ``max_gain_db`` is capped, with a warning, since it would mostly
     amplify noise. Apply it with ``data * 10 ** (gain_db / 20)`` and
     :func:`limit_peaks`.
     """
+    if min_measure_s < BLOCK_S:
+        raise ValueError(f"min_measure_s must be >= one gate block ({BLOCK_S} s)")
     measured = integrated_lufs(_join(segments, fs, min_measure_s), fs, meter=meter)
-    if not np.isfinite(measured):
+    if not measured > ABSOLUTE_GATE_LUFS:  # silence (or NaN): nothing to level
         return 0.0, measured
     gain = target_lufs - measured
     if gain > max_gain_db:
@@ -349,7 +372,7 @@ def limit_peaks(
     data: np.ndarray,
     *,
     ceiling: float,
-    window: int = 1,
+    window: Optional[int] = None,
     true_peak: bool = False,
     fs: Optional[int] = None,
 ) -> np.ndarray:
@@ -359,16 +382,25 @@ def limit_peaks(
     ``window`` samples on both sides -- a sliding minimum over ``2 * window +
     1``, then a moving average over ``window`` -- so it eases into and out of
     a peak. Every sample's gain is at most what that sample needs, so the
-    ceiling holds exactly; nothing moves in time. ``window`` is in samples
-    (``DEFAULT_LIMITER_WINDOW_S`` * ``fs`` is a good size).
+    ceiling holds exactly; nothing moves in time. ``window`` is in samples;
+    by default ``DEFAULT_LIMITER_WINDOW_S`` * ``fs`` when ``fs`` is given, else 1.
+    Returned unchanged (the same object) when nothing exceeds the ceiling.
 
     With ``true_peak=True`` (needs ``fs``) the need comes from the oversampled
     peak (see :func:`true_peak_envelope`) of each sample and the gap before it,
     so inter-sample peaks are held at ``ceiling`` too, up to the small error of
-    interpolating the gain between samples.
+    interpolating the gain between samples. That holds when ``window`` is a few
+    milliseconds or more (the default is 50 ms); a window of a sample or two
+    can overshoot by ~1 dB because the gain then changes faster than the
+    interpolation assumes.
     """
+    if not 0 < ceiling <= 1:
+        raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
+    data = _as_2d(data)
     if not len(data):
         return data
+    if window is None:
+        window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
     if true_peak:
         if fs is None:
             raise ValueError("true_peak=True needs fs")
