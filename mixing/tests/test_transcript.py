@@ -169,7 +169,8 @@ def test_transcribe_raises_without_api_key(monkeypatch):
     from mixing.transcript import transcribe
 
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="ElevenLabs API key"):
+    monkeypatch.delenv("ELEVEN_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="ELEVENLABS_API_KEY or ELEVEN_API_KEY"):
         transcribe(b"\x00\x00\x00")
 
 

@@ -95,7 +95,7 @@ def text_to_speech(
     Args:
         text: The text to speak.
         voice_id: ElevenLabs voice id (see :func:`list_voices`).
-        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.
+        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).
         model_id: TTS model id. Defaults to ``eleven_multilingual_v2``.
         output_format: ElevenLabs ``output_format`` query value, e.g.
             ``mp3_44100_128`` (default), ``mp3_44100_192`` (needs a paid
@@ -121,7 +121,7 @@ def text_to_speech(
         ``return_cache_status`` is ``True``, a ``(audio, was_cached)`` tuple.
 
     Raises:
-        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.
+        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.
         urllib.error.HTTPError: Request failed (4xx/5xx).
     """
     settings = {**DFLT_VOICE_SETTINGS, **(voice_settings or {})}
@@ -201,7 +201,7 @@ def list_voices(
     """List the voices available on the account.
 
     Args:
-        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.
+        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).
         timeout: Request timeout in seconds.
 
     Returns:
@@ -210,7 +210,7 @@ def list_voices(
         ``age``, ``gender``, ``use_case``) describing the voice.
 
     Raises:
-        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` unset.
+        RuntimeError: No API key supplied and ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``) unset.
     """
     api_key = resolve_api_key(api_key)
     req = urllib.request.Request(
@@ -294,7 +294,7 @@ def add_shared_voice(
         public_owner_id: ``public_owner_id`` from :func:`search_shared_voices`.
         voice_id: The shared voice's ``voice_id``.
         name: Name to give the added voice on the account.
-        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY``.
+        api_key: API key. Falls back to env var ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``).
 
     Returns:
         The account-local ``voice_id`` to pass to :func:`text_to_speech`.

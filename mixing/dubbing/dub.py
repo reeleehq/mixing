@@ -70,7 +70,7 @@ def dub_video_from_srt(
         voice_id: ElevenLabs voice id for the narration.
         output: Output video path. Defaults to
             ``<video-stem>.<language_code or 'dub'>.mp4`` next to the source.
-        api_key: ElevenLabs API key (falls back to ``ELEVENLABS_API_KEY``).
+        api_key: ElevenLabs API key (falls back to ``ELEVENLABS_API_KEY`` (or ``ELEVEN_API_KEY``)).
         model_id: TTS model id (default ``eleven_multilingual_v2``).
         output_format: TTS audio format for the per-cue clips.
         voice_settings: Override default ElevenLabs voice settings.
