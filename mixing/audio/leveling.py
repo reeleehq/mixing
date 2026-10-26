@@ -26,7 +26,6 @@ above full scale).
 
 from __future__ import annotations
 
-import subprocess
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -35,9 +34,8 @@ from typing import Callable, Mapping, Optional, Sequence, Union
 import numpy as np
 
 from ..egress import Output, deliver
-from ..util import ffmpeg_exe
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
-from .samples import as_audio, ffmpeg_float, audio_samples, segment_samples, to_audio
+from .samples import as_audio, audio_samples, ffmpeg_float, segment_samples, to_audio
 from .turns import DEFAULT_PAD_S, Core, Turn, conform_segment, process_turns
 
 AudioFilter = Union[str, Callable[[Audio], Audio]]  # ffmpeg filter string or callable

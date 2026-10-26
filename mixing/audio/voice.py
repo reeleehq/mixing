@@ -221,7 +221,7 @@ def pyin_tracker(
         f0, flags, probs = librosa.pyin(
             y, fmin=fmin, fmax=fmax, sr=fs, frame_length=frame_length
         )
-        return f0, flags & (probs >= min_voiced_prob) & np.isfinite(f0)
+        return f0, flags & (probs >= min_voiced_prob)
 
     return track
 
@@ -246,9 +246,13 @@ def _voiced_f0(
         y = resample(piece, fs, sample_rate)
         if len(y) < min_samples:
             continue
-        f0, flags = tracker(y, sample_rate)
+        f0, flags = (np.ravel(a) for a in tracker(y, sample_rate))
+        if len(f0) != len(flags):
+            raise ValueError(
+                f"f0 tracker returned {len(f0)} f0 values but {len(flags)} voiced flags"
+            )
         n_frames += len(f0)
-        voiced.append(np.asarray(f0)[np.asarray(flags, dtype=bool)])
+        voiced.append(f0[flags.astype(bool) & np.isfinite(f0)])
     values = np.concatenate(voiced) if voiced else np.array([])
     if not n_frames:
         return None, None
