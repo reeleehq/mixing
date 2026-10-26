@@ -47,3 +47,5 @@ from mixing.video.video_util import (
     resize_to_dimensions,
     normalize_video_dimensions,
 )
+
+from mixing.video.shot_boundaries import shots, contact_sheet, adaptive_threshold
