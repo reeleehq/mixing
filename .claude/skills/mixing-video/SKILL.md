@@ -165,10 +165,19 @@ over-long clip is trimmed). `sample_rate=44100` by default.
 
 ```python
 from mixing.video import cutaways, plan_cutaways, Cutaway
-cutaways("talk.mp4", [Cutaway("imagined.mp4", 0.0, 12.0, 16.5, audio_gain=0.3),
-                      Cutaway("still.png", 0.0, 20.0, 23.0)],
-         overlay="ai_imagining.png", output="talk_cutaways.mp4")
-plan = plan_cutaways("talk.mp4", items)   # inspect first: plan.filter_complex, plan.command(out)
+
+cutaways(
+    "talk.mp4",
+    [
+        Cutaway("imagined.mp4", 0.0, 12.0, 16.5, audio_gain=0.3),
+        Cutaway("still.png", 0.0, 20.0, 23.0),
+    ],
+    overlay="ai_imagining.png",
+    output="talk_cutaways.mp4",
+)
+plan = plan_cutaways(
+    "talk.mp4", items
+)  # inspect first: plan.filter_complex, plan.command(out)
 ```
 
 ## Thumbnails
