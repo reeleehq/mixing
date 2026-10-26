@@ -88,7 +88,7 @@ import numpy as np
 
 from ..util import require_package
 from .audio_util import AudioSource, _normalize_audio_source
-from .samples import segment_samples
+from .samples import resample, segment_samples
 from .tagging import AST_SAMPLE_RATE, AudioClassifier, ast_audioset_classifier
 
 if TYPE_CHECKING:
@@ -701,9 +701,7 @@ def _mono_float32(
     x = segment_samples(seg, dtype=np.float32)[:, 0]
     sr = seg.frame_rate
     if sample_rate is not None and sample_rate != sr and len(x):
-        g = np.gcd(int(sr), int(sample_rate))
-        resample_poly = require_package("scipy.signal").resample_poly
-        x = resample_poly(x, sample_rate // g, sr // g).astype(np.float32)
+        x = resample(x, int(sr), int(sample_rate)).astype(np.float32)
         sr = sample_rate
     return x, sr
 

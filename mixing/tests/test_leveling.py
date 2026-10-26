@@ -454,7 +454,8 @@ def test_chunked_loudness_matches_single_pass():
     from mixing.audio.leveling import _integrated_lufs
     from mixing.audio.samples import audio_samples
 
-    data, fs = audio_samples(Audio(_voice(4, 0.3)))
+    mono, fs = audio_samples(Audio(_voice(4, 0.3)))
+    data = np.hstack([mono, 0.5 * mono[::-1]])  # stereo
     whole = _integrated_lufs(data, fs, chunk_s=1e6)
     assert _integrated_lufs(data, fs, chunk_s=0.37) == pytest.approx(whole, abs=1e-9)
 
@@ -466,6 +467,11 @@ def test_loudness_range_separates_quiet_and_loud_passages():
     assert loudness_range(Audio(quiet)) < 2.0
     mixed = Audio(quiet + loud)
     assert loudness_range(mixed) > 10.0
+    # EBU Tech 3342 test 1: 20 s at -20 LUFS then 20 s at -30 LUFS -> 10 LU
+    step = Audio(_voice(20, 0.3))
+    first = apply_gain(step, -20.0 - loudness(step))
+    second = apply_gain(step, -30.0 - loudness(step))
+    assert loudness_range(first + second) == pytest.approx(10.0, abs=0.5)
     assert loudness_range(Audio(AudioSegment.silent(5000))) == 0.0
     assert loudness_range(Audio(_voice(1, 0.3))) == 0.0  # shorter than one window
 
@@ -480,3 +486,13 @@ def test_true_peak_exceeds_sample_peak_for_intersample_peaks():
     sample_peak_db = 20 * np.log10(np.abs(pcm).max() / 32768)
     assert true_peak_db(Audio(seg)) > sample_peak_db + 1.0
     assert true_peak_db(Audio(AudioSegment.silent(500))) == -np.inf
+
+
+def test_true_peak_is_independent_of_chunking(monkeypatch):
+    from mixing.audio import true_peak_db
+    import mixing.audio.leveling as lv
+
+    seg = _voice(3, 0.9)
+    whole = true_peak_db(Audio(seg))
+    monkeypatch.setattr(lv, "FILTER_CHUNK_S", 0.37)
+    assert true_peak_db(Audio(seg)) == pytest.approx(whole, abs=1e-6)

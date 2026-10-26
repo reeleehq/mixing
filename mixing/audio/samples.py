@@ -32,7 +32,7 @@ _INT_DTYPES = {1: np.int8, 2: np.int16, 4: np.int32}  # pydub stores 8-bit signe
 def segment_samples(segment, *, dtype=np.float64) -> np.ndarray:
     """Float samples ``(n, channels)`` in [-1, 1] of a pydub segment."""
     data = np.array(segment.get_array_of_samples(), dtype=dtype)
-    return data.reshape(-1, segment.channels) / dtype(
+    return data.reshape(-1, segment.channels) / np.dtype(dtype).type(
         1 << (8 * segment.sample_width - 1)
     )
 

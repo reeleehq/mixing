@@ -30,7 +30,7 @@ import subprocess
 import warnings
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Mapping, Sequence, Union
+from typing import Callable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
@@ -64,6 +64,12 @@ LRA_RELATIVE_GATE_LU = -20.0
 LRA_PERCENTILES = (10.0, 95.0)
 #: True-peak (BS.1770 Annex 2) oversampling factor.
 TRUE_PEAK_OVERSAMPLING = 4
+#: The true-peak interpolation is meant for >= 48 kHz; below that the factor is
+#: raised so the oversampled rate reaches this.
+TRUE_PEAK_MIN_RATE = 192_000
+#: Context (s) shared by neighbouring chunks so the upsampling filter does not
+#: ring at chunk joins.
+TRUE_PEAK_MARGIN_S = 0.1
 
 # --- level_turns defaults ----------------------------------------------------
 DEFAULT_TARGET_LUFS = -16.0
@@ -142,12 +148,10 @@ def _k_weighted_energy(data: np.ndarray, fs: int, *, chunk_s: float) -> np.ndarr
     chunks, so peak memory is a few chunks of float64 rather than several
     copies of the whole (possibly hours-long, stereo) signal.
     """
-    from scipy.signal import lfilter, lfilter_zi
+    from scipy.signal import lfilter
 
     sections = _k_weighting_coefficients(fs)
-    states = [
-        lfilter_zi(b, a)[:, None] * np.zeros((1, data.shape[1])) for b, a in sections
-    ]
+    states = [np.zeros((2, data.shape[1])) for _ in sections]  # biquads: order 2
     energy = np.empty(len(data))
     step = max(1, int(round(chunk_s * fs)))
     for start in range(0, len(data), step):
@@ -172,7 +176,8 @@ def _block_mean_squares(
 
 def _gated(block_ms: np.ndarray, relative_gate_lu: float):
     """``(block_ms, block_lufs)`` surviving the absolute and relative gates."""
-    block_lufs = np.array([_lufs(ms) for ms in block_ms])
+    with np.errstate(divide="ignore"):
+        block_lufs = _LUFS_OFFSET + 10.0 * np.log10(block_ms)  # -inf where silent
     absolute = block_lufs > ABSOLUTE_GATE_LUFS
     if not absolute.any():
         return block_ms[:0], block_lufs[:0]
@@ -200,8 +205,7 @@ def loudness(audio: Union[str, Path, Audio]) -> float:
     Every channel is weighted 1 (right for mono and stereo). A clip shorter
     than one 400 ms block is measured as a single block.
     """
-    audio = audio if isinstance(audio, Audio) else Audio(audio)
-    return _integrated_lufs(*audio_samples(audio))
+    return _integrated_lufs(*audio_samples(as_audio(audio)))
 
 
 def loudness_range(audio: Union[str, Path, Audio]) -> float:
@@ -225,22 +229,30 @@ def loudness_range(audio: Union[str, Path, Audio]) -> float:
 
 
 def true_peak_db(
-    audio: Union[str, Path, Audio], *, oversampling: int = TRUE_PEAK_OVERSAMPLING
+    audio: Union[str, Path, Audio], *, oversampling: Optional[int] = None
 ) -> float:
-    """True peak of ``audio`` in dBTP: the sample peak after ``oversampling``x upsampling.
+    """True peak of ``audio`` in dBTP: the sample peak after upsampling.
 
-    Catches inter-sample peaks a sample-peak meter misses. ``-inf`` for silence.
+    Catches inter-sample peaks a sample-peak meter misses. ``oversampling``
+    defaults to 4x, raised for rates under 48 kHz so the oversampled rate is at
+    least ``TRUE_PEAK_MIN_RATE``. ``-inf`` for silence.
     """
     from scipy.signal import resample_poly
 
     data, fs = audio_samples(as_audio(audio))
     if len(data) == 0:
         return -np.inf
+    factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
+    margin = int(round(TRUE_PEAK_MARGIN_S * fs))
     peak = 0.0
     for start in range(0, len(data), step):
-        up = resample_poly(data[start : start + step], oversampling, 1, axis=0)
-        peak = max(peak, float(np.abs(up).max()))
+        stop = min(start + step, len(data))
+        lo, hi = max(0, start - margin), min(len(data), stop + margin)
+        up = resample_poly(data[lo:hi], factor, 1, axis=0)
+        peak = max(
+            peak, float(np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max())
+        )
     return float(20.0 * np.log10(peak)) if peak > 0 else -np.inf
 
 

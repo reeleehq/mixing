@@ -38,7 +38,6 @@ from __future__ import annotations
 import subprocess
 import warnings
 from functools import lru_cache
-from math import gcd
 from pathlib import Path
 from typing import Callable, Hashable, Mapping, Optional, Sequence, Union
 
