@@ -64,6 +64,12 @@ audio = [
     "ffmpeg-python",
     "soundfile",
 ]
+# Array-only loudness (mixing.loudness): meters, level_group, limit_peaks. numpy +
+# scipy only -- no media stack; the pyloudnorm meter is an optional extra install.
+loudness = [
+    "numpy",
+    "scipy",
+]
 # Beat / downbeat / onset analysis (mixing.audio.beats: beat_grid, BeatGrid).
 # librosa is ISC (commercial-clean) and lazy-imported, so `import mixing.audio`
 # stays light.

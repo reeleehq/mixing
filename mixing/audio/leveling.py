@@ -1,7 +1,8 @@
 """Loudness measurement and per-turn loudness matching across speakers.
 
 ``loudness(audio)`` is an ITU-R BS.1770-4 / EBU R128 *integrated* loudness
-meter (K-weighting, 400 ms blocks, absolute and relative gating) in pure
+meter (K-weighting, 400 ms blocks, absolute and relative gating, now in
+:mod:`mixing.loudness`) in pure
 numpy/scipy, so measuring needs no ffmpeg. ``level_turns`` uses it to bring
 every speaker turn of a recording to the same loudness, which whole-track peak
 normalisation (:meth:`Audio.normalize`) cannot do. ``loudness_range`` (EBU
@@ -35,39 +36,19 @@ import numpy as np
 
 from ..egress import Output, deliver
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
+from ..loudness import (
+    ABSOLUTE_GATE_LUFS,
+    MAX_GAIN_DB,
+    integrated_lufs,
+    loudness_range_lu,
+    true_peak_db as _true_peak_db,
+)
 from .samples import as_audio, audio_samples, ffmpeg_float, segment_samples, to_audio
 from .turns import DEFAULT_PAD_S, Core, Turn, conform_segment, process_turns
 
 AudioFilter = Union[str, Callable[[Audio], Audio]]  # ffmpeg filter string or callable
 #: A stage of the per-turn chain: float samples ``(n, channels)`` in, same out.
 FloatStage = Callable[[np.ndarray], np.ndarray]
-
-# --- BS.1770-4 constants -----------------------------------------------------
-BLOCK_S = 0.4
-BLOCK_HOP_S = 0.1
-ABSOLUTE_GATE_LUFS = -70.0
-RELATIVE_GATE_LU = -10.0
-_LUFS_OFFSET = -0.691
-_SHELF = dict(f0=1681.974450955533, gain_db=3.999843853973347, q=0.7071752369554196)
-_SHELF_VB_EXPONENT = 0.4996667741545416
-_HIGHPASS = dict(f0=38.13547087602444, q=0.5003270373238773)
-
-#: Seconds filtered at a time when metering (bounds peak memory).
-FILTER_CHUNK_S = 60.0
-# EBU Tech 3342 loudness range: 3 s short-term windows, relative gate -20 LU,
-# the spread between the 10th and 95th percentile of the gated windows.
-LRA_WINDOW_S = 3.0
-LRA_HOP_S = 1.0
-LRA_RELATIVE_GATE_LU = -20.0
-LRA_PERCENTILES = (10.0, 95.0)
-#: True-peak (BS.1770 Annex 2) oversampling factor.
-TRUE_PEAK_OVERSAMPLING = 4
-#: The true-peak interpolation is meant for >= 48 kHz; below that the factor is
-#: raised so the oversampled rate reaches this.
-TRUE_PEAK_MIN_RATE = 192_000
-#: Context (s) shared by neighbouring chunks so the upsampling filter does not
-#: ring at chunk joins.
-TRUE_PEAK_MARGIN_S = 0.1
 
 # --- level_turns defaults ----------------------------------------------------
 DEFAULT_TARGET_LUFS = -16.0
@@ -82,10 +63,6 @@ DEFAULT_CEILING_DB = -1.5
 #: Accepted ``ceiling_db`` range (dBFS); ffmpeg's ``alimiter`` takes limits
 #: from 0.0625 (-24.1 dBFS) to 1 (0 dBFS).
 CEILING_DB_RANGE = (-24.0, 0.0)
-#: Most a turn's loudness may be raised (dB). A turn needing more is mostly
-#: silence or room tone, and boosting it further only amplifies noise; it is
-#: capped here and a warning names it.
-MAX_GAIN_DB = 24.0
 NOISE_FRAME_S = 0.05
 NOISE_PERCENTILE = 10
 
@@ -112,88 +89,6 @@ LATENCY_MIN_ADVANTAGE = 0.05
 # --- measurement ----------------------------------------------------------------
 
 
-def _k_weighting_coefficients(fs: int):
-    """``[(b, a), (b, a)]`` biquads of the BS.1770 K-weighting at rate ``fs``."""
-    k = np.tan(np.pi * _SHELF["f0"] / fs)
-    vh = 10.0 ** (_SHELF["gain_db"] / 20.0)
-    vb = vh**_SHELF_VB_EXPONENT
-    q = _SHELF["q"]
-    a0 = 1.0 + k / q + k * k
-    shelf = (
-        np.array([vh + vb * k / q + k * k, 2 * (k * k - vh), vh - vb * k / q + k * k]) / a0,
-        np.array([1.0, 2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0]),
-    )  # fmt: skip
-    k = np.tan(np.pi * _HIGHPASS["f0"] / fs)
-    q = _HIGHPASS["q"]
-    a0 = 1.0 + k / q + k * k
-    highpass = (
-        np.array([1.0, -2.0, 1.0]),
-        np.array([1.0, 2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0]),
-    )
-    return [shelf, highpass]
-
-
-def _lufs(mean_square: float) -> float:
-    return _LUFS_OFFSET + 10.0 * np.log10(mean_square) if mean_square > 0 else -np.inf
-
-
-def _k_weighted_energy(data: np.ndarray, fs: int, *, chunk_s: float) -> np.ndarray:
-    """Channel-summed squared K-weighted samples, ``(n,)``.
-
-    Filters ``chunk_s`` seconds at a time, carrying the filter state across
-    chunks, so peak memory is a few chunks of float64 rather than several
-    copies of the whole (possibly hours-long, stereo) signal.
-    """
-    from scipy.signal import lfilter
-
-    sections = _k_weighting_coefficients(fs)
-    states = [np.zeros((2, data.shape[1])) for _ in sections]  # biquads: order 2
-    energy = np.empty(len(data))
-    step = max(1, int(round(chunk_s * fs)))
-    for start in range(0, len(data), step):
-        x = data[start : start + step]
-        for k, (b, a) in enumerate(sections):
-            x, states[k] = lfilter(b, a, x, axis=0, zi=states[k])
-        energy[start : start + step] = (x**2).sum(axis=1)
-    return energy
-
-
-def _block_mean_squares(
-    energy: np.ndarray, fs: int, *, block_s: float, hop_s: float
-) -> np.ndarray:
-    """Mean square of every ``block_s`` window at ``hop_s`` spacing (one block if short)."""
-    block, hop = int(round(block_s * fs)), int(round(hop_s * fs))
-    if len(energy) < block:
-        block, hop = len(energy), len(energy)
-    cumulative = np.concatenate([[0.0], np.cumsum(energy)])
-    starts = np.arange(0, len(energy) - block + 1, hop)
-    return (cumulative[starts + block] - cumulative[starts]) / block
-
-
-def _gated(block_ms: np.ndarray, relative_gate_lu: float):
-    """``(block_ms, block_lufs)`` surviving the absolute and relative gates."""
-    with np.errstate(divide="ignore"):
-        block_lufs = _LUFS_OFFSET + 10.0 * np.log10(block_ms)  # -inf where silent
-    absolute = block_lufs > ABSOLUTE_GATE_LUFS
-    if not absolute.any():
-        return block_ms[:0], block_lufs[:0]
-    relative_gate = _lufs(block_ms[absolute].mean()) + relative_gate_lu
-    keep = absolute & (block_lufs > relative_gate)
-    return block_ms[keep], block_lufs[keep]
-
-
-def integrated_lufs(
-    data: np.ndarray, fs: int, *, chunk_s: float = FILTER_CHUNK_S
-) -> float:
-    """BS.1770-4 gated integrated loudness of float samples ``(n, channels)``."""
-    if len(data) == 0:
-        return -np.inf
-    energy = _k_weighted_energy(data, fs, chunk_s=chunk_s)
-    block_ms = _block_mean_squares(energy, fs, block_s=BLOCK_S, hop_s=BLOCK_HOP_S)
-    kept, _ = _gated(block_ms, RELATIVE_GATE_LU)
-    return float(_lufs(kept.mean())) if len(kept) else -np.inf
-
-
 def loudness(audio: Union[str, Path, Audio]) -> float:
     """Integrated loudness of ``audio`` in LUFS (ITU-R BS.1770-4, gated).
 
@@ -205,51 +100,16 @@ def loudness(audio: Union[str, Path, Audio]) -> float:
 
 
 def loudness_range(audio: Union[str, Path, Audio]) -> float:
-    """Loudness range (LRA) of ``audio`` in LU (EBU Tech 3342).
-
-    The spread between the 10th and 95th percentile of the gated 3 s
-    short-term loudness. 0.0 for silence or a clip shorter than 3 s.
-    """
-    data, fs = audio_samples(as_audio(audio))
-    if len(data) == 0:
-        return 0.0
-    energy = _k_weighted_energy(data, fs, chunk_s=FILTER_CHUNK_S)
-    if len(energy) < round(LRA_WINDOW_S * fs):
-        return 0.0
-    windows = _block_mean_squares(energy, fs, block_s=LRA_WINDOW_S, hop_s=LRA_HOP_S)
-    _, lufs = _gated(windows, LRA_RELATIVE_GATE_LU)
-    if len(lufs) == 0:
-        return 0.0
-    low, high = np.percentile(lufs, LRA_PERCENTILES)
-    return float(high - low)
+    """Loudness range (LRA) of ``audio`` in LU (EBU Tech 3342); see
+    :func:`mixing.loudness.loudness_range_lu`."""
+    return loudness_range_lu(*audio_samples(as_audio(audio)))
 
 
 def true_peak_db(
     audio: Union[str, Path, Audio], *, oversampling: Optional[int] = None
 ) -> float:
-    """True peak of ``audio`` in dBTP: the sample peak after upsampling.
-
-    Catches inter-sample peaks a sample-peak meter misses. ``oversampling``
-    defaults to 4x, raised for rates under 48 kHz so the oversampled rate is at
-    least ``TRUE_PEAK_MIN_RATE``. ``-inf`` for silence.
-    """
-    from scipy.signal import resample_poly
-
-    data, fs = audio_samples(as_audio(audio))
-    if len(data) == 0:
-        return -np.inf
-    factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
-    step = max(1, int(round(FILTER_CHUNK_S * fs)))
-    margin = int(round(TRUE_PEAK_MARGIN_S * fs))
-    peak = 0.0
-    for start in range(0, len(data), step):
-        stop = min(start + step, len(data))
-        lo, hi = max(0, start - margin), min(len(data), stop + margin)
-        up = resample_poly(data[lo:hi], factor, 1, axis=0)
-        peak = max(
-            peak, float(np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max())
-        )
-    return float(20.0 * np.log10(peak)) if peak > 0 else -np.inf
+    """True peak of ``audio`` in dBTP; see :func:`mixing.loudness.true_peak_db`."""
+    return _true_peak_db(*audio_samples(as_audio(audio)), oversampling=oversampling)
 
 
 def _noise_floor(

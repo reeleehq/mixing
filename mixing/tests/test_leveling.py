@@ -451,7 +451,7 @@ def test_turn_below_gate_is_left_untouched_with_warning():
 
 
 def test_chunked_loudness_matches_single_pass():
-    from mixing.audio.leveling import integrated_lufs
+    from mixing.loudness import numpy_lufs as integrated_lufs
     from mixing.audio.samples import audio_samples
 
     mono, fs = audio_samples(Audio(_voice(4, 0.3)))
@@ -490,7 +490,7 @@ def test_true_peak_exceeds_sample_peak_for_intersample_peaks():
 
 def test_true_peak_is_independent_of_chunking(monkeypatch):
     from mixing.audio import true_peak_db
-    import mixing.audio.leveling as lv
+    import mixing.loudness as lv
 
     seg = _voice(3, 0.9)
     whole = true_peak_db(Audio(seg))
