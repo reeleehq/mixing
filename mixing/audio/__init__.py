@@ -92,7 +92,7 @@ from .leveling import (
     noise_floor_db,
 )
 from .turns import process_turns
-from .voice import voice_profile, shift_pitch, has_rubberband
+from .voice import voice_profile, shift_pitch, has_rubberband, pyin_tracker, F0Tracker
 from ..errors import MixingError, WindowTooWideForClip
 
 __all__ = [
@@ -140,6 +140,8 @@ __all__ = [
     "noise_floor_db",
     "process_turns",
     "voice_profile",
+    "pyin_tracker",
+    "F0Tracker",
     "shift_pitch",
     "has_rubberband",
     "WindowProbabilities",

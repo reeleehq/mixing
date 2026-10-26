@@ -73,6 +73,9 @@ MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES
 ML_EXTRA = "ml"
 ML_INSTALL_HINT = f"pip install 'mixing[{ML_EXTRA}]'"
 ML_IMPORT_NAMES = ("torch", "transformers")
+BEATS_EXTRA = "beats"
+BEATS_INSTALL_HINT = f"pip install 'mixing[{BEATS_EXTRA}]'"
+BEATS_IMPORT_NAMES = ("librosa",)
 
 
 def _is_importable(name: str) -> bool:
@@ -128,7 +131,7 @@ def require_package(package_name: str):
     """
     Import a package, raising an informative error if not installed.
 
-    Packages supplied by the ``media`` or ``ml`` extra get a hint naming that extra.
+    Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
@@ -142,6 +145,8 @@ def require_package(package_name: str):
             hint = MEDIA_INSTALL_HINT
         elif top in ML_IMPORT_NAMES:
             hint = ML_INSTALL_HINT
+        elif top in BEATS_IMPORT_NAMES:
+            hint = BEATS_INSTALL_HINT
         else:
             hint = f"pip install {package_name}"
         raise ImportError(

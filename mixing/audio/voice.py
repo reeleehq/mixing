@@ -44,10 +44,10 @@ from typing import Callable, Hashable, Mapping, Optional, Sequence, Union
 import numpy as np
 
 from ..egress import Output, deliver
-from ..util import ffmpeg_exe
+from ..util import ffmpeg_exe, require_package
 from .audio_ops import Audio
-from .leveling import _ffmpeg_float, _integrated_lufs
-from .samples import as_audio, resample, segment_samples, to_audio
+from .leveling import integrated_lufs
+from .samples import as_audio, ffmpeg_float, resample, segment_samples, to_audio
 from .turns import TURN_BOUND_TOLERANCE_S
 
 Label = Hashable
@@ -57,8 +57,12 @@ Span = tuple[float, float]  # (start_s, end_s)
 Spans = Union[Sequence[tuple[Label, float, float]], Mapping[Label, Sequence[Span]]]
 #: ``strategy(samples (n, channels) float, rate, semitones, preserve_formants) -> samples``
 PitchStrategy = Callable[[np.ndarray, int, float, bool], np.ndarray]
+#: ``tracker(mono samples, rate) -> (f0_hz per frame, voiced flag per frame)``;
+#: ``f0_hz`` is only read where the flag is true. Any pitch tracker fits behind
+#: this (e.g. an adapter over ``denote.get_pitch``'s ``frequencies`` and
+#: ``confidence``).
+F0Tracker = Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
 
-BEATS_INSTALL_HINT = "pip install 'mixing[beats]'"
 
 # --- voice_profile defaults ---------------------------------------------------
 #: pyin search range (Hz): covers low male (~65 Hz) to high female/child speech.
@@ -94,7 +98,10 @@ SHIFT_FLUSH_S = 0.25
 #: A custom strategy's output may differ from the input length by at most this
 #: much (s); within it the result is zero-padded or cut, beyond it ``ValueError``.
 LENGTH_TOLERANCE_S = 0.005
-#: rubberband ``pitchq`` values; ``"quality"`` dulls less and has a smaller delay.
+#: rubberband ``pitchq`` values. Measured on a synthetic vowel (formants at 700 and
+#: 1800 Hz, f0 120 Hz) at +3 / -3 semitones, all three move the spectral centroid
+#: alike (1106 -> ~1023 / 773-858 Hz): the darkening comes from preserving formants,
+#: not from ``pitchq``, so the faster ``"speed"`` stays the default.
 RUBBERBAND_PITCHQ = ("speed", "quality", "consistency")
 DEFAULT_RUBBERBAND_PITCHQ = "speed"
 #: ``atempo`` accepts a factor in this range per stage (older ffmpeg builds).
@@ -128,16 +135,6 @@ RUBBERBAND_INSTALL_HINT = (
     "the IMAGEIO_FFMPEG_EXE environment variable, or use method='resample' or "
     "'librosa' (neither preserves formants)."
 )
-
-
-def _require_librosa(purpose: str):
-    try:
-        import librosa
-    except ImportError as e:
-        raise ImportError(
-            f"librosa is required for {purpose}. Install it via {BEATS_INSTALL_HINT!r}."
-        ) from e
-    return librosa
 
 
 # --- spans --------------------------------------------------------------------
@@ -203,37 +200,59 @@ def _band_stats(
     return centroid, (float(low_db) if np.isfinite(low_db) else None)
 
 
+def pyin_tracker(
+    *,
+    fmin: float = DEFAULT_F0_FMIN_HZ,
+    fmax: float = DEFAULT_F0_FMAX_HZ,
+    frame_length: int = DEFAULT_F0_FRAME_LENGTH,
+    min_voiced_prob: float = DEFAULT_MIN_VOICED_PROB,
+) -> F0Tracker:
+    """The default :data:`F0Tracker`: librosa ``pyin`` (extra ``beats``).
+
+    Frames pyin flags voiced with probability below ``min_voiced_prob`` count
+    as unvoiced; digital silence is all unvoiced frames without running pyin.
+    """
+
+    def track(y: np.ndarray, fs: int):
+        if not np.any(y):  # pyin's frame count (centred frames, default hop)
+            n = 1 + len(y) // (frame_length // PYIN_HOPS_PER_FRAME)
+            return np.full(n, np.nan), np.zeros(n, dtype=bool)
+        librosa = require_package("librosa")
+        f0, flags, probs = librosa.pyin(
+            y, fmin=fmin, fmax=fmax, sr=fs, frame_length=frame_length
+        )
+        return f0, flags & (probs >= min_voiced_prob)
+
+    return track
+
+
 def _voiced_f0(
     pieces: Sequence[np.ndarray],
     fs: int,
     *,
-    fmin: float,
-    fmax: float,
+    tracker: F0Tracker,
     sample_rate: int,
-    frame_length: int,
-    min_voiced_prob: float,
+    min_samples: int,
 ) -> tuple[Optional[float], Optional[float]]:
     """``(median f0 over voiced frames, voiced fraction)`` of mono ``pieces``.
 
     Each piece (one span) is tracked separately, so span seams make no false
-    pitch; pieces shorter than one frame are skipped, digital silence counts
-    as unvoiced frames. ``(None, None)`` when no piece is a frame long; the f0
-    is ``None`` when no frame is voiced.
+    pitch; pieces shorter than ``min_samples`` (at ``sample_rate``) are
+    skipped. ``(None, None)`` when no piece is long enough; the f0 is ``None``
+    when no frame is voiced.
     """
-    librosa = _require_librosa("f0 estimation (voice_profile)")
     voiced, n_frames = [], 0
     for piece in pieces:
         y = resample(piece, fs, sample_rate)
-        if len(y) < frame_length:
+        if len(y) < min_samples:
             continue
-        if not np.any(y):  # pyin's frame count (centred frames, default hop)
-            n_frames += 1 + len(y) // (frame_length // PYIN_HOPS_PER_FRAME)
-            continue
-        f0, flags, probs = librosa.pyin(
-            y, fmin=fmin, fmax=fmax, sr=sample_rate, frame_length=frame_length
-        )
+        f0, flags = (np.ravel(a) for a in tracker(y, sample_rate))
+        if len(f0) != len(flags):
+            raise ValueError(
+                f"f0 tracker returned {len(f0)} f0 values but {len(flags)} voiced flags"
+            )
         n_frames += len(f0)
-        voiced.append(f0[flags & (probs >= min_voiced_prob) & np.isfinite(f0)])
+        voiced.append(f0[flags.astype(bool) & np.isfinite(f0)])
     values = np.concatenate(voiced) if voiced else np.array([])
     if not n_frames:
         return None, None
@@ -250,6 +269,7 @@ def voice_profile(
     f0_sample_rate: int = DEFAULT_F0_SAMPLE_RATE,
     f0_frame_length: int = DEFAULT_F0_FRAME_LENGTH,
     min_voiced_prob: float = DEFAULT_MIN_VOICED_PROB,
+    f0_tracker: Optional[F0Tracker] = None,
     low_band: Span = DEFAULT_LOW_BAND_HZ,
     welch_nperseg: int = DEFAULT_WELCH_NPERSEG,
 ) -> dict:
@@ -272,6 +292,10 @@ def voice_profile(
         f0_sample_rate, f0_frame_length: the f0 tracker's rate and frame size.
         min_voiced_prob: pyin voicing probability below which a frame counts
             as unvoiced (keeps noise from producing a spurious f0).
+        f0_tracker: an :data:`F0Tracker` replacing pyin (then ``fmin``, ``fmax``,
+            ``f0_frame_length`` and ``min_voiced_prob`` configure only the
+            default; ``f0_sample_rate`` and ``f0_frame_length`` still set the
+            rate spans are resampled to and the shortest span tracked).
         low_band: ``(lo_hz, hi_hz)`` of the band reported by ``low_band_db``.
         welch_nperseg: Welch segment length for centroid and low-band ratio.
 
@@ -297,6 +321,13 @@ def voice_profile(
     fs = segment.frame_rate
     data = segment_samples(segment)
     grouped = _spans_by_label(spans, len(data) / fs)
+    if f0 and f0_tracker is None:
+        f0_tracker = pyin_tracker(
+            fmin=fmin,
+            fmax=fmax,
+            frame_length=f0_frame_length,
+            min_voiced_prob=min_voiced_prob,
+        )
 
     def profile(ranges) -> dict:
         frames = [
@@ -305,7 +336,7 @@ def voice_profile(
         pieces = [data[a:b] for a, b in frames if b > a]
         union = np.concatenate(pieces) if pieces else np.zeros((0, data.shape[1]))
         mono = union.mean(axis=1)
-        lufs = _integrated_lufs(union, fs)
+        lufs = integrated_lufs(union, fs)
         centroid, low_db = _band_stats(
             mono, fs, low_band=low_band, nperseg=welch_nperseg
         )
@@ -314,11 +345,9 @@ def voice_profile(
             f0_hz, fraction = _voiced_f0(
                 [p.mean(axis=1) for p in pieces],
                 fs,
-                fmin=fmin,
-                fmax=fmax,
+                tracker=f0_tracker,
                 sample_rate=f0_sample_rate,
-                frame_length=f0_frame_length,
-                min_voiced_prob=min_voiced_prob,
+                min_samples=f0_frame_length,
             )
         return {
             "duration_s": len(union) / fs,
@@ -404,7 +433,7 @@ def _probe_lag(filters: str, fs: int, seed: int, max_lag: int) -> int:
     padded = np.concatenate(
         [np.zeros(max_lag), _latency_probe(fs, seed), np.zeros(max_lag)]
     )
-    out = _ffmpeg_float(padded[:, None], fs, filters)[:, 0]
+    out = ffmpeg_float(padded[:, None], fs, filters)[:, 0]
     ref, res = _energy_envelope(padded, fs), _energy_envelope(out, fs)
     size = 1 << int(np.ceil(np.log2(len(ref) + len(res))))
     xcorr = np.fft.irfft(np.fft.rfft(res, size) * np.conj(np.fft.rfft(ref, size)), size)
@@ -452,7 +481,7 @@ def _run_aligned(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
     lag = shift_latency(filters, fs)
     pre, post = max(0, -lag), max(0, lag) + int(round(SHIFT_FLUSH_S * fs))
     padded = np.vstack([np.zeros((pre, ch)), data, np.zeros((post, ch))])
-    out = _ffmpeg_float(padded, fs, filters)[pre + lag :][:n]
+    out = ffmpeg_float(padded, fs, filters)[pre + lag :][:n]
     if len(out) < n:
         out = np.vstack([out, np.zeros((n - len(out), ch))])
     return out
@@ -536,7 +565,7 @@ def librosa_strategy(
 
     Formants move with the pitch whatever ``preserve_formants`` says.
     """
-    librosa = _require_librosa("pitch shifting with method='librosa'")
+    librosa = require_package("librosa")
     shifted = librosa.effects.pitch_shift(
         np.ascontiguousarray(data.T), sr=fs, n_steps=float(semitones)
     )
@@ -651,7 +680,7 @@ def shift_pitch(
             tolerance=int(round(LENGTH_TOLERANCE_S * fs)),
         )
         if preserve_loudness:
-            before, after = _integrated_lufs(data, fs), _integrated_lufs(out, fs)
+            before, after = integrated_lufs(data, fs), integrated_lufs(out, fs)
             if np.isfinite(before) and np.isfinite(after):
                 out = out * 10.0 ** ((before - after) / 20.0)
         peak = float(np.max(np.abs(out), initial=0.0))

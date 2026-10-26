@@ -413,3 +413,44 @@ def test_rubberband_pitchq_via_partial():
         shift_pitch(
             audio, 5, method=partial(voice_module.rubberband_strategy, pitchq="x")
         )
+
+
+def test_voice_profile_accepts_a_custom_f0_tracker():
+    calls = []
+
+    def tracker(y, fs):
+        calls.append((len(y), fs))
+        return np.array([100.0, 120.0, 140.0, np.nan]), np.array([True, True, True, False])
+
+    audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
+    out = voice_profile(audio, [("a", 0.0, 0.5)], f0_tracker=tracker)
+    assert calls == [(8000, 16000)]  # 0.5 s of mono, resampled to f0_sample_rate
+    assert out["a"]["f0_hz"] == 120.0
+    assert out["a"]["voiced_fraction"] == 0.75
+
+
+def test_require_package_names_the_beats_extra_for_librosa(monkeypatch):
+    import importlib
+
+    from mixing.util import require_package
+
+    def deny(name, *a, **k):
+        raise ImportError(name)
+
+    monkeypatch.setattr(importlib, "import_module", deny)
+    with pytest.raises(ImportError, match=r"mixing\[beats\]"):
+        require_package("librosa")
+
+
+def test_custom_f0_tracker_output_is_normalised():
+    audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
+
+    def lists_with_nan(y, fs):  # plain lists; NaN flagged voiced must be ignored
+        return [100.0, float("nan"), 140.0], [True, True, False]
+
+    out = voice_profile(audio, f0_tracker=lists_with_nan)
+    assert out["all"]["f0_hz"] == 100.0
+    assert out["all"]["voiced_fraction"] == pytest.approx(1 / 3)
+
+    with pytest.raises(ValueError, match="voiced flags"):
+        voice_profile(audio, f0_tracker=lambda y, fs: ([1.0, 2.0], [True]))
