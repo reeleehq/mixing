@@ -140,7 +140,7 @@ pip install mixing[ml]         # torch + transformers — find_segments(strategy
 
 | Subpackage | Highlights |
 |---|---|
-| `mixing.audio` | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `find_talk_edges` (host talk at a song's start/end), `beat_grid`/`BeatGrid` (extra `beats`) |
+| `mixing.audio` | `Audio`, `fade_in/out`, `crop_audio`, `concatenate_audio`, `overlay_audio`, `loop_audio`, `duck_audio`, `find_audio_offset`, `find_segments`/`extract_segments` (incl. `strategy="audioset"`, extra `ml`), `text_before_segments`, `find_talk_edges` (host talk at a song's start/end), `beat_grid`/`BeatGrid` (extra `beats`), `loudness` (BS.1770 LUFS), `level_turns` (per-speaker loudness matching), `process_turns`, `voice_profile` (per-speaker f0/loudness/timbre), `shift_pitch` (formant-preserving with rubberband) |
 | `mixing.video` | `Video`, `crop_video`, `loop_video`, `change_speed`, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_video`/`ken_burns_film`, `concatenate_videos` (+ transitions: `crossfade_transition`, `fade_through_black`, …), `make_thumbnail`, `write_subtitles_in_video`, `SOCIAL_SIZES` |
 | `mixing.video.genai` | `generate_video` (Vertex AI Veo) |
 | `mixing.transcript` | `transcribe`, `remove_fillers`, `srt_for_media`, `words_to_srt`/`words_to_prose` |

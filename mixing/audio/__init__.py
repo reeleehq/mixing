@@ -20,6 +20,9 @@ Main exports:
   the results back at exact length
 - find_talk_edges: the host's talk at the start/end of a carved song (talk over
   music counts), with the music proper's clean start/end
+- voice_profile, shift_pitch: per-speaker median f0, loudness, spectral centroid
+  and low-band (boom) ratio; pitch shift by semitones (ffmpeg rubberband with
+  formant preservation, stock-ffmpeg resample, or librosa -- extra ``beats``)
 
 Examples:
     >>> from mixing.audio import Audio, fade_in, concatenate_audio  # doctest: +SKIP
@@ -83,6 +86,7 @@ from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
 from .beats import beat_grid, BeatGrid
 from .leveling import loudness, level_turns, noise_floor_db
 from .turns import process_turns
+from .voice import voice_profile, shift_pitch, has_rubberband
 from ..errors import MixingError, WindowTooWideForClip
 
 __all__ = [
@@ -127,6 +131,9 @@ __all__ = [
     "level_turns",
     "noise_floor_db",
     "process_turns",
+    "voice_profile",
+    "shift_pitch",
+    "has_rubberband",
     "WindowProbabilities",
     "ast_audioset_classifier",
     "TalkEdges",
