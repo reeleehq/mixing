@@ -281,9 +281,11 @@ def test_shift_latency_raises_when_the_filter_outputs_silence():
 
 
 def test_atempo_chain_stays_in_range():
-    lo, hi = voice_module.ATEMPO_RANGE
+    from mixing.filtergraph import ATEMPO_RANGE, atempo_chain
+
+    lo, hi = ATEMPO_RANGE
     for factor in (0.25, 0.3, 0.5, 0.9, 1.7, 2.0, 3.1, 4.0):
-        stages = voice_module._atempo_chain(factor)
+        stages = atempo_chain(factor)
         assert all(lo <= t <= hi for t in stages)
         assert np.prod(stages) == pytest.approx(factor)
 
