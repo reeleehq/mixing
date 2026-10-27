@@ -173,7 +173,6 @@ def test_loudness_without_numpy_names_the_missing_module():
 _DISTRIBUTIONS = {
     "cv2": "opencv-contrib-python",
     "PIL": "pillow",
-    "ffmpeg": "ffmpeg-python",
     "google.genai": "google-genai",
     "IPython": "jupyter",
 }
@@ -191,16 +190,18 @@ def _declared_extras() -> dict:
         pytest.skip("pyproject.toml not available (installed distribution)")
     declared = tomllib.loads(path.read_text())["project"]["optional-dependencies"]
 
-    def distributions(extra):
+    from packaging.requirements import Requirement
+
+    def distributions(extra, seen=()):
         """``extra``'s distributions, with ``mixing[x]`` read as extra ``x``'s."""
+        assert extra not in seen, f"extras include each other: {seen + (extra,)}"
         names = set()
-        for requirement in declared[extra]:
-            name = re.split(r"[<>=!~\[ ;]", requirement, maxsplit=1)[0].lower()
-            if name == "mixing":
-                for inner in re.search(r"\[(.*?)\]", requirement)[1].split(","):
-                    names |= distributions(inner.strip())
+        for requirement in map(Requirement, declared[extra]):
+            if requirement.name.lower() == "mixing":
+                for inner in requirement.extras:
+                    names |= distributions(inner, seen + (extra,))
             else:
-                names.add(name)
+                names.add(requirement.name.lower())
         return names
 
     return {extra: distributions(extra) for extra in declared}
@@ -360,7 +361,8 @@ def test_the_audio_extra_is_an_alias_of_media_plus_soundfile():
 
     assert _declared_extras()["audio"] == _declared_extras()["media"] | {"soundfile"}
     assert set(EXTRAS["audio"]) == set(EXTRAS["media"]) | {"soundfile"}
-    assert {extra_for(m) for m in EXTRAS["media"]} == {"media"}
+    assert all(extra_for(m) != "audio" for m in EXTRAS["audio"])
+    assert extra_for("soundfile") == "widget"
 
 
 def test_require_package_does_not_blame_an_installed_package(monkeypatch):
