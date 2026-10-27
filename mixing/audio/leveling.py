@@ -8,6 +8,10 @@ every speaker turn of a recording to the same loudness, which whole-track peak
 normalisation (:meth:`Audio.normalize`) cannot do. ``loudness_range`` (EBU
 Tech 3342 LRA) and ``true_peak_db`` (4x oversampled) sit beside it.
 
+This module is the :class:`Audio` layer. The array-level pieces (the BS.1770
+constants, ``numpy_lufs``, ``level_group``, ``limit_peaks``) live in
+:mod:`mixing.loudness` and are not re-exported here: import them from there.
+
 ``level_turns`` is :func:`mixing.audio.turns.process_turns` with a chain of
 stages per turn, all run on the turn padded by ``pad_s`` (so filters settle):
 the speaker's EQ -> pre-gain to a common level -> compressor -> gain to
