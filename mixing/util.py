@@ -68,6 +68,8 @@ WIDGET_EXTRA = "widget"
 GEN_EXTRA = "gen"
 LLM_EXTRA = "llm"
 CLIPBOARD_EXTRA = "clipboard"
+SEPARATION_EXTRA = "separation"
+DEMUCS_EXTRA = "demucs"
 
 # Import names (top-level) that the ``media`` extra provides, per media area.
 AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
@@ -78,6 +80,29 @@ MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES
 ML_IMPORT_NAMES = ("torch", "transformers")
 BEATS_IMPORT_NAMES = ("librosa",)
 LOUDNESS_IMPORT_NAMES = ("numpy", "scipy")
+# ``separation``: the runtime dependencies of the default speech/music separator
+# (mixing.audio.separation's MossFormer2-SE-48K adapter): exactly the modules its
+# import path into clearvoice 0.1.2 imports, unpinned. clearvoice itself is NOT
+# here: its pins (numpy<2, opencv-python, librosa==0.10.2.post1, ...) would
+# downgrade numpy and add a second cv2, so it is installed with
+# ``pip install --no-deps 'clearvoice==0.1.2'`` and checked by the adapter.
+# ``demucs``: the htdemucs strategy ("instrumental beds only").
+# Both sit at the end of ``EXTRAS`` so modules they share with earlier extras
+# (torch, librosa, soundfile) keep hinting those.
+SEPARATION_IMPORT_NAMES = (
+    "torch",
+    "torchaudio",
+    "huggingface_hub",
+    "librosa",
+    "soundfile",
+    "einops",
+    "rotary_embedding_torch",
+    "yamlargparse",
+    "tqdm",
+    "torchinfo",
+    "joblib",
+)
+DEMUCS_IMPORT_NAMES = ("demucs",)
 
 #: The one table of mixing's extras: ``{extra: import names it supplies}``,
 #: each declared by the same-named extra in ``pyproject.toml`` (a test holds the
@@ -97,6 +122,8 @@ EXTRAS: dict[str, tuple[str, ...]] = {
     GEN_EXTRA: ("google.genai",),
     LLM_EXTRA: ("aix",),
     CLIPBOARD_EXTRA: ("pyclip",),
+    SEPARATION_EXTRA: SEPARATION_IMPORT_NAMES,
+    DEMUCS_EXTRA: DEMUCS_IMPORT_NAMES,
 }
 
 
