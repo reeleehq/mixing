@@ -305,155 +305,159 @@
 </span><span id="line-123">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
 </span><span id="line-124">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">feature</span><span class="si">}</span><span class="s2"> requires the </span><span class="si">{</span><span class="n">extra</span><span class="si">!r}</span><span class="s2"> extra "</span>
 </span><span id="line-125">            <span class="sa">f</span><span class="s2">"(missing: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">). Install it with "</span>
-</span><span id="line-126">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">."</span>
-</span><span id="line-127">        <span class="p">)</span>
-</span><span id="line-128">
+</span><span id="line-126">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span>
+</span><span id="line-127">            <span class="n">name</span><span class="o">=</span><span class="n">missing</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+</span><span id="line-128">        <span class="p">)</span>
 </span><span id="line-129">
+</span><span id="line-130">
 <div class="viewcode-block" id="require_package">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_package">[docs]</a>
-</span><span id="line-130"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-131"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-132"><span class="sd">    Import a package, raising an informative error if not installed.</span>
-</span><span id="line-133">
-</span><span id="line-134"><span class="sd">    Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.</span>
-</span><span id="line-135">
-</span><span id="line-136"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
-</span><span id="line-137"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
-</span><span id="line-138"><span class="sd">    3.141592653589793</span>
-</span><span id="line-139"><span class="sd">    """</span>
-</span><span id="line-140">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-141">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
-</span><span id="line-142">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="line-143">        <span class="n">top</span> <span class="o">=</span> <span class="n">package_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-</span><span id="line-144">        <span class="k">if</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-145">            <span class="n">hint</span> <span class="o">=</span> <span class="n">MEDIA_INSTALL_HINT</span>
-</span><span id="line-146">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-147">            <span class="n">hint</span> <span class="o">=</span> <span class="n">ML_INSTALL_HINT</span>
-</span><span id="line-148">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">BEATS_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-149">            <span class="n">hint</span> <span class="o">=</span> <span class="n">BEATS_INSTALL_HINT</span>
-</span><span id="line-150">        <span class="k">else</span><span class="p">:</span>
-</span><span id="line-151">            <span class="n">hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-152">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-</span><span id="line-153">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
-</span><span id="line-154">            <span class="sa">f</span><span class="s2">"Please install it via '</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">'."</span>
-</span><span id="line-155">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
+</span><span id="line-131"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-132"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-133"><span class="sd">    Import a package, raising an informative error if not installed.</span>
+</span><span id="line-134">
+</span><span id="line-135"><span class="sd">    Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.</span>
+</span><span id="line-136"><span class="sd">    The error's ``name`` is ``package_name``, so a caller can map it to its own</span>
+</span><span id="line-137"><span class="sd">    install hint.</span>
+</span><span id="line-138">
+</span><span id="line-139"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
+</span><span id="line-140"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
+</span><span id="line-141"><span class="sd">    3.141592653589793</span>
+</span><span id="line-142"><span class="sd">    """</span>
+</span><span id="line-143">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-144">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
+</span><span id="line-145">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="line-146">        <span class="n">top</span> <span class="o">=</span> <span class="n">package_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="line-147">        <span class="k">if</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">:</span>
+</span><span id="line-148">            <span class="n">hint</span> <span class="o">=</span> <span class="n">MEDIA_INSTALL_HINT</span>
+</span><span id="line-149">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">:</span>
+</span><span id="line-150">            <span class="n">hint</span> <span class="o">=</span> <span class="n">ML_INSTALL_HINT</span>
+</span><span id="line-151">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">BEATS_IMPORT_NAMES</span><span class="p">:</span>
+</span><span id="line-152">            <span class="n">hint</span> <span class="o">=</span> <span class="n">BEATS_INSTALL_HINT</span>
+</span><span id="line-153">        <span class="k">else</span><span class="p">:</span>
+</span><span id="line-154">            <span class="n">hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-155">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="line-156">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
+</span><span id="line-157">            <span class="sa">f</span><span class="s2">"Please install it via '</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">'."</span><span class="p">,</span>
+</span><span id="line-158">            <span class="n">name</span><span class="o">=</span><span class="n">package_name</span><span class="p">,</span>
+</span><span id="line-159">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
 
-</span><span id="line-156">
-</span><span id="line-157">
+</span><span id="line-160">
+</span><span id="line-161">
 <div class="viewcode-block" id="to_seconds">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.to_seconds">[docs]</a>
-</span><span id="line-158"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="line-159"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-160"><span class="sd">    Convert time value to seconds based on unit.</span>
-</span><span id="line-161">
-</span><span id="line-162"><span class="sd">    Args:</span>
-</span><span id="line-163"><span class="sd">        value: Time value to convert</span>
-</span><span id="line-164"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
-</span><span id="line-165"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
-</span><span id="line-166">
-</span><span id="line-167"><span class="sd">    Returns:</span>
-</span><span id="line-168"><span class="sd">        Time in seconds</span>
-</span><span id="line-169">
-</span><span id="line-170"><span class="sd">    Examples:</span>
-</span><span id="line-171"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-172"><span class="sd">        10.0</span>
-</span><span id="line-173"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-174"><span class="sd">        10.0</span>
-</span><span id="line-175"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-162"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="line-163"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-164"><span class="sd">    Convert time value to seconds based on unit.</span>
+</span><span id="line-165">
+</span><span id="line-166"><span class="sd">    Args:</span>
+</span><span id="line-167"><span class="sd">        value: Time value to convert</span>
+</span><span id="line-168"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
+</span><span id="line-169"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
+</span><span id="line-170">
+</span><span id="line-171"><span class="sd">    Returns:</span>
+</span><span id="line-172"><span class="sd">        Time in seconds</span>
+</span><span id="line-173">
+</span><span id="line-174"><span class="sd">    Examples:</span>
+</span><span id="line-175"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
 </span><span id="line-176"><span class="sd">        10.0</span>
-</span><span id="line-177"><span class="sd">    """</span>
-</span><span id="line-178">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
-</span><span id="line-179">        <span class="k">return</span> <span class="n">value</span>
-</span><span id="line-180">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
-</span><span id="line-181">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
-</span><span id="line-182">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
-</span><span id="line-183">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
-</span><span id="line-184">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-185">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+</span><span id="line-177"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-178"><span class="sd">        10.0</span>
+</span><span id="line-179"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-180"><span class="sd">        10.0</span>
+</span><span id="line-181"><span class="sd">    """</span>
+</span><span id="line-182">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
+</span><span id="line-183">        <span class="k">return</span> <span class="n">value</span>
+</span><span id="line-184">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
+</span><span id="line-185">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
+</span><span id="line-186">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
+</span><span id="line-187">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
+</span><span id="line-188">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-189">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
-</span><span id="line-186">
-</span><span id="line-187">
+</span><span id="line-190">
+</span><span id="line-191">
 <div class="viewcode-block" id="get_path_from_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.get_path_from_clipboard">[docs]</a>
-</span><span id="line-188"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="line-189"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-190"><span class="sd">    Get file path from clipboard and validate it.</span>
-</span><span id="line-191">
-</span><span id="line-192"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
-</span><span id="line-193"><span class="sd">    - Direct file paths</span>
-</span><span id="line-194"><span class="sd">    - File paths within error messages or tracebacks</span>
-</span><span id="line-195"><span class="sd">    - Quoted paths</span>
-</span><span id="line-196"><span class="sd">    """</span>
-</span><span id="line-197">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-</span><span id="line-198">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-</span><span id="line-199">
-</span><span id="line-200">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
-</span><span id="line-201">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
-</span><span id="line-202">
-</span><span id="line-203">    <span class="c1"># Validate it's text, not binary data</span>
-</span><span id="line-204">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
-</span><span id="line-205">        <span class="k">try</span><span class="p">:</span>
-</span><span id="line-206">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
-</span><span id="line-207">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
-</span><span id="line-208">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-209">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
-</span><span id="line-210">                <span class="s2">"Expected a file path string."</span>
-</span><span id="line-211">            <span class="p">)</span>
-</span><span id="line-212">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-213">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
-</span><span id="line-214">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-215">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-216">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
-</span><span id="line-217">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-218">        <span class="p">)</span>
-</span><span id="line-219">
-</span><span id="line-220">    <span class="c1"># Clean up the path</span>
-</span><span id="line-221">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-222">
-</span><span id="line-223">    <span class="c1"># Try the path as-is first</span>
-</span><span id="line-224">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
-</span><span id="line-225">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
-</span><span id="line-226">        <span class="k">return</span> <span class="n">file_path</span>
-</span><span id="line-227">
-</span><span id="line-228">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
-</span><span id="line-229">    <span class="c1"># Look for quoted paths or paths in error messages</span>
-</span><span id="line-230">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="line-231">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
-</span><span id="line-232">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
-</span><span id="line-233">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
-</span><span id="line-234">    <span class="p">]</span>
-</span><span id="line-235">
-</span><span id="line-236">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
-</span><span id="line-237">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
-</span><span id="line-238">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
-</span><span id="line-239">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-240">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
-</span><span id="line-241">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-</span><span id="line-242">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
-</span><span id="line-243">                <span class="p">)</span>
-</span><span id="line-244">                <span class="k">return</span> <span class="n">candidate</span>
-</span><span id="line-245">
-</span><span id="line-246">    <span class="c1"># If still not found, give helpful error</span>
-</span><span id="line-247">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
-</span><span id="line-248">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
-</span><span id="line-249">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-250">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="line-251">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
-</span><span id="line-252">    <span class="p">)</span></div>
+</span><span id="line-192"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-193"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-194"><span class="sd">    Get file path from clipboard and validate it.</span>
+</span><span id="line-195">
+</span><span id="line-196"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
+</span><span id="line-197"><span class="sd">    - Direct file paths</span>
+</span><span id="line-198"><span class="sd">    - File paths within error messages or tracebacks</span>
+</span><span id="line-199"><span class="sd">    - Quoted paths</span>
+</span><span id="line-200"><span class="sd">    """</span>
+</span><span id="line-201">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="line-202">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+</span><span id="line-203">
+</span><span id="line-204">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
+</span><span id="line-205">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
+</span><span id="line-206">
+</span><span id="line-207">    <span class="c1"># Validate it's text, not binary data</span>
+</span><span id="line-208">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+</span><span id="line-209">        <span class="k">try</span><span class="p">:</span>
+</span><span id="line-210">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
+</span><span id="line-211">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+</span><span id="line-212">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-213">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
+</span><span id="line-214">                <span class="s2">"Expected a file path string."</span>
+</span><span id="line-215">            <span class="p">)</span>
+</span><span id="line-216">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-217">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
+</span><span id="line-218">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-219">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-220">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
+</span><span id="line-221">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-222">        <span class="p">)</span>
+</span><span id="line-223">
+</span><span id="line-224">    <span class="c1"># Clean up the path</span>
+</span><span id="line-225">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-226">
+</span><span id="line-227">    <span class="c1"># Try the path as-is first</span>
+</span><span id="line-228">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+</span><span id="line-229">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
+</span><span id="line-230">        <span class="k">return</span> <span class="n">file_path</span>
+</span><span id="line-231">
+</span><span id="line-232">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
+</span><span id="line-233">    <span class="c1"># Look for quoted paths or paths in error messages</span>
+</span><span id="line-234">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="line-235">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
+</span><span id="line-236">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
+</span><span id="line-237">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
+</span><span id="line-238">    <span class="p">]</span>
+</span><span id="line-239">
+</span><span id="line-240">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+</span><span id="line-241">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+</span><span id="line-242">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+</span><span id="line-243">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-244">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
+</span><span id="line-245">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+</span><span id="line-246">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
+</span><span id="line-247">                <span class="p">)</span>
+</span><span id="line-248">                <span class="k">return</span> <span class="n">candidate</span>
+</span><span id="line-249">
+</span><span id="line-250">    <span class="c1"># If still not found, give helpful error</span>
+</span><span id="line-251">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
+</span><span id="line-252">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+</span><span id="line-253">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-254">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="line-255">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
+</span><span id="line-256">    <span class="p">)</span></div>
 
-</span><span id="line-253">
-</span><span id="line-254">
+</span><span id="line-257">
+</span><span id="line-258">
 <div class="viewcode-block" id="copy_to_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.copy_to_clipboard">[docs]</a>
-</span><span id="line-255"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-256"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-257"><span class="sd">    Copy data to system clipboard.</span>
-</span><span id="line-258">
-</span><span id="line-259"><span class="sd">    Args:</span>
-</span><span id="line-260"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
-</span><span id="line-261"><span class="sd">    """</span>
-</span><span id="line-262">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
-</span><span id="line-263">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+</span><span id="line-259"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-260"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-261"><span class="sd">    Copy data to system clipboard.</span>
+</span><span id="line-262">
+</span><span id="line-263"><span class="sd">    Args:</span>
+</span><span id="line-264"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
+</span><span id="line-265"><span class="sd">    """</span>
+</span><span id="line-266">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
+</span><span id="line-267">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
 
 </span></code></pre></div>
     </div></div>

@@ -112,6 +112,8 @@ ImportError: demo requires the 'ml' extra ...
 Import a package, raising an informative error if not installed.
 
 Packages supplied by the `media`, `ml` or `beats` extra get a hint naming that extra.
+The error’s `name` is `package_name`, so a caller can map it to its own
+install hint.
 
 ```pycon
 >>> math = require_package('math')
