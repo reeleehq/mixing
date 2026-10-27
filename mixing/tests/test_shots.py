@@ -1,5 +1,7 @@
 """Shot-boundary detection: pure stages plus an ffmpeg-rendered video."""
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -150,14 +152,59 @@ def test_chunked_sampler_matches_one_array():
     assert chunked == whole == [(0.0, 8.5), (8.5, 20.0)]
 
 
-def test_streamed_frames_match_a_one_shot_decode(tmp_path):
-    from mixing.video.shot_boundaries import iter_frames, sample_frames
+def test_streamed_frames_are_whole_and_in_order(tmp_path):
+    from mixing.video.shot_boundaries import iter_frames
 
-    video = _two_colour_video(tmp_path / "ab.mp4")
-    whole = sample_frames(video, fps=5)
+    video = _two_colour_video(tmp_path / "ab.mp4")  # 2 s red, 2 s blue
     chunks = list(iter_frames(video, fps=5, chunk_frames=3))
     assert max(len(c) for c in chunks) == 3
-    assert np.array_equal(np.concatenate(chunks), whole)
+    frames = np.concatenate(chunks)
+    assert len(frames) == 20
+    levels = frames.mean(axis=(1, 2))
+    red, blue = levels[:10], levels[10:]  # gray levels: red ~76, blue ~29
+    assert red.min() > 60 and blue.max() < 45
+
+
+def test_unreadable_video_raises(tmp_path):
+    with pytest.raises(RuntimeError, match="could not read"):
+        shots(tmp_path / "missing.mp4")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="the fake ffmpeg is a shebang script"
+)
+def test_ffmpeg_error_flood_does_not_hang(tmp_path, monkeypatch):
+    # a damaged file can make ffmpeg write far more than a pipe holds (~64 KB)
+    # to stderr; read only after stdout ended, that pipe blocked it forever
+    import mixing.video.shot_boundaries as sb
+
+    fake = tmp_path / "ffmpeg"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        "sys.stderr.write('x' * 1_000_000)\n"
+        "sys.stdout.buffer.write(bytes(64 * 36 * 4))\n"
+    )
+    fake.chmod(0o755)
+    monkeypatch.setattr(sb, "ffmpeg_exe", lambda: str(fake))
+    frames = list(sb.iter_frames("any.mp4"))
+    assert sum(len(c) for c in frames) == 4
+
+
+def test_a_sampler_may_yield_single_frames():
+    frames = np.zeros((6, 4, 4), np.uint8)
+    frames[3:] = 200
+    assert shots("x", fps=1, sampler=lambda v, fps: iter(frames)) == [
+        (0.0, 3.0),
+        (3.0, 6.0),
+    ]
+
+
+def test_clock_rounds_before_splitting_minutes():
+    from mixing.video.shot_boundaries import _clock
+
+    assert _clock(65.5) == "1:05.5"
+    assert _clock(59.96) == "1:00.0"
 
 
 def test_pyscenedetect_strategy_maps_scenes_to_spans(monkeypatch):
@@ -184,6 +231,10 @@ def test_pyscenedetect_strategy_maps_scenes_to_spans(monkeypatch):
         (2.0, 4.0),
     ]
     assert seen["kwargs"] == {"threshold": 20.0}
+    # no cut: one shot over the probed duration
+    stub.detect = lambda path, detector: []
+    monkeypatch.setattr("mixing.video.shot_boundaries.probe_duration", lambda v: 7.5)
+    assert shots("v.mp4", strategy="pyscenedetect") == [(0.0, 7.5)]
 
 
 def test_contact_sheet_labels_each_thumbnail(tmp_path):

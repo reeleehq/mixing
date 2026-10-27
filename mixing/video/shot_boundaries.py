@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Union
 
@@ -66,8 +67,8 @@ CONTACT_SHEET_THUMB_WIDTH = 240
 #: Pixels around a contact-sheet time label.
 CONTACT_SHEET_LABEL_PAD = 3
 
-#: ``sampler(video, fps=...)``: grayscale frames as one ``(n, h, w)`` array or
-#: an iterable of such chunks.
+#: ``sampler(video, fps=...)``: grayscale frames as one ``(n, h, w)`` array, or
+#: an iterable of frames ``(h, w)`` or chunks ``(k, h, w)``.
 Sampler = Callable[..., Union[np.ndarray, Iterable[np.ndarray]]]
 
 
@@ -87,11 +88,15 @@ def iter_frames(
         "-vf", f"fps={fps},scale={width}:{height}",
         "-f", "rawvideo", "-pix_fmt", "gray", "-",
     ]  # fmt: skip
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-        while chunk := proc.stdout.read(chunk_frames * frame_bytes):
-            usable = len(chunk) - len(chunk) % frame_bytes
-            yield np.frombuffer(chunk[:usable], np.uint8).reshape(-1, height, width)
-        stderr = proc.stderr.read()
+    # stderr goes to a file: a pipe nobody reads fills up (~64 KB of decode
+    # errors on a damaged file) and blocks ffmpeg, and stdout with it
+    with tempfile.TemporaryFile() as errors:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errors) as proc:
+            while chunk := proc.stdout.read(chunk_frames * frame_bytes):
+                usable = len(chunk) - len(chunk) % frame_bytes
+                yield np.frombuffer(chunk[:usable], np.uint8).reshape(-1, height, width)
+        errors.seek(0)
+        stderr = errors.read()
     if proc.returncode != 0:
         raise RuntimeError(
             f"ffmpeg could not read {video!s}: {stderr.decode(errors='replace')}"
@@ -118,6 +123,9 @@ def _streamed_changes(chunks: Iterable[np.ndarray]) -> tuple[np.ndarray, int]:
     one chunk (plus the previous frame) at a time."""
     changes, count, last = [], 0, None
     for chunk in chunks:
+        chunk = np.asarray(chunk)
+        if chunk.ndim == 2:  # a single (h, w) frame
+            chunk = chunk[None]
         if not len(chunk):
             continue
         joined = chunk if last is None else np.concatenate([last[None], chunk])
@@ -202,8 +210,9 @@ def diff_shots(
         fps: sampling rate; boundaries are resolved to ``1 / fps`` seconds.
         threshold: mean-abs-difference (0-255) above which consecutive frames
             are a cut. ``None`` picks one adaptively (:func:`adaptive_threshold`).
-        sampler: ``sampler(video, fps=fps)`` -> grayscale frames, one ``(n, h,
-            w)`` array or an iterable of chunks (the default streams them).
+        sampler: ``sampler(video, fps=fps)`` -> grayscale frames: one ``(n, h,
+            w)`` array, or an iterable of frames or chunks (the default
+            streams chunks).
 
     Returns:
         Spans tiling the video's duration (the sampled length for a custom
@@ -291,8 +300,8 @@ def shots(
 
 
 def _clock(seconds: float) -> str:
-    """``m:ss.s``, e.g. ``1:05.5``."""
-    minutes, rest = divmod(seconds, 60)
+    """``m:ss.s``, e.g. ``1:05.5`` (``59.96`` is ``1:00.0``, not ``0:60.0``)."""
+    minutes, rest = divmod(round(seconds, 1), 60)
     return f"{int(minutes)}:{rest:04.1f}"
 
 

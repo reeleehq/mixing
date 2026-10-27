@@ -109,12 +109,14 @@ def test_make_thumbnail_default_saveas_is_thumb_jpg_next_to_video(
         expected.unlink(missing_ok=True)
 
 
-def test_make_thumbnail_cleans_up_raw_frame(color_video, tmp_path):
-    """The intermediate ``.rawframe.png`` extracted by ffmpeg is removed."""
-    out = tmp_path / "thumb.jpg"
+def test_make_thumbnail_writes_only_the_thumbnail(color_video, tmp_path):
+    """No intermediate frame file is left beside the output (the frame is now
+    piped from ffmpeg, so there is none to clean up)."""
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    out = out_dir / "thumb.jpg"
     make_thumbnail(color_video, output=out)
-    raw = out.with_suffix(".rawframe.png")
-    assert not raw.exists()
+    assert list(out_dir.iterdir()) == [out]
 
 
 # --------------------------------------------------------------------------
