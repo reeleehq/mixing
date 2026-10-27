@@ -16,7 +16,11 @@ import pytest
 
 pytest.importorskip("scipy")
 
-from mixing.decode import decode_float_chunks, encode_float_chunks  # noqa: E402
+from mixing.decode import (  # noqa: E402
+    FfmpegTimeout,
+    decode_float_chunks,
+    encode_float_chunks,
+)
 from mixing.loudness import file_loudness, level_file  # noqa: E402
 from mixing.util import ffmpeg_exe, has_ffmpeg  # noqa: E402
 
@@ -103,7 +107,7 @@ def test_an_encode_fed_too_slowly_times_out_and_leaves_no_file(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("bad", [0, -1.0])
+@pytest.mark.parametrize("bad", [0, -1.0, float("nan"), True, "5", 1e12])
 def test_timeout_must_be_positive(tmp_path, bad):
     with pytest.raises(ValueError, match="timeout"):
         decode_float_chunks(tmp_path / "x.wav", timeout=bad)
@@ -148,3 +152,55 @@ def test_level_file_bounds_each_ffmpeg_run(tmp_path, monkeypatch):
     monkeypatch.setattr(loudness, "encode_float_chunks", encode)
     level_file(_tone(tmp_path / "t.wav"), tmp_path / "o.wav", target_lufs=-20.0, timeout=30)
     assert seen == [("decode", 30), ("decode", 30), ("encode", 30), ("decode", 30)]
+
+
+def test_a_timeout_is_a_timeout_and_an_ffmpeg_failure():
+    assert issubclass(FfmpegTimeout, TimeoutError) and issubclass(FfmpegTimeout, RuntimeError)
+
+
+@needs_ffmpeg
+def test_an_infinite_timeout_is_no_bound(tmp_path):
+    src = _tone(tmp_path / "tone.wav")
+    assert file_loudness(src, timeout=float("inf")).integrated_lufs > -70
+
+
+@needs_ffmpeg
+def test_an_ffmpeg_that_finished_in_time_is_not_reported_as_timed_out(tmp_path):
+    # the whole file fits the pipe: ffmpeg exits at once, the consumer is slow
+    src = _tone(tmp_path / "short.wav", seconds=0.2, channels=1)
+    rate, chunks = decode_float_chunks(src, chunk_s=0.05, timeout=0.5)
+    got = []
+    for chunk in chunks:
+        got.append(chunk)
+        time.sleep(0.2)
+    assert sum(len(c) for c in got) == int(0.2 * FS)
+
+
+def _script(path, body):
+    path.write_text("#!/bin/sh\n" + body)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    return str(path)
+
+
+@needs_ffmpeg
+@posix_only
+def test_the_encoders_finishing_work_is_bounded_too(tmp_path):
+    # an ffmpeg that lingers after its input ends (writing a moov atom, say)
+    slow = _script(tmp_path / "slow-ffmpeg", "cat > /dev/null\nsleep 30\n")
+    started = time.monotonic()
+    with pytest.raises(FfmpegTimeout):
+        encode_float_chunks([np.zeros((10, 1))], FS, tmp_path / "x.wav", ffmpeg=slow, timeout=1)
+    assert time.monotonic() - started < 10
+
+
+@needs_ffmpeg
+@posix_only
+def test_a_wrapper_that_does_not_exec_is_killed_with_its_ffmpeg(tmp_path):
+    fifo = tmp_path / "stalled.wav"
+    os.mkfifo(fifo)
+    wrapper = _script(tmp_path / "wrapper", f'"{ffmpeg_exe()}" "$@"\n')  # no exec
+    started = time.monotonic()
+    with pytest.raises(FfmpegTimeout):
+        file_loudness(fifo, ffmpeg=wrapper, timeout=1.0)
+    assert time.monotonic() - started < 10
+    assert _ffmpegs_reading(fifo) == []

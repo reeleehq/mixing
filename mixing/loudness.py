@@ -63,6 +63,7 @@ from mixing.decode import (  # noqa: E402
     DECODE_CHUNK_S,
     decode_float_chunks,
     encode_float_chunks,
+    stream_kinds,
 )
 from mixing.egress import Output, write_egress  # noqa: E402
 
@@ -849,28 +850,6 @@ class LeveledFile(NamedTuple):
     output_lufs: float  #: the written file's, measured back from it
 
 
-#: A banner's line for a stream that is not audio (the picture, cover art,
-#: subtitles): ``level_file`` would drop it.
-_OTHER_STREAM = re.compile(r"Stream #\d+:\d+.*?: (Video|Subtitle|Data|Attachment):")
-
-
-def _other_streams(
-    path: Path, ffmpeg: Optional[str], *, timeout: Optional[float] = None
-) -> list[str]:
-    """The kinds of ``path``'s streams that are not audio, from ffmpeg's banner."""
-    cmd = [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(path)]
-    try:
-        run = subprocess.run(
-            cmd, capture_output=True, text=True, errors="replace", timeout=timeout
-        )
-    except subprocess.TimeoutExpired as e:
-        raise TimeoutError(
-            f"ffmpeg took more than {timeout:g} s to read {path.name}'s streams"
-        ) from e
-    banner = run.stderr
-    return [m.group(1).lower() for m in _OTHER_STREAM.finditer(banner)]
-
-
 def level_file(
     src,
     output: Output = None,
@@ -892,7 +871,9 @@ def level_file(
 
     Two passes over the file, each decoded in chunks by
     :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``;
-    ``timeout`` bounds each ffmpeg run, see :mod:`mixing.decode`), so
+    ``timeout`` bounds each ffmpeg run, see :mod:`mixing.decode`: four of
+    them, five in place, so the whole call is bounded by about five times
+    it), so
     memory is bounded by the chunk and the limiter's block, not the track:
 
     1. :func:`stream_loudness` measures it; the gain is the one that brings it
@@ -957,7 +938,8 @@ def level_file(
         # samefile, not resolve(): a case-insensitive filesystem (macOS) spells
         # one file two ways
         in_place = path.exists() and os.path.samefile(path, src)
-        if in_place and (others := _other_streams(src, ffmpeg, timeout=timeout)):
+        kinds = stream_kinds(src, ffmpeg=ffmpeg, timeout=timeout) if in_place else []
+        if others := sorted({kind for kind in kinds if kind != "audio"}):
             raise ValueError(
                 f"leveling {src.name} in place would drop its {', '.join(others)} "
                 "stream(s): level_file writes audio only; give another output"
