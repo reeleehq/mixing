@@ -10,7 +10,7 @@ description: >
   segments. Trigger on phrasings like "trim audio", "fade out the end", "join
   these audio clips", "add background music under the narration", "make it
   louder / normalize", "convert to mono", "align two recordings", "find the
-  offset between these takes", "split a concert into songs", "separate speech
+  offset between these takes", "does this clip contain the song", "is the song in this video at all", "split a concert into songs", "separate speech
   from music", "find the songs in this radio show / tape", "songs vs jingles
   vs DJ talk", "what did the host say before each song", "trim the DJ talk off the start/end of each song", "where does the host stop talking", "loop this ambient clip to N seconds", "duck the music under
   the dialogue", "level the speakers", "one speaker is too quiet", "match loudness per speaker / LUFS", "this voice sounds too low", "measure the pitch / f0 of each speaker", "shift the pitch up two semitones". For video audio (replace/normalize a video's track) use
@@ -367,6 +367,26 @@ against its own master) still lands on the waveform's answer.
 Pass `feature='waveform'` when the clip comes from the SAME source as the reference.
 `find_audio_offset` / `find_audio_offset_detailed` are single-shot — no windows, no vote —
 so there `feature=` still changes only the confidence.
+
+### Is the song in this clip at all? (`contains_song`, landmark fingerprints)
+
+The aligner answers *where* a clip sits; `contains_song` answers *whether* the song is in it, independently (Shazam / audfprint landmark hashes, numpy + scipy only). Use it as a second opinion beside the aligner's `support`/`margin`, never instead of it.
+
+```python
+from mixing.audio import contains_song, landmarks, CONTAINS
+
+index = landmarks("song.wav")                 # hash the song ONCE (a Landmarks index)
+for clip in clips:                            # path, Audio, AudioSegment, or array + sr=
+    m = contains_song(clip, index)            # SongMatch
+    if m.verdict == CONTAINS:                 # "contains" | "absent" | "undecided"
+        print(clip, m.offset_s)               # song time at the clip's t=0 (within one hop)
+    print(m.votes, m.rho, m.ratio, m.reason)  # K, K/shared, K/best-rival; why
+```
+
+- **Three outcomes; `"undecided"` is never a pass.** `SongMatch` has no truth value (`if m:` raises `TypeError`), so compare `m.verdict`. "absent" needs `K <= 5` *and* a clip with enough landmarks (`min_query_hashes`, 240) to have shown the song; a near-silent or sub-second clip is "undecided".
+- **Repetitive music shows up as low `ratio`** (R ~ 1: every repetition of the bar is an equally good offset), so a looped bar is "undecided", not "contains" at an alias.
+- **Thresholds are uncalibrated starting values** (K >= 12, rho >= 0.05, R >= 2; K <= 5). All are keywords of `contains_song` and of the pure `song_verdict(votes=, rho=, ratio=, query_hashes=, ...)`, which re-judges stored measurements without rehashing. Calibrate on known non-matching clips, aliases included, before letting it vote.
+- Hashing knobs live in `LandmarkParams` (defaults = the `DEFAULT_*` constants in `mixing.audio.fingerprint`); an index carries its params and the clip is hashed with them.
 
 ## Segmentation — split a long recording into pieces
 
