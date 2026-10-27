@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 import subprocess
 import warnings
+from functools import lru_cache
 from typing import Callable, Optional, Sequence, Union
 
 try:
@@ -67,6 +68,12 @@ TRUE_PEAK_MIN_RATE = 192_000
 #: Context (s) shared by neighbouring chunks so the upsampling filter does not
 #: ring at chunk joins.
 TRUE_PEAK_MARGIN_S = 0.1
+#: The oversampling filter: a Kaiser-windowed sinc this many input samples long
+#: on each side, flat (within 0.001 dB) to 0.45 fs with images 70 dB down.
+#: scipy's default (10 samples, beta 5) loses 0.7 dB at 0.45 fs and 2 dB at
+#: 0.47 fs, so it under-reads bright, full-band material.
+TRUE_PEAK_FILTER_HALF_SAMPLES = 32
+TRUE_PEAK_FILTER_KAISER_BETA = 8.0
 
 
 #: Group leveling defaults.
@@ -261,6 +268,21 @@ def integrated_lufs(data: np.ndarray, fs: int, *, meter: Meter = "numpy") -> flo
 # --- true peak -----------------------------------------------------------------
 
 
+@lru_cache(maxsize=None)
+def _interpolation_filter(factor: int) -> np.ndarray:
+    """The windowed-sinc FIR that upsamples by ``factor``, scaled for
+    ``resample_poly`` (which multiplies by ``factor``). Its every ``factor``-th
+    tap is zero but the centre one, so the original samples pass unchanged and
+    a true peak never reads below the sample peak."""
+    from scipy.signal.windows import kaiser
+
+    half = TRUE_PEAK_FILTER_HALF_SAMPLES * factor
+    n = np.arange(-half, half + 1)
+    taps = np.sinc(n / factor) * kaiser(len(n), TRUE_PEAK_FILTER_KAISER_BETA)
+    taps[n % factor == 0] = n[n % factor == 0] == 0  # exact, not sinc's ~1e-17
+    return taps / factor
+
+
 def true_peak_envelope(
     data: np.ndarray, fs: int, *, oversampling: Optional[int] = None
 ) -> np.ndarray:
@@ -268,21 +290,25 @@ def true_peak_envelope(
     oversampled signal in ``[n, n+1)``.
 
     ``oversampling`` defaults to 4x, raised for rates under 48 kHz so the
-    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. Chunked, with context
-    shared between chunks so the upsampling filter does not ring at the joins.
+    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. The interpolation is a
+    long windowed sinc (``TRUE_PEAK_FILTER_*``), so full-band content reads as an
+    ideal sinc reconstruction would. The signal is taken as silent outside its
+    span (as when played from silence), not looped. Chunked, with context
+    shared between chunks so the filter does not ring at the joins.
     """
     from scipy.signal import resample_poly
 
     data = _as_2d(data)
     factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
+    taps = _interpolation_filter(factor)
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
     margin = int(round(TRUE_PEAK_MARGIN_S * fs))
     envelope = np.empty(len(data))
     for start in range(0, len(data), step):
         stop = min(start + step, len(data))
         lo, hi = max(0, start - margin), min(len(data), stop + margin)
-        up = np.abs(resample_poly(data[lo:hi], factor, 1, axis=0)).max(axis=1)
-        inner = up[(start - lo) * factor : (stop - lo) * factor]
+        up = resample_poly(data[lo:hi], factor, 1, axis=0, window=taps)
+        inner = np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max(axis=1)
         envelope[start:stop] = inner.reshape(-1, factor).max(axis=1)
     return envelope
 
