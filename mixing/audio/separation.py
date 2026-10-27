@@ -404,19 +404,28 @@ def _mossformer2_se_48k_model():
 
 
 def _clearvoice_tail_pad(n: int, args) -> int:
-    """Zeros to append so clearvoice's windowed decode writes every input sample.
+    """Zeros to append so clearvoice's decode writes every input sample.
 
-    Above ``one_time_decode_length`` seconds, clearvoice 0.1.2 decodes in windows
-    and leaves the last ``(window - stride) / 2`` samples of its buffer at zero;
-    it pads the input only when ``(n - window)`` is not a multiple of the stride,
-    so for exactly those lengths the input's last ~0.5 s would come back silent.
+    Two gaps, both at the end of the input (clearvoice 0.1.2):
+
+    - every decode drops the last ``n % win_inc`` samples (its STFT hop, 8 ms
+      at 48 kHz), so the input is first padded to a whole number of hops;
+    - above ``one_time_decode_length`` seconds it decodes in windows and leaves
+      the last ``(window - stride) / 2`` samples of its buffer at zero, padding
+      the input only when ``(n - window)`` is not a multiple of the stride, so
+      for exactly those lengths the last ~0.5 s would come back silent.
+
+    The one-shot limit is a whole number of hops, so the first pad never moves
+    an input onto the windowed path.
     """
+    hop_pad = (-n) % args.win_inc
+    n += hop_pad
     rate = args.sampling_rate
     if n <= rate * args.one_time_decode_length:
-        return 0
+        return hop_pad
     window = int(rate * args.decode_window)
     stride = int(window * CLEARVOICE_STRIDE_FRACTION)
-    return (window - stride) // 2 if (n - window) % stride == 0 else 0
+    return hop_pad + ((window - stride) // 2 if (n - window) % stride == 0 else 0)
 
 
 def mossformer2_se_48k_speech(samples: np.ndarray, sr: int) -> np.ndarray:

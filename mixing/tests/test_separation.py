@@ -483,6 +483,20 @@ def test_mossformer_adapter_glue_keeps_length_and_the_tail(monkeypatch, seconds)
     assert np.std(speech[tail]) == pytest.approx(0.5 * np.std(x[tail]), rel=0.1)
 
 
+@pytest.mark.parametrize("n", [48100, 123457, 959999])
+def test_mossformer_adapter_keeps_the_very_last_samples(monkeypatch, n):
+    """clearvoice drops the last ``n % hop`` samples of every decode: a span
+    running to the end of the file (an outro) must still be separated there."""
+    from mixing.audio.separation import mossformer2_se_48k_speech
+
+    args = _stub_mossformer(monkeypatch, mask=0.5)
+    assert n % args.win_inc  # not a whole number of hops: the case that leaked
+    x = 0.1 * np.random.default_rng(1).normal(size=(n, 1))
+    speech = mossformer2_se_48k_speech(x, 48000)
+    last = slice(-(n % args.win_inc), None)
+    assert np.std(speech[last]) == pytest.approx(0.5 * np.std(x[last]), rel=0.2)
+
+
 def test_default_strategy_glue_on_stereo_44k_with_a_stub(monkeypatch):
     _stub_mossformer(monkeypatch, mask=0.5)
     x = _signal(4.0, sr=44100, channels=2)
