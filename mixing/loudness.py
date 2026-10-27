@@ -31,6 +31,7 @@ Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
 from __future__ import annotations
 
 import numbers
+import os
 import re
 import subprocess
 import warnings
@@ -582,6 +583,8 @@ def _target_gain(
     at ``max_gain_db`` with a warning (to the caller's caller) naming ``subject``."""
     if not np.isfinite(target_lufs):
         raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
+    if np.isnan(max_gain_db):
+        raise ValueError("max_gain_db is NaN")
     if not measured > ABSOLUTE_GATE_LUFS:  # silence (or NaN): nothing to level
         return 0.0
     gain = target_lufs - measured
@@ -896,7 +899,7 @@ def level_file(
         raise ValueError(f"ceiling_db is in dB, at or below full scale; got {ceiling_db}")
     if not np.isfinite(target_lufs):
         raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
-    if window_s is not None and not window_s > 0:
+    if window_s is not None and not 0 < window_s < np.inf:
         raise ValueError(f"window_s is in seconds, > 0; got {window_s}")
     ceiling = 10.0 ** (ceiling_db / 20.0)
     limits = dict(true_peak=true_peak, oversampling=oversampling, method=method)
@@ -916,7 +919,10 @@ def level_file(
 
     def write(path: Path) -> None:
         nonlocal output_lufs
-        if path.resolve() == src.resolve() and (others := _other_streams(src, ffmpeg)):
+        # samefile, not resolve(): a case-insensitive filesystem (macOS) spells
+        # one file two ways
+        in_place = path.exists() and os.path.samefile(path, src)
+        if in_place and (others := _other_streams(src, ffmpeg)):
             raise ValueError(
                 f"leveling {src.name} in place would drop its {', '.join(others)} "
                 "stream(s): level_file writes audio only; give another output"

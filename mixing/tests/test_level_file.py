@@ -225,6 +225,7 @@ def test_bad_settings_fail_before_any_decoding(tmp_path, monkeypatch):
         dict(method="long", true_peak=False),
         dict(oversampling=0),
         dict(window_s=0),
+        dict(window_s=np.inf),
     ):
         with pytest.raises(ValueError):
             level_file(tmp_path / "x.wav", **{"target_lufs": -20.0, **bad})
@@ -246,6 +247,10 @@ def test_in_place_refuses_a_file_with_a_picture(tmp_path):
     before = clip.read_bytes()
     with pytest.raises(ValueError, match="video"):
         level_file(clip, clip, target_lufs=-20.0)
+    hard = tmp_path / "same.mp4"  # one file under another name (as on a
+    hard.hardlink_to(clip)  # case-insensitive disk): still the source
+    with pytest.raises(ValueError, match="video"):
+        level_file(clip, hard, target_lufs=-20.0)
     assert clip.read_bytes() == before
     beside = level_file(clip, target_lufs=-20.0).output  # elsewhere: audio only
     assert beside.name == f"clip{LEVELED_SUFFIX}.mp4"
