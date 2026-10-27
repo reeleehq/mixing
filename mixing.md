@@ -1,4 +1,4 @@
-> built 2026-10-27 09:24 UTC from 5b23696 (main) · mixing 0.0.71. Details: build_info.json
+> built 2026-10-27 10:02 UTC from 7ef52ac (main) · mixing 0.0.72. Details: build_info.json
 
 # index.html.md
 
@@ -1079,6 +1079,91 @@ at all; the value is floored at one sample there and is a lower bound rather
 than a promise.
 
 
+# _autosummary/mixing.filtergraph.html.md
+
+# mixing.filtergraph
+
+Pure ffmpeg filter-string builders: no media dependency, no I/O.
+
+The stock-ffmpeg pitch shift (`asetrate` -> `aresample` -> `atempo`) and
+the `atempo` staging rule, spelled once for every package that runs them.
+`mixing.audio.shift_pitch()` (`method="resample"`) runs the chain with
+its measured delay removed; `an` keys its voice effects on the exact string
+(an#611), so a change to a string built here moves every such key.
+
+```pycon
+>>> resample_pitch_filter(12, 44100)
+'asetrate=88200,aresample=44100,atempo=0.5000000000'
+>>> resample_pitch_filter(0, 44100, tempo=3.0, flush_s=0.25)
+'apad=pad_dur=0.25,atempo=2.0000000000,atempo=1.5000000000'
+>>> atempo_chain(0.3)
+[0.5, 0.6]
+```
+
+### Module Attributes
+
+| [`ATEMPO_RANGE`](_autosummary/mixing.filtergraph.html.md#mixing.filtergraph.ATEMPO_RANGE)    | `atempo` accepts a factor in this range per stage (older ffmpeg builds).   |
+|------------------------------------------------------------------|----------------------------------------------------------------------------|
+| [`ATEMPO_DECIMALS`](_autosummary/mixing.filtergraph.html.md#mixing.filtergraph.ATEMPO_DECIMALS) | Decimals each `atempo` factor is written with.                             |
+| [`PAD_DECIMALS`](_autosummary/mixing.filtergraph.html.md#mixing.filtergraph.PAD_DECIMALS)    | ffmpeg refuses an exponent there).                                         |
+
+### Functions
+
+| [`atempo_chain`](_autosummary/mixing.filtergraph.html.md#mixing.filtergraph.atempo_chain)(factor, \*[, limits])              | `atempo` stages whose product is `factor`, each within `limits`.      |
+|--------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| [`resample_pitch_filter`](_autosummary/mixing.filtergraph.html.md#mixing.filtergraph.resample_pitch_filter)(semitones, fs, \*[, ...]) | The `-af` chain shifting audio at `fs` by `semitones`; `""` for none. |
+
+### mixing.filtergraph.ATEMPO_DECIMALS *= 10*
+
+Decimals each `atempo` factor is written with.
+
+### mixing.filtergraph.ATEMPO_RANGE *= (0.5, 2.0)*
+
+`atempo` accepts a factor in this range per stage (older ffmpeg builds).
+
+### mixing.filtergraph.PAD_DECIMALS *= 6*
+
+ffmpeg refuses an
+exponent there).
+
+* **Type:**
+  Most decimals a `pad_dur` is written with (fixed point
+
+### mixing.filtergraph.atempo_chain(factor, , limits=(0.5, 2.0))
+
+`atempo` stages whose product is `factor`, each within `limits`.
+
+```pycon
+>>> atempo_chain(1.5), atempo_chain(3.0)
+([1.5], [2.0, 1.5])
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+### mixing.filtergraph.resample_pitch_filter(semitones, fs, , tempo=1.0, flush_s=0.0)
+
+The `-af` chain shifting audio at `fs` by `semitones`; `""` for none.
+
+`asetrate` relabels the rate (pitch and speed both move; ffmpeg takes an
+integer rate, so the ratio is rounded there), `aresample` returns to
+`fs`, and `atempo` stages undo the speed change of the rounded rate
+exactly, times `tempo` (`1.5`: half again as fast, pitch kept).
+`flush_s` seconds of silence are appended before the `atempo` stages
+(`apad`) so their window never drops the tail. With `semitones == 0`
+only the tempo stages remain.
+
+```pycon
+>>> resample_pitch_filter(0, 44100)
+''
+>>> resample_pitch_filter(-12, 16000, tempo=1.5)
+'asetrate=8000,aresample=16000,atempo=2.0000000000,atempo=1.5000000000'
+```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+
 # _autosummary/mixing.html.md
 
 # mixing
@@ -1531,14 +1616,15 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 
 ### Modules
 
-| [`chapters`](_autosummary/mixing.chapters.html.md#module-mixing.chapters)     | Detect chapter markers from a transcript — platform-agnostic.                      |
-|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [`dubbing`](_autosummary/mixing.dubbing.html.md#module-mixing.dubbing)       | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
-| [`egress`](_autosummary/mixing.egress.html.md#module-mixing.egress)         | Canonical *egress*: route a produced result to its destination.                    |
-| [`errors`](_autosummary/mixing.errors.html.md#module-mixing.errors)         | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
-| [`srt`](_autosummary/mixing.srt.html.md#module-mixing.srt)               | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
-| [`transcript`](_autosummary/mixing.transcript.html.md#module-mixing.transcript) | Transcript-driven media editing.                                                   |
-| [`util`](_autosummary/mixing.util.html.md#module-mixing.util)             | General utilities for mixing video, audio, etc.                                    |
+| [`chapters`](_autosummary/mixing.chapters.html.md#module-mixing.chapters)       | Detect chapter markers from a transcript — platform-agnostic.                      |
+|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| [`dubbing`](_autosummary/mixing.dubbing.html.md#module-mixing.dubbing)         | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
+| [`egress`](_autosummary/mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
+| [`errors`](_autosummary/mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
+| [`srt`](_autosummary/mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
+| [`transcript`](_autosummary/mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                   |
+| [`util`](_autosummary/mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                    |
+| [`filtergraph`](_autosummary/mixing.filtergraph.html.md#module-mixing.filtergraph) | Pure ffmpeg filter-string builders: no media dependency, no I/O.                   |
 
 
 # _autosummary/mixing.srt.html.md
@@ -2595,18 +2681,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-27 09:24 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/5b23696c7cd3443ddb2f32bb470c0adc5032b3c1"><code>5b23696</code></a> on branch <code>main</code>, for **mixing 0.0.71** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-27 10:02 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/7ef52ac99b9a528ef2ecd78177102098ed7b2d47"><code>7ef52ac</code></a> on branch <code>main</code>, for **mixing 0.0.72** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.72) is ahead of the latest release on PyPI (0.0.71): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/5b23696c7cd3443ddb2f32bb470c0adc5032b3c1"><code>5b23696c7cd3443ddb2f32bb470c0adc5032b3c1</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/7ef52ac99b9a528ef2ecd78177102098ed7b2d47"><code>7ef52ac99b9a528ef2ecd78177102098ed7b2d47</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.71</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.72</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2615,9 +2703,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40474556985">40474556985</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40479365390">40479365390</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>fd716b0326899ca7c97b4b1bbded530eb98cd843</code> (in the history of the built commit) |
+| Event commit | <code>31a3205b2e0148cf5537e611069191aca9976c41</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2642,13 +2730,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.71/">0.0.71</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.71/">0.0.71</a>, older than the documented version (0.0.72).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 5b23696c7cd3443ddb2f32bb470c0adc5032b3c1
+git checkout 7ef52ac99b9a528ef2ecd78177102098ed7b2d47
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

@@ -448,11 +448,12 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 
 ### Modules
 
-| [`chapters`](mixing.chapters.html.md#module-mixing.chapters)     | Detect chapter markers from a transcript — platform-agnostic.                      |
-|--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [`dubbing`](mixing.dubbing.html.md#module-mixing.dubbing)       | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
-| [`egress`](mixing.egress.html.md#module-mixing.egress)         | Canonical *egress*: route a produced result to its destination.                    |
-| [`errors`](mixing.errors.html.md#module-mixing.errors)         | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
-| [`srt`](mixing.srt.html.md#module-mixing.srt)               | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
-| [`transcript`](mixing.transcript.html.md#module-mixing.transcript) | Transcript-driven media editing.                                                   |
-| [`util`](mixing.util.html.md#module-mixing.util)             | General utilities for mixing video, audio, etc.                                    |
+| [`chapters`](mixing.chapters.html.md#module-mixing.chapters)       | Detect chapter markers from a transcript — platform-agnostic.                      |
+|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| [`dubbing`](mixing.dubbing.html.md#module-mixing.dubbing)         | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
+| [`egress`](mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
+| [`errors`](mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
+| [`srt`](mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
+| [`transcript`](mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                   |
+| [`util`](mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                    |
+| [`filtergraph`](mixing.filtergraph.html.md#module-mixing.filtergraph) | Pure ffmpeg filter-string builders: no media dependency, no I/O.                   |

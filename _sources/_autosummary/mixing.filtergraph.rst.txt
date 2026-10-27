@@ -1,0 +1,21 @@
+mixing.filtergraph
+==================
+
+.. automodule:: mixing.filtergraph
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      ATEMPO_RANGE
+      ATEMPO_DECIMALS
+      PAD_DECIMALS
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      atempo_chain
+      resample_pitch_filter
+   

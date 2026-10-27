@@ -51,5 +51,6 @@
    transcript
    util
    audio
+   filtergraph
    loudness
    video

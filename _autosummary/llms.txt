@@ -21,6 +21,7 @@
 - [mixing.transcript.pipeline](mixing.transcript.pipeline.html.md): High-level filler-removal pipeline.
 - [mixing.transcript.scribe](mixing.transcript.scribe.html.md): ElevenLabs Scribe (speech-to-text) HTTP client.
 - [mixing.util](mixing.util.html.md): General utilities for mixing video, audio, etc.
+- [mixing.filtergraph](mixing.filtergraph.html.md): Pure ffmpeg filter-string builders: no media dependency, no I/O.
 
 ## Optional
 
