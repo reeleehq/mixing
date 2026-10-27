@@ -342,7 +342,7 @@ def test_stream_matches_the_array_meters_for_any_chunking():
     data = _voice(12, 0.3, channels=2)
     data[FS * 4 : FS * 7] *= 0.1  # some loudness range
     whole_i, whole_lra = numpy_lufs(data, FS), loudness_range_lu(data, FS)
-    for size in (1, 977, FS, len(data)):
+    for size in (7, 977, FS, len(data)):
         chunks = (data[k : k + size] for k in range(0, len(data), size))
         reading = stream_loudness(chunks, FS)
         assert reading.integrated_lufs == pytest.approx(whole_i, abs=1e-9)
@@ -405,3 +405,48 @@ def test_file_meter_reads_a_videos_audio_and_raises_on_garbage(tmp_path):
     garbage.write_bytes(b"not audio at all")
     with pytest.raises(RuntimeError, match="could not decode"):
         file_loudness(garbage)
+
+
+def test_stream_skips_empty_chunks_and_rejects_bad_ones():
+    # scipy's lfilter returns a garbage state for an empty input: one empty
+    # chunk after every second read a bass-heavy signal 28 LU too loud
+    from mixing.loudness import numpy_lufs, stream_loudness
+
+    t = np.arange(FS * 6) / FS
+    data = (0.3 * np.sin(2 * np.pi * 40 * t))[:, None]
+    pieces = []
+    for k in range(0, len(data), FS):
+        pieces += [data[k : k + FS], data[:0]]
+    assert stream_loudness(pieces, FS).integrated_lufs == pytest.approx(
+        numpy_lufs(data, FS), abs=1e-9
+    )
+    with pytest.raises(ValueError, match="channels"):
+        stream_loudness([np.zeros((10, 2)), np.zeros((10, 1))], FS)
+    with pytest.raises(ValueError, match="floats"):
+        stream_loudness([np.zeros((10, 1), dtype=np.int16)], FS)
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg not on PATH")
+def test_decoded_chunks_keep_rate_and_channels_and_leave_stdin_alone(tmp_path):
+    from pathlib import Path
+
+    from scipy.io import wavfile
+
+    from mixing.decode import decode_float_chunks
+
+    path = tmp_path / "three.wav"
+    wavfile.write(path, 22050, np.zeros((22050, 3), np.float32))
+    rate, chunks = decode_float_chunks(path, chunk_s=0.25)
+    sizes = [c.shape for c in chunks]
+    assert rate == 22050 and {s[1] for s in sizes} == {3}
+    assert sum(s[0] for s in sizes) == 22050 and max(s[0] for s in sizes) <= 5513
+    # ffmpeg must not eat the caller's stdin (a shell loop feeding it paths)
+    code = (
+        "import sys; from mixing.loudness import file_loudness; "
+        f"file_loudness({str(path)!r}); print(sys.stdin.read())"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], input="kept\n", capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parents[2]),
+    )  # fmt: skip
+    assert out.stdout.strip() == "kept", out.stderr

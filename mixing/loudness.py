@@ -1,7 +1,7 @@
 """Array-only loudness: meters, group leveling and a peak limiter.
 
 Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
-plus a sample rate, and needs only numpy and scipy (extra ``loudness``,
+(or a stream of them) plus a sample rate, :func:`file_loudness` excepted, and needs only numpy and scipy (extra ``loudness``,
 ``pip install 'mixing[loudness]'``), so a package that holds samples (not an
 :class:`~mixing.audio.Audio`) can measure and level without the media stack.
 :mod:`mixing.audio.leveling` builds its ``Audio`` layer on these.
@@ -15,8 +15,8 @@ plus a sample rate, and needs only numpy and scipy (extra ``loudness``,
   ``true_peak=True`` holds inter-sample peaks too.
 - :func:`true_peak_db`, :func:`loudness_range_lu`: the dBTP and LRA meters.
 - :func:`stream_loudness`, :func:`file_loudness`: integrated loudness and LRA
-  in one pass over chunks (or a file decoded in chunks), in memory bounded by
-  the chunk, not the track.
+  in one pass over chunks (or a file decoded in chunks by
+  :mod:`mixing.decode`), in memory bounded by the chunk, not the track.
 
 >>> import numpy as np
 >>> integrated_lufs(np.zeros((100, 1)), 8000)
@@ -29,11 +29,8 @@ from __future__ import annotations
 
 import numbers
 import re
-import struct
 import subprocess
-import tempfile
 import warnings
-from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
 
@@ -46,6 +43,8 @@ except ImportError as e:
         f"mixing.loudness needs numpy and scipy: {install_hint(LOUDNESS_EXTRA)}",
         name=e.name,
     ) from e
+
+from mixing.decode import DECODE_CHUNK_S, decode_float_chunks  # noqa: E402
 
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
@@ -146,46 +145,57 @@ def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.n
 
     sections, states = _k_weighting_coefficients(fs), None
     for x in chunks:
-        x = _as_2d(np.asarray(x, dtype=np.float64))
+        x = np.asarray(x)
+        if x.dtype.kind in "iub":
+            raise ValueError(f"samples must be floats in [-1, 1], got {x.dtype}")
+        x = _as_2d(x.astype(np.float64, copy=False))
+        if not len(x):  # lfilter returns a garbage state for an empty input
+            continue
         if states is None:  # biquads: order 2
             states = [np.zeros((2, x.shape[1])) for _ in sections]
+        elif x.shape[1] != states[0].shape[1]:
+            raise ValueError(
+                f"a chunk has {x.shape[1]} channels, the stream {states[0].shape[1]}"
+            )
         for k, (b, a) in enumerate(sections):
             x, states[k] = lfilter(b, a, x, axis=0, zi=states[k])
         yield (x**2).sum(axis=1)
 
 
-@dataclass
 class _Blocks:
     """Mean square of every ``block``-long window at ``hop`` spacing, over
     energy fed in pieces; holds at most a block plus one piece. A signal
     shorter than one block is one block over all of it."""
 
-    block: int
-    hop: int
-
-    def __post_init__(self):
-        self._buffer, self._offset, self._next, self._out = np.zeros(0), 0, 0, []
-        self.length = 0
+    def __init__(self, block: int, hop: int):
+        self.block, self.hop, self.length = block, hop, 0
+        self._pieces: list = []  # energy from self._offset on, not yet joined
+        self._pending = self._offset = self._next = 0
+        self._out: list = []
 
     def feed(self, energy: np.ndarray) -> None:
         self.length += len(energy)
-        self._buffer = np.concatenate([self._buffer, energy])
-        end = self._offset + len(self._buffer)
+        self._pieces.append(energy)
+        self._pending += len(energy)
+        if self._offset + self._pending < self._next + self.block:
+            return  # no window complete yet: no join, no copy
+        buffer = np.concatenate(self._pieces)
+        end = self._offset + len(buffer)
         starts = np.arange(self._next, end - self.block + 1, self.hop)
-        if len(starts):
-            cumulative = np.concatenate([[0.0], np.cumsum(self._buffer)])
-            at = starts - self._offset
-            self._out.append(
-                (cumulative[at + self.block] - cumulative[at]) / self.block
-            )
-            self._next = int(starts[-1]) + self.hop
-            drop = min(self._next - self._offset, len(self._buffer))
-            self._buffer, self._offset = self._buffer[drop:], self._offset + drop
+        cumulative = np.concatenate([[0.0], np.cumsum(buffer)])
+        at = starts - self._offset
+        self._out.append((cumulative[at + self.block] - cumulative[at]) / self.block)
+        self._next = int(starts[-1]) + self.hop
+        drop = min(self._next - self._offset, len(buffer))
+        self._pieces, self._offset = [buffer[drop:]], self._offset + drop
+        self._pending = len(buffer) - drop
 
     def result(self) -> np.ndarray:
         if self._out:
             return np.concatenate(self._out)
-        return self._buffer[None].mean(axis=1) if self.length else np.zeros(0)
+        if not self.length:
+            return np.zeros(0)
+        return np.concatenate(self._pieces)[None].mean(axis=1)
 
 
 class LoudnessReading(NamedTuple):
@@ -282,71 +292,22 @@ def loudness_range_lu(data: np.ndarray, fs: int) -> float:
     return _loudness_range(windows.result(), windows.length, fs)
 
 
-#: ffmpeg decodes a file for :func:`file_loudness` as 32-bit float WAV...
-_WAV_FLOAT = "pcm_f32le"
-#: ...read this many seconds at a time: a 30 min stereo track meters at ~130 MB
-#: peak RSS (~106 MB of it numpy and scipy), the same as a 5 min one.
-FILE_CHUNK_S = 5.0
-
-
-def _wav_format(stream) -> tuple[int, int]:
-    """``(channels, rate)`` from a streamed WAV header, read up to its ``data``
-    chunk (ffmpeg writes unknown sizes when piping, so they are not used)."""
-    header = stream.read(12)
-    if len(header) < 12 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
-        raise RuntimeError("ffmpeg did not produce a WAV stream")
-    channels = rate = None
-    while True:
-        chunk = stream.read(8)
-        if len(chunk) < 8:
-            raise RuntimeError("WAV stream ended before its data chunk")
-        name, size = chunk[:4], struct.unpack("<I", chunk[4:])[0]
-        if name == b"data":
-            if channels is None:
-                raise RuntimeError("WAV stream has no fmt chunk")
-            return channels, rate
-        body = stream.read(size + size % 2)
-        if name == b"fmt ":
-            channels, rate = struct.unpack("<HI", body[2:8])
-
-
 def file_loudness(
-    path, *, chunk_s: float = FILE_CHUNK_S, ffmpeg: Optional[str] = None
+    path, *, chunk_s: float = DECODE_CHUNK_S, ffmpeg: Optional[str] = None
 ) -> LoudnessReading:
     """Integrated loudness and LRA of a media file's audio, in bounded memory.
 
-    ffmpeg (``ffmpeg``, default :func:`mixing.util.ffmpeg_exe`) decodes the
-    first audio stream at its own rate and channel count (no resampling, no
-    downmix) as float WAV, read ``chunk_s`` seconds at a time into
-    :func:`stream_loudness`; memory stays a chunk's worth whatever the
-    length. Raises ``RuntimeError`` when ffmpeg cannot decode it.
+    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``) into
+    :func:`stream_loudness`: a 30 min stereo track meters at ~130 MB peak RSS
+    (~106 MB of it numpy and scipy), the same as a 5 min one, in about a
+    seventh of ffmpeg ``loudnorm``'s time. Against ``loudnorm``'s
+    ``input_i``: within ~0.05 LU at 44.1/48 kHz; ~0.35 LU apart at 8-16 kHz
+    (``loudnorm`` upsamples to 192 kHz; ffmpeg's ``ebur128`` agrees with
+    this meter); 5.1 reads ~0.1 LU apart (no surround weights, see
+    :func:`numpy_lufs`).
     """
-    cmd = [
-        ffmpeg or ffmpeg_exe(), "-v", "error", "-i", str(path), "-vn", "-map", "0:a:0",
-        "-c:a", _WAV_FLOAT, "-f", "wav", "-",
-    ]  # fmt: skip
-    # stderr to a file: a pipe nobody reads fills up and blocks ffmpeg
-    with tempfile.TemporaryFile() as errors:
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errors) as proc:
-            try:
-                channels, rate = _wav_format(proc.stdout)
-            except RuntimeError:
-                channels = None
-            if channels is not None:
-                frame = 4 * channels
-                step = max(1, int(round(chunk_s * rate))) * frame
-
-                def chunks() -> Iterator[np.ndarray]:
-                    while block := proc.stdout.read(step):
-                        usable = len(block) - len(block) % frame
-                        yield np.frombuffer(block[:usable], "<f4").reshape(-1, channels)
-
-                reading = stream_loudness(chunks(), rate)
-        errors.seek(0)
-        message = errors.read().decode(errors="replace")
-    if proc.returncode != 0 or channels is None:
-        raise RuntimeError(f"ffmpeg could not decode the audio of {path!s}: {message}")
-    return reading
+    rate, chunks = decode_float_chunks(path, chunk_s=chunk_s, ffmpeg=ffmpeg)
+    return stream_loudness(chunks, rate)
 
 
 # --- other meters ----------------------------------------------------------------
