@@ -86,17 +86,30 @@ ml = [
     "transformers",
 ]
 # Speech/music separation (mixing.audio.separation: separate_speech, remove_talk).
-# The default strategy, MossFormer2-SE-48K inverted, runs through ClearVoice
-# (Apache-2.0 code and weights; it brings torch and huggingface-hub). Caveat:
-# clearvoice 0.1.2 pins numpy<2, librosa==0.10.2.post1 and opencv-python==4.10.0.84,
-# and that opencv-python is a second `cv2` provider next to media's
-# opencv-contrib-python -- install it in an environment where that is acceptable.
+# The runtime dependencies of the default strategy (MossFormer2-SE-48K via
+# ClearVoice, Apache-2.0): exactly what the adapter's import path into
+# clearvoice 0.1.2 imports. clearvoice itself is deliberately NOT listed: its own
+# pins (numpy<2, librosa==0.10.2.post1, opencv-python==4.10.0.84, soundfile==0.12.1,
+# scenedetect, ...) would downgrade numpy and add a second cv2 next to media's
+# opencv-contrib-python. Install it on top, without its dependencies:
+#   pip install 'mixing[separation]' && pip install --no-deps 'clearvoice==0.1.2'
+# (exact pin: the adapter calls 0.1.2's internals). Names are spelled as their
+# import names (pip normalises _ and -) so util.EXTRAS can mirror them.
 separation = [
-    "clearvoice",
+    "torch",
+    "torchaudio",
+    "huggingface_hub",
+    "librosa",
+    "soundfile",
+    "einops",
+    "rotary_embedding_torch",
+    "yamlargparse",
+    "tqdm",
+    "torchinfo",
+    "joblib",
 ]
 # The "htdemucs" separation strategy (Demucs' vocals stem as speech; MIT):
-# instrumental beds only, since it removes singing too. Its own extra, so the
-# default install does not carry it (nor it clearvoice's pins).
+# instrumental beds only, since it removes singing too.
 demucs = [
     "demucs",
 ]

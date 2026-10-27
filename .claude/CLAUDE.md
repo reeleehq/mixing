@@ -39,7 +39,7 @@ Focused subpackages, each with a clear dependency footprint:
 | `mixing.audio.beats` | `beat_grid`/`BeatGrid` — beat/downbeat/onset analysis | `librosa` (extra `beats`, lazy-imported) |
 | `mixing.audio.tagging` | `WindowProbabilities` + `ast_audioset_classifier`: the classifier seam behind `find_segments(strategy="audioset")` (songs vs jingles vs talk on radio shows) | `torch`, `transformers` (extra `ml`, lazy-imported) |
 | `mixing.audio.talk_edges` | `find_talk_edges`/`TalkEdges`: the host's talk at the start/end of a carved song (talk over music counts), same classifier seam plus an optional word-timestamped transcript | default classifier needs extra `ml` |
-| `mixing.audio.separation` | `separate_speech` (speech/music separator seam: registry key, `SeparationStrategy` or callable; resampling, per-channel runs, licence + `commercial_ok` per strategy) and `remove_talk` (the splice: separator only inside the widened spans, linear crossfades, sample-identical elsewhere; spans from `TalkEdges`, `Segment`s or pairs) | default `mossformer2_se_48k` needs extra `separation` (`clearvoice`); `htdemucs` extra `demucs` |
+| `mixing.audio.separation` | `separate_speech` (speech/music separator seam: registry key, `SeparationStrategy` or callable; resampling, per-channel runs, licence + `commercial_ok` per strategy) and `remove_talk` (the splice: separator only inside the spans widened by `margin`, linear fades over the margin, sample-identical elsewhere; spans from `TalkEdges`, `Segment`s, pairs or arrays) | default `mossformer2_se_48k`: extra `separation` (its unpinned runtime deps) + `pip install --no-deps 'clearvoice==0.1.2'`; `htdemucs`: extra `demucs` |
 | `mixing.video` | `Video`/`VideoFrames`, crop/loop/speed, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_*`, `concatenate_videos`, thumbnails, subtitles | `moviepy`, `opencv`, `pillow`, `looks` (vocabulary only — stdlib) |
 | `mixing.video.genai` | Google Vertex AI **Veo** generation | `google-genai` (extra `gen`) |
 | `mixing.transcript` | ElevenLabs **Scribe** STT (stdlib HTTP, cached), filler removal, SRT/prose | stdlib only |
@@ -145,7 +145,7 @@ hand-write a `pip install` hint for an optional dependency.
 `pip install mixing[<extra>]`: `media` (see above), `audio` (ffmpeg-python/soundfile, on top of `media`),
 `loudness` (numpy + scipy, for `mixing.loudness`), `widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for
 chapter titling + SRT translation), `clipboard` (`pyclip`), `beats` (`librosa`,
-for `mixing.audio.beats.beat_grid`), `ml` (`torch` + `transformers`, for the `"audioset"` segmentation strategy), `separation` (`clearvoice`, the default `remove_talk` separator; note its `numpy<2` / `opencv-python` pins), `demucs` (the `htdemucs` separator, instrumental beds only), `dev`/`testing`.
+for `mixing.audio.beats.beat_grid`), `ml` (`torch` + `transformers`, for the `"audioset"` segmentation strategy), `separation` (the default `remove_talk` separator's runtime deps; clearvoice itself goes on with `pip install --no-deps 'clearvoice==0.1.2'`, never with its own `numpy<2` / `opencv-python` pins, and no extra may declare it), `demucs` (the `htdemucs` separator, instrumental beds only), `dev`/`testing`.
 Tests needing a model download are marked `slow` and skip unless `MIXING_RUN_SLOW=1`.
 **ffmpeg must be on PATH** for most real work (`mixing.has_ffmpeg()` checks).
 
