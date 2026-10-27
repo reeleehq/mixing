@@ -173,7 +173,6 @@ def test_loudness_without_numpy_names_the_missing_module():
 _DISTRIBUTIONS = {
     "cv2": "opencv-contrib-python",
     "PIL": "pillow",
-    "ffmpeg": "ffmpeg-python",
     "google.genai": "google-genai",
     "IPython": "jupyter",
 }
@@ -190,10 +189,22 @@ def _declared_extras() -> dict:
     if not path.exists():
         pytest.skip("pyproject.toml not available (installed distribution)")
     declared = tomllib.loads(path.read_text())["project"]["optional-dependencies"]
-    return {
-        extra: {re.split(r"[<>=!~\[ ;]", r, maxsplit=1)[0].lower() for r in reqs}
-        for extra, reqs in declared.items()
-    }
+
+    from packaging.requirements import Requirement
+
+    def distributions(extra, seen=()):
+        """``extra``'s distributions, with ``mixing[x]`` read as extra ``x``'s."""
+        assert extra not in seen, f"extras include each other: {seen + (extra,)}"
+        names = set()
+        for requirement in map(Requirement, declared[extra]):
+            if requirement.name.lower() == "mixing":
+                for inner in requirement.extras:
+                    names |= distributions(inner, seen + (extra,))
+            else:
+                names.add(requirement.name.lower())
+        return names
+
+    return {extra: distributions(extra) for extra in declared}
 
 
 def test_the_table_and_pyproject_declare_the_same_extras():
@@ -341,6 +352,17 @@ def test_audio_widget_without_jupyter_names_the_widget_extra():
     )
     assert out["name"].split(".")[0] == "IPython"
     assert "pip install 'mixing[widget]'" in out["message"]
+
+
+def test_the_audio_extra_is_an_alias_of_media_plus_soundfile():
+    """Downstream installs name ``mixing[audio]`` (paces): it stays installable
+    and supplies the media backends, but no module hints it for them."""
+    from mixing.util import EXTRAS, extra_for
+
+    assert _declared_extras()["audio"] == _declared_extras()["media"] | {"soundfile"}
+    assert set(EXTRAS["audio"]) == set(EXTRAS["media"]) | {"soundfile"}
+    assert all(extra_for(m) != "audio" for m in EXTRAS["audio"])
+    assert extra_for("soundfile") == "widget"
 
 
 def test_require_package_does_not_blame_an_installed_package(monkeypatch):
