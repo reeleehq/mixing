@@ -6,8 +6,13 @@ own rate and channel count (no downmix; resampled only when asked). Only a
 chunk is held at a time, so a consumer such as
 :func:`mixing.loudness.stream_loudness` works on an hour-long track in bounded
 memory. :func:`encode_float_chunks` is the way back: chunks piped into one
-ffmpeg that writes a file. Needs numpy and an ffmpeg
-(:func:`mixing.util.ffmpeg_exe`), not the media stack.
+ffmpeg that writes a file. Needs numpy and an ffmpeg, not the media stack.
+
+Both take ``ffmpeg=`` (the executable to run; default
+:func:`mixing.util.ffmpeg_exe`, which prefers imageio-ffmpeg's bundled build:
+pass ``ffmpeg="ffmpeg"`` for the one on ``PATH``) and ``timeout=`` (seconds
+the ffmpeg run may take in all, time spent waiting on the consumer
+included; a watchdog kills it then, and a ``TimeoutError`` is raised).
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import threading
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
@@ -69,7 +75,12 @@ def _wav_format(stream) -> tuple[int, int]:
 
 @contextmanager
 def _ffmpeg(
-    cmd: list[str], *, what: str, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL
+    cmd: list[str],
+    *,
+    what: str,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.DEVNULL,
+    timeout: Optional[float] = None,
 ):
     """Run the ffmpeg ``cmd`` for the block; yield the process.
 
@@ -78,21 +89,33 @@ def _ffmpeg(
     included) kills it. On the way out its pipes are closed, a broken stdin
     pipe ignored (ffmpeg stopped reading: its exit code says why), and it is
     waited for; a non-zero exit raises ``RuntimeError("ffmpeg could not
-    {what}: ...")`` with the tail of its message.
+    {what}: ...")`` with the tail of its message. With ``timeout`` a watchdog
+    kills it that many seconds after it started, and ``TimeoutError`` is
+    raised instead (the block sees an ordinary end of stream or broken pipe).
     """
+    if timeout is not None and not timeout > 0:
+        raise ValueError(f"timeout is in seconds, > 0 (or None); got {timeout}")
     with tempfile.TemporaryFile() as errors:
         proc = subprocess.Popen(cmd, stdin=stdin, stdout=stdout, stderr=errors)
+        fired = threading.Event()
+        watchdog = threading.Timer(timeout or 0, lambda: (fired.set(), proc.kill()))
+        watchdog.daemon = True
+        if timeout is not None:
+            watchdog.start()
         try:
             yield proc
         except BaseException:
             proc.kill()
             raise
         finally:
+            watchdog.cancel()
             for pipe in (proc.stdin, proc.stdout):
                 if pipe is not None:
                     with suppress(BrokenPipeError):
                         pipe.close()
             proc.wait()
+        if fired.is_set():
+            raise TimeoutError(f"ffmpeg took more than {timeout:g} s to {what}; it was killed")
         if proc.returncode != 0:
             errors.seek(0)
             message = errors.read().decode(errors="replace").strip()
@@ -101,7 +124,13 @@ def _ffmpeg(
             )
 
 
-def _decode(path, chunk_s: float, ffmpeg: Optional[str], sample_rate: Optional[int]):
+def _decode(
+    path,
+    chunk_s: float,
+    ffmpeg: Optional[str],
+    sample_rate: Optional[int],
+    timeout: Optional[float],
+):
     """First ``(channels, rate)``, then the float chunks."""
     resample = ["-ar", str(sample_rate)] if sample_rate else []
     cmd = [
@@ -109,7 +138,7 @@ def _decode(path, chunk_s: float, ffmpeg: Optional[str], sample_rate: Optional[i
         "-map", "0:a:0", *resample, "-c:a", _WAV_CODEC, "-f", "wav", "-",
     ]  # fmt: skip
     what = f"decode the audio of {path!s}"
-    with _ffmpeg(cmd, what=what, stdout=subprocess.PIPE) as proc:
+    with _ffmpeg(cmd, what=what, stdout=subprocess.PIPE, timeout=timeout) as proc:
         try:
             channels, rate = _wav_format(proc.stdout)
         except ValueError:
@@ -131,6 +160,7 @@ def decode_float_chunks(
     chunk_s: float = DECODE_CHUNK_S,
     ffmpeg: Optional[str] = None,
     sample_rate: Optional[int] = None,
+    timeout: Optional[float] = None,
 ) -> tuple[int, Iterator[np.ndarray]]:
     """``(rate, chunks)``: the first audio stream of ``path`` as float32 chunks.
 
@@ -139,9 +169,12 @@ def decode_float_chunks(
     (``ffmpeg``, default :func:`mixing.util.ffmpeg_exe`) starts at once; it is
     stopped when the iterator is exhausted or closed. Raises ``RuntimeError``
     (with ffmpeg's message) when the file has no decodable audio, here or,
-    for a stream that breaks partway, from the iterator.
+    for a stream that breaks partway, from the iterator. With ``timeout``
+    (seconds) ffmpeg is killed that long after it started, and a
+    ``TimeoutError`` is raised, here (a stalled input: a FIFO nobody writes)
+    or from the iterator.
     """
-    chunks = _decode(path, chunk_s, ffmpeg, sample_rate)
+    chunks = _decode(path, chunk_s, ffmpeg, sample_rate, timeout)
     _, rate = next(chunks)
     return rate, chunks
 
@@ -153,6 +186,7 @@ def encode_float_chunks(
     *,
     args: Sequence[str] = (),
     ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> Path:
     """Write float chunks to ``path`` through one ffmpeg; return the ``Path``.
 
@@ -165,7 +199,9 @@ def encode_float_chunks(
     renamed over it on success with the replaced file's permissions, so
     ``path`` is never left half written and may be the very file the chunks
     are decoded from. Raises ``ValueError`` for no audio at all,
-    ``RuntimeError`` (with ffmpeg's message) when ffmpeg fails.
+    ``RuntimeError`` (with ffmpeg's message) when ffmpeg fails,
+    ``TimeoutError`` when it is still running ``timeout`` seconds after it
+    started (it is killed then).
     """
     path = Path(path)
     target = path.resolve()  # replace a symlink's target, not the link
@@ -182,7 +218,9 @@ def encode_float_chunks(
         "-ar", str(rate), "-ac", str(channels), "-i", "pipe:0", *args, str(partial),
     ]  # fmt: skip
     try:
-        with _ffmpeg(cmd, what=f"write {path.name}", stdin=subprocess.PIPE) as proc:
+        with _ffmpeg(
+            cmd, what=f"write {path.name}", stdin=subprocess.PIPE, timeout=timeout
+        ) as proc:
             with suppress(BrokenPipeError):  # ffmpeg stopped reading: see its exit
                 for chunk in itertools.chain([first], chunks):
                     if chunk.shape[1] != channels:
