@@ -123,7 +123,8 @@ def _require_extra(feature: str, *, extra: str, hint: str, modules: tuple[str, .
         raise ImportError(
             f"{feature} requires the {extra!r} extra "
             f"(missing: {', '.join(missing)}). Install it with "
-            f"{hint}."
+            f"{hint}.",
+            name=missing[0],
         )
 
 
@@ -132,6 +133,8 @@ def require_package(package_name: str):
     Import a package, raising an informative error if not installed.
 
     Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.
+    The error's ``name`` is ``package_name``, so a caller can map it to its own
+    install hint.
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
@@ -151,7 +154,8 @@ def require_package(package_name: str):
             hint = f"pip install {package_name}"
         raise ImportError(
             f"Package '{package_name}' is required for this functionality. "
-            f"Please install it via '{hint}'."
+            f"Please install it via '{hint}'.",
+            name=package_name,
         ) from e
 
 
