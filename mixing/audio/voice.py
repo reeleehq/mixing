@@ -268,20 +268,6 @@ def _voiced_f0(
     return (float(np.median(values)) if len(values) else None), len(values) / n_frames
 
 
-def _deprecated_pyin_args(**kwargs) -> dict:
-    """The pyin arguments ``voice_profile`` was given (``None`` = not given),
-    with a ``DeprecationWarning`` when there are any."""
-    given = {k: v for k, v in kwargs.items() if v is not None}
-    if given:
-        warnings.warn(
-            f"voice_profile({', '.join(given)}=...) is deprecated and will be "
-            "removed (reeleehq/mixing#99); pass f0_tracker=pyin_tracker(...) instead",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-    return given
-
-
 def voice_profile(
     audio: Union[str, Path, Audio],
     spans: Optional[Spans] = None,
@@ -291,10 +277,6 @@ def voice_profile(
     f0_sample_rate: int = DEFAULT_F0_SAMPLE_RATE,
     low_band: Span = DEFAULT_LOW_BAND_HZ,
     welch_nperseg: int = DEFAULT_WELCH_NPERSEG,
-    fmin: Optional[float] = None,
-    fmax: Optional[float] = None,
-    f0_frame_length: Optional[int] = None,
-    min_voiced_prob: Optional[float] = None,
 ) -> dict:
     """Pitch, loudness and timbre of each labelled part of ``audio``.
 
@@ -318,8 +300,6 @@ def voice_profile(
         f0_sample_rate: the rate spans are resampled to before tracking.
         low_band: ``(lo_hz, hi_hz)`` of the band reported by ``low_band_db``.
         welch_nperseg: Welch segment length for centroid and low-band ratio.
-        fmin, fmax, f0_frame_length, min_voiced_prob: deprecated; pass them to
-            :func:`pyin_tracker` as ``f0_tracker``.
 
     Returns:
         ``{label: {...}}`` of plain JSON-able dicts with keys
@@ -343,19 +323,8 @@ def voice_profile(
     fs = segment.frame_rate
     data = segment_samples(segment)
     grouped = _spans_by_label(spans, len(data) / fs)
-    pyin_args = _deprecated_pyin_args(
-        fmin=fmin,
-        fmax=fmax,
-        frame_length=f0_frame_length,
-        min_voiced_prob=min_voiced_prob,
-    )
     if f0_tracker is None:
-        f0_tracker = pyin_tracker(**pyin_args)
-    elif f0 and pyin_args:
-        raise ValueError(
-            "fmin, fmax, f0_frame_length and min_voiced_prob configure the default "
-            "pyin tracker only; pass them to pyin_tracker() as f0_tracker"
-        )
+        f0_tracker = pyin_tracker()
 
     def profile(ranges) -> dict:
         frames = [
