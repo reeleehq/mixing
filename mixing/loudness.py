@@ -17,6 +17,9 @@ Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
 - :func:`stream_loudness`, :func:`file_loudness`: integrated loudness and LRA
   in one pass over chunks (or a file decoded in chunks by
   :mod:`mixing.decode`), in memory bounded by the chunk, not the track.
+- :func:`stream_limit_peaks`, :func:`level_file`: the limiter over chunks, and
+  a file brought to a loudness target with one measured gain and that limiter,
+  file in and file out, in the same bounded memory.
 
 >>> import numpy as np
 >>> integrated_lufs(np.zeros((100, 1)), 8000)
@@ -32,8 +35,9 @@ import re
 import subprocess
 import warnings
 from contextlib import closing
-from functools import lru_cache
-from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
+from functools import lru_cache, partial
+from pathlib import Path
+from typing import Any, Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
 
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
 
@@ -45,7 +49,12 @@ except ImportError as e:
         name=e.name,
     ) from e
 
-from mixing.decode import DECODE_CHUNK_S, decode_float_chunks  # noqa: E402
+from mixing.decode import (  # noqa: E402
+    DECODE_CHUNK_S,
+    decode_float_chunks,
+    encode_float_chunks,
+)
+from mixing.egress import Output, write_egress  # noqa: E402
 
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
@@ -107,6 +116,11 @@ DEFAULT_LIMITER_WINDOW_S = 0.05
 #: output plus a fixed per-chunk overhead (tens of MB; more for a true peak,
 #: whose envelope oversamples the chunk), however long the signal.
 LIMITER_CHUNK_FRAMES = 1 << 18
+#: :func:`level_file`'s default ceiling (dBTP with ``true_peak``, else dBFS):
+#: EBU R 128's maximum true-peak level.
+DEFAULT_CEILING_DB = -1.0
+#: What :func:`level_file` adds to the source's stem when it names the output.
+LEVELED_SUFFIX = "_leveled"
 _EBUR128_I = re.compile(r"I:\s*(-?\d+(?:\.\d+)?|-inf)\s*LUFS")
 _FFMPEG_FLOAT = "f32le"
 
@@ -555,17 +569,28 @@ def level_group(
     if min_measure_s < BLOCK_S:
         raise ValueError(f"min_measure_s must be >= one gate block ({BLOCK_S} s)")
     measured = integrated_lufs(_join(segments, fs, min_measure_s), fs, meter=meter)
+    gain = _target_gain(
+        measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject="group"
+    )
+    return gain, measured
+
+
+def _target_gain(
+    measured: float, *, target_lufs: float, max_gain_db: float, subject: str
+) -> float:
+    """The gain (dB) from ``measured`` to ``target_lufs``: 0 for silence, capped
+    at ``max_gain_db`` with a warning (to the caller's caller) naming ``subject``."""
     if not measured > ABSOLUTE_GATE_LUFS:  # silence (or NaN): nothing to level
-        return 0.0, measured
+        return 0.0
     gain = target_lufs - measured
     if gain > max_gain_db:
         warnings.warn(
-            f"group measures {measured:.1f} LUFS: reaching {target_lufs:g} would take "
-            f"{gain:.1f} dB, mostly noise; capped at +{max_gain_db:g} dB",
-            stacklevel=2,
+            f"{subject} measures {measured:.1f} LUFS: reaching {target_lufs:g} would "
+            f"take {gain:.1f} dB, mostly noise; capped at +{max_gain_db:g} dB",
+            stacklevel=3,
         )
         gain = max_gain_db
-    return float(gain), measured
+    return float(gain)
 
 
 # --- limiter --------------------------------------------------------------------
@@ -630,6 +655,99 @@ def limit_peaks(
     (clipped noise peaks midway between samples, on every even grid); on
     band-limited bright material the grid still matters as above.
     """
+    margin, block_gain = _limiter(
+        ceiling=ceiling,
+        window=window,
+        true_peak=true_peak,
+        fs=fs,
+        oversampling=oversampling,
+        method=method,
+    )
+    data = _as_2d(data)
+    n, out = len(data), None
+    for start in range(0, n, LIMITER_CHUNK_FRAMES):
+        stop = min(n, start + LIMITER_CHUNK_FRAMES)
+        lo, hi = max(0, start - margin), min(n, stop + margin)
+        gain = block_gain(data[lo:hi], start - lo, stop - lo)
+        if out is None:
+            if gain.min() >= 1.0:
+                continue  # untouched so far
+            out = data.astype(np.result_type(data.dtype, np.float64))
+        out[start:stop] = data[start:stop] * gain[:, None]
+    return data if out is None else out
+
+
+def stream_limit_peaks(
+    chunks: Iterable[np.ndarray],
+    *,
+    ceiling: float,
+    fs: Optional[int] = None,
+    window: Optional[int] = None,
+    true_peak: bool = False,
+    oversampling: Optional[int] = None,
+    method: Optional[str] = None,
+) -> Iterator[np.ndarray]:
+    """:func:`limit_peaks` over a signal that arrives in chunks.
+
+    ``chunks`` are float arrays ``(k, channels)`` (or 1-D, mono), any sizes,
+    all with the same channel count; the arguments are :func:`limit_peaks`'.
+    Yields the limited signal (float64) in blocks of ``LIMITER_CHUNK_FRAMES``
+    frames, the last one shorter, equal to :func:`limit_peaks` on the joined
+    signal. It holds one block plus the context each gain depends on (twice the
+    window, and the true-peak filter's length) and the chunk being read, so a
+    track of any length is limited in bounded memory. The settings are
+    checked here, before the first chunk is read.
+    """
+    margin, block_gain = _limiter(
+        ceiling=ceiling,
+        window=window,
+        true_peak=true_peak,
+        fs=fs,
+        oversampling=oversampling,
+        method=method,
+    )
+    return _limited_blocks(chunks, margin, block_gain)
+
+
+def _limited_blocks(chunks, margin: int, block_gain) -> Iterator[np.ndarray]:
+    """:func:`stream_limit_peaks`' generator: the blocks of :func:`limit_peaks`'
+    grid, each computed once the context ``margin`` past its end has arrived."""
+    held, held_start, done = None, 0, 0  # ``held`` is frames [held_start, ...)
+
+    def block():
+        nonlocal held, held_start, done
+        end = held_start + len(held)
+        start, stop = done, min(end, done + LIMITER_CHUNK_FRAMES)
+        lo, hi = max(0, start - margin), min(end, stop + margin)
+        gain = block_gain(held[lo - held_start : hi - held_start], start - lo, stop - lo)
+        out = held[start - held_start : stop - held_start] * gain[:, None]  # float64
+        done = stop
+        keep = max(0, done - margin)
+        held, held_start = held[keep - held_start :], keep
+        return out
+
+    for chunk in chunks:
+        chunk = _as_2d(np.asarray(chunk))
+        if not len(chunk):
+            continue
+        if held is not None and chunk.shape[1] != held.shape[1]:
+            raise ValueError(
+                f"chunks must all have {held.shape[1]} channels, got {chunk.shape[1]}"
+            )
+        held = chunk if held is None else np.concatenate([held, chunk])
+        while held_start + len(held) >= done + LIMITER_CHUNK_FRAMES + margin:
+            yield block()
+    while held is not None and done < held_start + len(held):
+        yield block()
+
+
+def _limiter(*, ceiling, window, true_peak, fs, oversampling, method):
+    """``(margin, block_gain)`` for these (validated) settings.
+
+    ``block_gain(context, start, stop)`` is the gain of ``context[start:stop]``:
+    the whole-signal one when ``context`` reaches ``margin`` samples past
+    either side of the block, or the signal's edge.
+    """
     if not 0 < ceiling <= 1:
         raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
     for name, value in (("oversampling", oversampling), ("method", method)):
@@ -640,7 +758,6 @@ def limit_peaks(
     if method is None:
         method = DEFAULT_TRUE_PEAK_METHOD
     interpolation = _interpolation(method)
-    data = _as_2d(data)
     if window is None:
         window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
     w = max(1, int(window))
@@ -650,25 +767,19 @@ def limit_peaks(
     # [i - half + 1, i + half], the gap before it one more on the left), and
     # the + 1 is one sample of slack
     margin = 2 * w + 1 + (interpolation.half_samples + 1 if true_peak else 0)
-    n, out = len(data), None
-    for start in range(0, n, LIMITER_CHUNK_FRAMES):
-        stop = min(n, start + LIMITER_CHUNK_FRAMES)
-        lo, hi = max(0, start - margin), min(n, stop + margin)
+
+    def block_gain(context: np.ndarray, start: int, stop: int) -> np.ndarray:
         need = _peak_need(
-            data[lo:hi],
+            context,
             ceiling=ceiling,
             true_peak=true_peak,
             fs=fs,
             oversampling=oversampling,
             method=method,
         )
-        gain = _smoothed_gain(need, w)[start - lo : stop - lo]
-        if out is None:
-            if gain.min() >= 1.0:
-                continue  # untouched so far
-            out = data.astype(np.result_type(data.dtype, np.float64))
-        out[start:stop] = data[start:stop] * gain[:, None]
-    return data if out is None else out
+        return _smoothed_gain(need, w)[start:stop]
+
+    return margin, block_gain
 
 
 def _peak_need(
@@ -693,3 +804,89 @@ def _smoothed_gain(need: np.ndarray, w: int) -> np.ndarray:
     padded = np.pad(lows, (w // 2, w - 1 - w // 2), mode="edge")
     gain = np.convolve(padded, np.ones(w) / w, mode="valid")
     return np.minimum(gain, need)  # float rounding never lets a peak through
+
+
+# --- a file to a loudness target ---------------------------------------------------
+
+
+class LeveledFile(NamedTuple):
+    """What :func:`level_file` did: where it wrote, and the gain it measured."""
+
+    output: Any  #: what the ``output`` protocol returned (the ``Path``, or a sink's result)
+    gain_db: float
+    measured_lufs: float  #: the source's integrated loudness, at the output rate
+
+
+def level_file(
+    src,
+    output: Output = None,
+    *,
+    target_lufs: float,
+    ceiling_db: float = DEFAULT_CEILING_DB,
+    true_peak: bool = True,
+    sample_rate: Optional[int] = None,
+    max_gain_db: float = MAX_GAIN_DB,
+    method: Optional[str] = None,
+    window: Optional[int] = None,
+    encode_args: Sequence[str] = (),
+    chunk_s: float = DECODE_CHUNK_S,
+    ffmpeg: Optional[str] = None,
+) -> LeveledFile:
+    """Write ``src``'s audio at ``target_lufs`` with one measured gain, peak limited.
+
+    Two passes over the file, each decoded in chunks by
+    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``), so
+    memory is bounded by the chunk and the limiter's block, not the track:
+
+    1. :func:`stream_loudness` measures it; the gain is the one that brings it
+       to ``target_lufs`` (as :func:`level_group`'s: 0 for silence, capped at
+       ``max_gain_db`` with a warning), so the audio keeps its own dynamics,
+       unlike ffmpeg ``loudnorm``, which rides the gain through it;
+    2. the gain is applied in float (nothing clips before the limiter),
+       :func:`stream_limit_peaks` holds ``ceiling_db`` (dBTP with
+       ``true_peak``, else dBFS; ``method`` and ``window`` are its), and
+       :func:`mixing.decode.encode_float_chunks` writes it (``encode_args``
+       are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``).
+
+    ``sample_rate`` resamples as the file is decoded, so both the measurement
+    and the limiter work at the rate written and the ceiling holds in the
+    output (an encoder resampling after the limiter could push a peak over
+    it). A lossy format (mp3, aac) can still read a few tenths of a dB over
+    the ceiling. ``output`` follows mixing's ``output`` protocol (default:
+    beside ``src`` with ``LEVELED_SUFFIX`` on its stem); it may be ``src``
+    itself, replaced once the new file is complete.
+
+    Returns a :class:`LeveledFile` ``(output, gain_db, measured_lufs)``.
+    """
+    src = Path(src)
+    if ceiling_db > 0:
+        raise ValueError(f"ceiling_db is in dB at or below full scale; got {ceiling_db}")
+    limit = partial(
+        stream_limit_peaks,
+        ceiling=10.0 ** (ceiling_db / 20.0),
+        window=window,
+        true_peak=true_peak,
+        method=method,
+    )
+    # check the settings before the first pass (any rate will do for that)
+    limit((), fs=sample_rate or 1)
+    decode = partial(
+        decode_float_chunks, src, chunk_s=chunk_s, ffmpeg=ffmpeg, sample_rate=sample_rate
+    )
+    rate, chunks = decode()
+    with closing(chunks):
+        measured = stream_loudness(chunks, rate).integrated_lufs
+    gain_db = _target_gain(
+        measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject=src.name
+    )
+    scale = 10.0 ** (gain_db / 20.0)
+
+    def write(path: Path) -> None:
+        rate, chunks = decode()
+        with closing(chunks):
+            leveled = limit((chunk * scale for chunk in chunks), fs=rate)
+            encode_float_chunks(leveled, rate, path, args=encode_args, ffmpeg=ffmpeg)
+
+    default_path = src.with_name(f"{src.stem}{LEVELED_SUFFIX}{src.suffix}")
+    written = write_egress(output, default_path=default_path, write=write)
+    return LeveledFile(written, gain_db, measured)

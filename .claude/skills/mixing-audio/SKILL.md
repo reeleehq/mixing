@@ -534,6 +534,19 @@ light without it; the import happens lazily inside `beat_grid` itself. First
 customer is muvid's footage-scoring layer (computes one grid on the master
 song, maps clips onto it via their known offset).
 
+## A whole file to a loudness target (one gain, streaming)
+
+To bring a file (a narration take, a clip, an hour-long track) to a target **without** riding its dynamics the way ffmpeg `loudnorm` does, use `mixing.loudness.level_file`: it measures once, applies one gain in float, holds a true-peak ceiling with a limiter, and writes the file, all in bounded memory (two decode passes, nothing held but a chunk and a limiter block). Needs only `mixing[loudness]` and an ffmpeg, not the media stack.
+
+```python
+from mixing.loudness import level_file
+
+r = level_file("take.wav", "take_leveled.wav", target_lufs=-16, ceiling_db=-1.5, sample_rate=44100)
+r.gain_db, r.measured_lufs, r.output  # one gain; output follows the output protocol
+```
+
+`sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.
+
 ## Speaker turns: loudness, voice diagnosis, pitch
 
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
