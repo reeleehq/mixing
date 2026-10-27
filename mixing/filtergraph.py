@@ -16,11 +16,16 @@ its measured delay removed; ``an`` keys its voice effects on the exact string
 
 from __future__ import annotations
 
+import math
+
 SEMITONES_PER_OCTAVE = 12.0
 #: ``atempo`` accepts a factor in this range per stage (older ffmpeg builds).
 ATEMPO_RANGE = (0.5, 2.0)
 #: Decimals each ``atempo`` factor is written with.
 ATEMPO_DECIMALS = 10
+#: Most decimals a ``pad_dur`` is written with (fixed point: ffmpeg refuses an
+#: exponent there).
+PAD_DECIMALS = 6
 
 
 def atempo_chain(
@@ -31,6 +36,8 @@ def atempo_chain(
     >>> atempo_chain(1.5), atempo_chain(3.0)
     ([1.5], [2.0, 1.5])
     """
+    if not (math.isfinite(factor) and factor > 0):
+        raise ValueError(f"an atempo factor must be finite and > 0, got {factor!r}")
     lo, hi = limits
     stages = []
     while factor > hi or factor < lo:
@@ -58,14 +65,21 @@ def resample_pitch_filter(
     >>> resample_pitch_filter(-12, 16000, tempo=1.5)
     'asetrate=8000,aresample=16000,atempo=2.0000000000,atempo=1.5000000000'
     """
+    if fs <= 0:
+        raise ValueError(f"fs must be > 0, got {fs!r}")
+    if not (math.isfinite(flush_s) and flush_s >= 0):
+        raise ValueError(f"flush_s must be finite and >= 0, got {flush_s!r}")
     if not semitones and tempo == 1.0:
         return ""
     filters, factor = [], tempo
     if semitones:
         rate = int(round(fs * 2.0 ** (semitones / SEMITONES_PER_OCTAVE)))
+        if rate < 1:
+            raise ValueError(f"{semitones} semitones at {fs} Hz is a rate below 1 Hz")
         filters += [f"asetrate={rate}", f"aresample={fs}"]
         factor *= fs / rate
     if flush_s:
-        filters.append(f"apad=pad_dur={flush_s:g}")
+        pad = f"{flush_s:.{PAD_DECIMALS}f}".rstrip("0").rstrip(".")
+        filters.append(f"apad=pad_dur={pad}")
     filters += [f"atempo={t:.{ATEMPO_DECIMALS}f}" for t in atempo_chain(factor)]
     return ",".join(filters)

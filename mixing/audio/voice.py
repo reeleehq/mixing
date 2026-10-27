@@ -44,11 +44,7 @@ from typing import Callable, Hashable, Mapping, Optional, Sequence, Union
 import numpy as np
 
 from ..egress import Output, deliver
-from ..filtergraph import (  # noqa: F401  (ATEMPO_RANGE: re-exported)
-    ATEMPO_RANGE,
-    SEMITONES_PER_OCTAVE,
-    resample_pitch_filter,
-)
+from ..filtergraph import SEMITONES_PER_OCTAVE, resample_pitch_filter
 from ..util import ffmpeg_exe, require_package
 from .audio_ops import Audio
 from .leveling import integrated_lufs
@@ -567,7 +563,8 @@ def resample_strategy(
     smears each burst's onset by 10-30 ms, and at +-24 semitones single
     bursts can be off by tens of ms.
     """
-    return _run_aligned(data, fs, resample_pitch_filter(semitones, fs))
+    filters = resample_pitch_filter(semitones, fs)
+    return _run_aligned(data, fs, filters) if filters else data
 
 
 def librosa_strategy(
