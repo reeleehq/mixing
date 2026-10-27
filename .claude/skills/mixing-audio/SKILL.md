@@ -375,14 +375,16 @@ The aligner answers *where* a clip sits; `contains_song` answers *whether* the s
 ```python
 from mixing.audio import contains_song, landmarks, song_verdict, SongThresholds
 
-index = landmarks("song.wav")                 # hash the song ONCE (a Landmarks index)
-for clip in clips:                            # path, Audio, AudioSegment, or array + sr= (float or int PCM)
-    m = contains_song(clip, index)            # SongMatch
-    if m.verdict == "contains":               # "contains" | "absent" | "undecided"
-        print(clip, m.offset_s)               # song time at the clip's t=0 (within one hop)
-    print(m.votes, m.ratio, m.coverage, m.reason)  # K, R = K/best rival, K/overlapping hashes; why
+index = landmarks("song.wav")  # hash the song ONCE (a Landmarks index)
+for clip in clips:  # path, Audio, AudioSegment, or array + sr= (float or int PCM)
+    m = contains_song(clip, index)  # SongMatch
+    if m.verdict == "contains":  # "contains" | "absent" | "undecided"
+        print(clip, m.offset_s)  # song time at the clip's t=0 (within one hop)
+    print(
+        m.votes, m.ratio, m.coverage, m.reason
+    )  # K, R = K/best rival, K/overlapping hashes; why
 
-song_verdict(record)                          # re-judge a stored m.to_dict() under ITS thresholds
+song_verdict(record)  # re-judge a stored m.to_dict() under ITS thresholds
 song_verdict(record, thresholds=SongThresholds(min_ratio=6))  # ...or under new ones
 ```
 
