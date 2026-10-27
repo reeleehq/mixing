@@ -12,6 +12,7 @@ check that
 - the packaging metadata declares the split.
 """
 
+import re
 import json
 import subprocess
 import sys
@@ -142,7 +143,9 @@ def test_pyproject_declares_the_media_extra():
     def names(requirements):
         import re
 
-        return {re.split(r"[<>=!~\[ ;]", r, maxsplit=1)[0].lower() for r in requirements}
+        return {
+            re.split(r"[<>=!~\[ ;]", r, maxsplit=1)[0].lower() for r in requirements
+        }
 
     heavy = {"moviepy", "opencv-contrib-python", "scipy", "pydub", "burns", "numpy"}
     assert not heavy & names(project["dependencies"])
@@ -161,3 +164,41 @@ def test_loudness_without_numpy_names_the_missing_module():
     )
     assert out["name"] == "numpy"
     assert "mixing[loudness]" in out["message"]
+
+
+def test_every_extra_in_the_table_is_declared_in_pyproject():
+    tomllib = pytest.importorskip("tomllib" if sys.version_info >= (3, 11) else "tomli")
+    from pathlib import Path
+
+    from mixing.util import EXTRAS
+
+    path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    if not path.exists():
+        pytest.skip("pyproject.toml not available (installed distribution)")
+    declared = tomllib.loads(path.read_text())["project"]["optional-dependencies"]
+    assert set(EXTRAS) <= set(declared)
+
+
+@pytest.mark.parametrize(
+    "module, extra",
+    [
+        ("scipy.signal", "media"),
+        ("torch", "ml"),
+        ("librosa", "beats"),
+        ("numpy", "media"),
+    ],
+)
+def test_require_package_hints_the_extra_from_the_table(monkeypatch, module, extra):
+    import importlib
+
+    from mixing.util import extra_for, install_hint, require_package
+
+    def deny(name, *a, **k):
+        raise ImportError(name)
+
+    monkeypatch.setattr(importlib, "import_module", deny)
+    assert extra_for(module) == extra
+    with pytest.raises(ImportError, match=re.escape(install_hint(extra))):
+        require_package(module)
+    with pytest.raises(ValueError, match="unknown extra"):
+        install_hint("nope")

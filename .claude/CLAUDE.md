@@ -132,6 +132,10 @@ The base install carries only the pure modules (`srt`, `chapters`, `errors`,
 pydub, numpy, pillow, burns, looks); importing either without it raises an
 `ImportError` naming `pip install 'mixing[media]'` (`util.require_media_extra`,
 called at the top of both package `__init__`s). Tests install it via `testing`.
+`mixing.util.EXTRAS` is the one table of extras (extra → import names it
+supplies): `require_extra(feature, extra)` and `require_package`'s install hint
+both read it, so a new extra is declared there (and in `pyproject.toml`; a
+test checks the two agree).
 
 `pip install mixing[<extra>]`: `media` (see above), `audio` (ffmpeg-python/soundfile, on top of `media`),
 `loudness` (numpy + scipy, for `mixing.loudness`), `widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for

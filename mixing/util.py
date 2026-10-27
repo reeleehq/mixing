@@ -1,6 +1,6 @@
 """General utilities for mixing video, audio, etc."""
 
-from typing import Literal
+from typing import Literal, Optional
 import importlib
 import importlib.util
 import logging
@@ -60,22 +60,54 @@ def ffmpeg_exe() -> str:
 
 
 MEDIA_EXTRA = "media"
-MEDIA_INSTALL_HINT = f"pip install 'mixing[{MEDIA_EXTRA}]'"
+ML_EXTRA = "ml"
+BEATS_EXTRA = "beats"
+LOUDNESS_EXTRA = "loudness"
 
 # Import names (top-level) that the ``media`` extra provides, per media area.
 AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
 VIDEO_IMPORT_NAMES = ("numpy", "moviepy", "cv2", "PIL", "burns", "looks")
-# Everything the extra supplies; ``require_package`` uses it to pick its hint.
 MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES))
-
-# The ``ml`` extra: pretrained models (the AudioSet tagger behind the "audioset"
-# segmentation strategy). Imported lazily, inside the functions that need them.
-ML_EXTRA = "ml"
-ML_INSTALL_HINT = f"pip install 'mixing[{ML_EXTRA}]'"
+# ``ml``: pretrained models (the AudioSet tagger behind the "audioset"
+# segmentation strategy), imported lazily inside the functions that need them.
 ML_IMPORT_NAMES = ("torch", "transformers")
-BEATS_EXTRA = "beats"
-BEATS_INSTALL_HINT = f"pip install 'mixing[{BEATS_EXTRA}]'"
 BEATS_IMPORT_NAMES = ("librosa",)
+LOUDNESS_IMPORT_NAMES = ("numpy", "scipy")
+
+#: The one table of extras: ``{extra: import names it supplies}``. A module in
+#: several extras (numpy) maps to the first, so the broadest install wins.
+EXTRAS: dict[str, tuple[str, ...]] = {
+    MEDIA_EXTRA: MEDIA_IMPORT_NAMES,
+    ML_EXTRA: ML_IMPORT_NAMES,
+    BEATS_EXTRA: BEATS_IMPORT_NAMES,
+    LOUDNESS_EXTRA: LOUDNESS_IMPORT_NAMES,
+}
+
+
+def install_hint(extra: str) -> str:
+    """The pip line that installs ``extra``.
+
+    >>> install_hint("media")
+    "pip install 'mixing[media]'"
+    """
+    if extra not in EXTRAS:
+        raise ValueError(f"unknown extra {extra!r}; one of {sorted(EXTRAS)}")
+    return f"pip install 'mixing[{extra}]'"
+
+
+def extra_for(module: str) -> Optional[str]:
+    """The extra that supplies ``module`` (dotted names by their top level), or ``None``.
+
+    >>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("requests")
+    ('media', 'beats', None)
+    """
+    top = module.split(".")[0]
+    return next((extra for extra, names in EXTRAS.items() if top in names), None)
+
+
+MEDIA_INSTALL_HINT = install_hint(MEDIA_EXTRA)
+ML_INSTALL_HINT = install_hint(ML_EXTRA)
+BEATS_INSTALL_HINT = install_hint(BEATS_EXTRA)
 
 
 def _is_importable(name: str) -> bool:
@@ -86,53 +118,53 @@ def _is_importable(name: str) -> bool:
         return False
 
 
+def require_extra(
+    feature: str, extra: str, *, modules: Optional[tuple[str, ...]] = None
+) -> None:
+    """Raise an informative ``ImportError`` if ``extra`` is not installed.
+
+    Checks ``modules`` (default: every module the extra supplies) without
+    importing them; the error names the extra's install line, and its
+    ``name`` is the first missing module.
+
+    >>> require_extra("demo", "ml", modules=("math",))
+    >>> require_extra("demo", "ml", modules=("no_such_module_xyz",))
+    Traceback (most recent call last):
+      ...
+    ImportError: demo requires the 'ml' extra ...
+    """
+    hint = install_hint(extra)
+    missing = [name for name in modules or EXTRAS[extra] if not _is_importable(name)]
+    if missing:
+        raise ImportError(
+            f"{feature} requires the {extra!r} extra "
+            f"(missing: {', '.join(missing)}). Install it with {hint}.",
+            name=missing[0],
+        )
+
+
 def require_media_extra(feature: str, *, modules: tuple[str, ...] = MEDIA_IMPORT_NAMES):
-    """Raise an informative ``ImportError`` if the ``media`` extra is not installed.
+    """:func:`require_extra` for ``media``: the moviepy / opencv / scipy / pydub
+    backends that the base ``pip install mixing`` (pure modules only) lacks.
 
-    The base ``pip install mixing`` ships only the pure modules (``srt``,
-    ``chapters``, ``errors``, ``util``, ``egress``, ``transcript``, TTS); the
-    moviepy / opencv / scipy / pydub backends come with ``mixing[media]``.
-
-    >>> require_media_extra("demo", modules=("math",))
     >>> require_media_extra("demo", modules=("no_such_module_xyz",))
     Traceback (most recent call last):
       ...
     ImportError: demo requires the 'media' extra ...
     """
-    _require_extra(feature, extra=MEDIA_EXTRA, hint=MEDIA_INSTALL_HINT, modules=modules)
+    require_extra(feature, MEDIA_EXTRA, modules=modules)
 
 
 def require_ml_extra(feature: str, *, modules: tuple[str, ...] = ML_IMPORT_NAMES):
-    """Raise an informative ``ImportError`` if the ``ml`` extra is not installed.
-
-    ``torch`` / ``transformers`` (the pretrained AudioSet tagger) come with
-    ``mixing[ml]``; nothing imports them until a learned feature is used.
-
-    >>> require_ml_extra("demo", modules=("math",))
-    >>> require_ml_extra("demo", modules=("no_such_module_xyz",))
-    Traceback (most recent call last):
-      ...
-    ImportError: demo requires the 'ml' extra ...
-    """
-    _require_extra(feature, extra=ML_EXTRA, hint=ML_INSTALL_HINT, modules=modules)
-
-
-def _require_extra(feature: str, *, extra: str, hint: str, modules: tuple[str, ...]):
-    missing = [name for name in modules if not _is_importable(name)]
-    if missing:
-        raise ImportError(
-            f"{feature} requires the {extra!r} extra "
-            f"(missing: {', '.join(missing)}). Install it with "
-            f"{hint}.",
-            name=missing[0],
-        )
+    """:func:`require_extra` for ``ml`` (``torch`` / ``transformers``)."""
+    require_extra(feature, ML_EXTRA, modules=modules)
 
 
 def require_package(package_name: str):
     """
     Import a package, raising an informative error if not installed.
 
-    Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.
+    A package an extra supplies (see ``EXTRAS``) gets a hint naming that extra.
     The error's ``name`` is ``package_name``, so a caller can map it to its own
     install hint.
 
@@ -143,15 +175,8 @@ def require_package(package_name: str):
     try:
         return importlib.import_module(package_name)
     except ImportError as e:
-        top = package_name.split(".")[0]
-        if top in MEDIA_IMPORT_NAMES:
-            hint = MEDIA_INSTALL_HINT
-        elif top in ML_IMPORT_NAMES:
-            hint = ML_INSTALL_HINT
-        elif top in BEATS_IMPORT_NAMES:
-            hint = BEATS_INSTALL_HINT
-        else:
-            hint = f"pip install {package_name}"
+        extra = extra_for(package_name)
+        hint = install_hint(extra) if extra else f"pip install {package_name}"
         raise ImportError(
             f"Package '{package_name}' is required for this functionality. "
             f"Please install it via '{hint}'.",
