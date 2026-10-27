@@ -13,6 +13,8 @@ footprint so you only pay for what you import:
 - :mod:`mixing.dubbing` — text-to-speech re-voicing / translation from SRT.
 - :mod:`mixing.srt` — canonical SRT/timeline parsing & formatting (pure).
 - :mod:`mixing.chapters` — transcript → chapter markers (pure; LLM optional).
+- :mod:`mixing.edit` — render a re-edit from sound and picture edit lists,
+  frame-exact (stdlib + ffmpeg; stills via ``burns``).
 
 **Lazy by design.** Importing ``mixing`` (or a light submodule such as
 ``mixing.chapters`` / ``mixing.srt``) does **not** import ``moviepy`` or
@@ -127,6 +129,7 @@ _SUBMODULES = (
     "transcript",
     "dubbing",
     "chapters",
+    "edit",
     "srt",
     "egress",
     "errors",
