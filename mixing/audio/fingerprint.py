@@ -22,8 +22,7 @@ It measures, from the histogram of ``t_song - t_clip`` over every shared hash:
 
 and calls one of THREE verdicts (:func:`song_verdict`, :class:`SongThresholds`):
 
-- ``"contains"``: K >= 12 and R >= 5 (and coverage >= ``min_coverage``, off by
-  default);
+- ``"contains"``: K >= 12 and R >= 5;
 - ``"absent"``: K <= 5 on a clip with at least 240 hashes (enough to have shown
   the song), and no speed probe (:class:`MatchParams`, +-1-3 %) finds it;
 - ``"undecided"`` otherwise -- a third outcome, never a pass. :class:`SongMatch`
@@ -82,7 +81,7 @@ References:
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Union
@@ -180,11 +179,6 @@ DEFAULT_OFFSET_TOLERANCE_S = 0.025
 DEFAULT_RIVAL_EXCLUSION_S = 0.5
 #: K at or above which the song may be called present (research: start at 12).
 DEFAULT_MIN_VOTES = 12
-#: coverage (K / the clip hashes that overlap the song at the best offset) at or
-#: above which the song may be called present. Off by default: degraded true cuts
-#: went as low as 0.010 while hard negatives reached 0.067, so no bar separates
-#: them; it is reported, and a calibration on real clips may switch it on.
-DEFAULT_MIN_COVERAGE = 0.0  # off: measured not to separate (module docstring)
 #: R at or above which the winning offset clearly beats every rival. The research
 #: started at 2; synthetic hard negatives (unrelated songs in one key on one beat
 #: grid) reached R = 4.67 with K >= 12, so 2 called 7 of 115 of them "contains".
@@ -303,14 +297,12 @@ class SongThresholds:
 
     Attributes:
         min_votes: K at or above which "contains" is possible.
-        min_coverage: coverage at or above which "contains" is possible.
         min_ratio: R at or above which "contains" is possible.
         max_absent_votes: K at or below which "absent" is possible.
         min_query_hashes: clip hashes needed before "absent" may be called.
     """
 
     min_votes: int = DEFAULT_MIN_VOTES
-    min_coverage: float = DEFAULT_MIN_COVERAGE
     min_ratio: float = DEFAULT_MIN_RATIO
     max_absent_votes: int = DEFAULT_MAX_ABSENT_VOTES
     min_query_hashes: int = DEFAULT_MIN_QUERY_HASHES
@@ -351,6 +343,8 @@ class SongMatch:
             evidence it could offer).
         off_speed: the speed change (fraction) at which a speed probe found the
             song, turning "absent" into "undecided"; ``None`` otherwise.
+        probed_speeds: the speed changes actually tried (empty unless the
+            verdict would otherwise have been "absent").
         reason: one line on why this verdict.
         landmark_params, match_params, thresholds: what produced it.
     """
@@ -366,6 +360,7 @@ class SongMatch:
     offset_s: Optional[float]
     query_hashes: int
     off_speed: Optional[float] = None
+    probed_speeds: tuple[float, ...] = ()
     reason: str = field(default="", compare=False)
     landmark_params: LandmarkParams = DEFAULT_LANDMARK_PARAMS
     match_params: MatchParams = DEFAULT_MATCH_PARAMS
@@ -625,49 +620,50 @@ def _found_off_speed(
     *,
     match: MatchParams,
     thresholds: SongThresholds,
-) -> Optional[float]:
-    """The first of ``match.speed_probes`` at which ``y``, its speed change undone,
-    clears the "contains" bars on K and R (one phase each: a probe looks for a
-    cluster, it does not place the clip); ``None`` if none does."""
+) -> tuple[Optional[float], tuple[float, ...]]:
+    """``(off_speed, probed)``: the first of ``match.speed_probes`` at which ``y``,
+    its speed change undone, clears the "contains" bars on K and R (one phase
+    each: a probe looks for a cluster, it does not place the clip), or ``None``;
+    and the speed changes tried up to it."""
     p = song.params
+    probed: list[float] = []
     for change in match.speed_probes:
+        probed.append(change)
         stretched = resample(
             y, _SPEED_PROBE_RESOLUTION, round(_SPEED_PROBE_RESOLUTION * (1 + change))
         )
         m = _measure(landmarks(stretched, sr=p.sample_rate, params=p), song, match)
         ratio = m["votes"] / max(m["rival_votes"], 1)
         if m["votes"] >= thresholds.min_votes and ratio >= thresholds.min_ratio:
-            return change
-    return None
+            return change, tuple(probed)
+    return None, tuple(probed)
 
 
-def song_verdict(
-    measurement: Union[SongMatch, Mapping],
-    *,
-    thresholds: SongThresholds = DEFAULT_SONG_THRESHOLDS,
-) -> tuple[SongVerdict, str]:
-    """``(verdict, reason)`` from a measurement -- the ONE place it is decided.
+def _field(record: Mapping, name: str, default):
+    """``record[name]`` as a plain mapping (a dataclass, a dict, or absent)."""
+    value = record.get(name)
+    if value is None:
+        return default
+    return asdict(value) if not isinstance(value, Mapping) else value
 
-    ``measurement`` is a :class:`SongMatch` or its :meth:`~SongMatch.to_dict`
-    (only ``votes``, ``coverage``, ``ratio`` and ``query_hashes`` are read), so a
-    stored record is re-judged under new thresholds in one call, without rehashing:
 
-    - ``"contains"`` iff ``votes >= min_votes``, ``coverage >= min_coverage`` and
-      ``ratio >= min_ratio``;
-    - ``"absent"`` iff ``votes <= max_absent_votes`` and the clip offered at least
-      ``min_query_hashes`` hashes (too few landmarks is no evidence of absence);
-    - ``"undecided"`` otherwise.
+def _stored_thresholds(record: Mapping) -> SongThresholds:
+    """The :class:`SongThresholds` a record was judged under (default if none)."""
+    stored = _field(record, "thresholds", {})
+    known = {f.name for f in fields(SongThresholds)}
+    return SongThresholds(**{k: v for k, v in stored.items() if k in known})
 
-    The defaults (:class:`SongThresholds`) are **not calibrated**.
-    """
-    m = measurement.to_dict() if isinstance(measurement, SongMatch) else measurement
-    t = thresholds
-    votes, coverage, ratio = m["votes"], m["coverage"], m["ratio"]
-    query_hashes = m["query_hashes"]
-    stats = f"K={votes}, coverage={coverage:.3f}, R={ratio:.2f}"
+
+def _base_verdict(record: Mapping, t: SongThresholds) -> tuple[SongVerdict, str]:
+    """The verdict from K, R and the clip's hash count alone (no speed probes)."""
+    votes, ratio, query_hashes = (
+        record["votes"],
+        record["ratio"],
+        record["query_hashes"],
+    )
+    stats = f"K={votes}, R={ratio:.2f}, coverage={record.get('coverage', 0.0):.3f}"
     passes = {
         f"K>={t.min_votes}": votes >= t.min_votes,
-        f"coverage>={t.min_coverage}": coverage >= t.min_coverage,
         f"R>={t.min_ratio}": ratio >= t.min_ratio,
     }
     if all(passes.values()):
@@ -681,6 +677,53 @@ def song_verdict(
         )
     failed = ", ".join(name for name, ok in passes.items() if not ok)
     return UNDECIDED, f"{stats}: between the bars (fails {failed})"
+
+
+def song_verdict(
+    measurement: Union[SongMatch, Mapping],
+    *,
+    thresholds: Optional[SongThresholds] = None,
+) -> tuple[SongVerdict, str]:
+    """``(verdict, reason)`` from a measurement -- the ONE place it is decided.
+
+    ``measurement`` is a :class:`SongMatch` or its :meth:`~SongMatch.to_dict`
+    (JSON round-tripped or not), so a stored record is re-judged in one call,
+    without rehashing:
+
+    - ``"contains"`` iff ``votes >= min_votes`` and ``ratio >= min_ratio``;
+    - ``"absent"`` iff ``votes <= max_absent_votes``, the clip offered at least
+      ``min_query_hashes`` hashes (too few landmarks is no evidence of absence),
+      and the speed probes ran and found nothing: a recorded ``off_speed`` makes it
+      "undecided", and so does a record whose configured probes
+      (``match_params.speed_probes``) never ran -- re-judging under other
+      thresholds can reach "absent" where the live call did not probe;
+    - ``"undecided"`` otherwise.
+
+    ``thresholds`` defaults to the ones stored IN the record (or
+    :class:`SongThresholds` for a record without them); pass them to override.
+    The defaults are **not calibrated**.
+    """
+    record = (
+        measurement.to_dict() if isinstance(measurement, SongMatch) else measurement
+    )
+    t = thresholds if thresholds is not None else _stored_thresholds(record)
+    verdict, reason = _base_verdict(record, t)
+    if verdict != ABSENT:
+        return verdict, reason
+    off_speed = record.get("off_speed")
+    if off_speed is not None:
+        return UNDECIDED, (
+            f"{reason}, but the song shows at {off_speed:+.1%} speed: an "
+            "off-speed copy is not evidence of absence"
+        )
+    configured = tuple(_field(record, "match_params", {}).get("speed_probes", ()))
+    probed = tuple(record.get("probed_speeds", ()))
+    if not set(configured) <= set(probed):
+        return UNDECIDED, (
+            f"{reason}, but the speed probes {configured} did not run for this "
+            "record: absence at the song's speed only"
+        )
+    return verdict, reason
 
 
 def contains_song(
@@ -758,22 +801,13 @@ def contains_song(
         offset_s=m["offset_s"],
         query_hashes=m["query_hashes"],
     )
-    verdict, reason = song_verdict(measured, thresholds=thresholds)
-    off_speed = None
-    if verdict == ABSENT:
-        off_speed = _found_off_speed(y, song, match=match, thresholds=thresholds)
-        if off_speed is not None:
-            verdict = UNDECIDED
-            reason = (
-                f"{reason}, but the song shows at {off_speed:+.1%} speed: an "
-                "off-speed copy is not evidence of absence"
-            )
-    return SongMatch(
-        verdict=verdict,
-        **measured,
-        off_speed=off_speed,
-        reason=reason,
-        landmark_params=p,
-        match_params=match,
-        thresholds=thresholds,
+    measured.update(
+        off_speed=None, probed_speeds=(), match_params=match, thresholds=thresholds
     )
+    if _base_verdict(measured, thresholds)[0] == ABSENT:  # probe before calling it
+        off_speed, probed = _found_off_speed(
+            y, song, match=match, thresholds=thresholds
+        )
+        measured.update(off_speed=off_speed, probed_speeds=probed)
+    verdict, reason = song_verdict(measured)
+    return SongMatch(verdict=verdict, reason=reason, landmark_params=p, **measured)

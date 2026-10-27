@@ -108,10 +108,6 @@ from .leveling import (
 )
 from .turns import process_turns
 from .fingerprint import (
-    ABSENT,
-    CONTAINS,
-    SONG_VERDICTS,
-    UNDECIDED,
     LandmarkParams,
     Landmarks,
     MatchParams,
@@ -196,8 +192,4 @@ __all__ = [
     "LandmarkParams",
     "MatchParams",
     "SongThresholds",
-    "CONTAINS",
-    "ABSENT",
-    "UNDECIDED",
-    "SONG_VERDICTS",
 ]

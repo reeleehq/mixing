@@ -18,10 +18,6 @@ import pytest
 scipy_signal = pytest.importorskip("scipy.signal")
 
 from mixing.audio import (  # noqa: E402
-    ABSENT,
-    CONTAINS,
-    SONG_VERDICTS,
-    UNDECIDED,
     LandmarkParams,
     Landmarks,
     MatchParams,
@@ -33,6 +29,12 @@ from mixing.audio import (  # noqa: E402
     song_verdict,
 )
 from mixing.audio import fingerprint as fp  # noqa: E402
+from mixing.audio.fingerprint import (  # noqa: E402
+    ABSENT,
+    CONTAINS,
+    SONG_VERDICTS,
+    UNDECIDED,
+)
 
 SR = 22050  # not the analysis rate: every case also exercises the resampling
 SONG_S = 24.0
@@ -293,10 +295,47 @@ def test_a_stored_record_is_rejudged_in_one_call(clip, index):
     m = contains_song(_degrade(clip, **CONCERT), index, sr=SR)
     record = m.to_dict()
     assert song_verdict(record)[0] == song_verdict(m)[0] == m.verdict == CONTAINS
-    calibrated = SongThresholds(min_coverage=m.coverage + 0.01)
+    calibrated = SongThresholds(min_ratio=m.ratio + 0.01)
     assert song_verdict(record, thresholds=calibrated)[0] == UNDECIDED
     assert record["thresholds"] == dataclasses.asdict(SongThresholds())
     assert record["match_params"]["query_shifts"] == fp.DEFAULT_QUERY_SHIFTS
+
+
+@pytest.mark.parametrize("change", [0.02, -0.03])
+def test_off_speed_record_rejudges_like_the_live_call(clip, index, change):
+    import json
+
+    live = contains_song(_speed(clip, change), index, sr=SR)
+    assert live.verdict == UNDECIDED and live.off_speed is not None
+    stored = json.loads(json.dumps(live.to_dict()))
+    assert song_verdict(live)[0] == song_verdict(stored)[0] == live.verdict
+    assert song_verdict(stored) == (live.verdict, live.reason)
+
+
+def test_record_defaults_to_its_own_thresholds(clip, index):
+    strict = SongThresholds(min_votes=10**6, max_absent_votes=5)
+    m = contains_song(clip, index, sr=SR, thresholds=strict)
+    assert m.verdict == UNDECIDED
+    assert song_verdict(m.to_dict())[0] == UNDECIDED  # judged under ITS thresholds
+    assert song_verdict(m.to_dict(), thresholds=SongThresholds())[0] == CONTAINS
+    bare = {k: v for k, v in m.to_dict().items() if k != "thresholds"}
+    assert song_verdict(bare)[0] == CONTAINS  # no stored thresholds: the defaults
+
+
+def test_unprobed_absent_on_rejudge_is_undecided(index):
+    # K = 6: between the bars live, so the speed probes never ran
+    stats = _stats(6, 0.01, 1.0, 10**4)
+    record = dict(stats, match_params={"speed_probes": [0.01, 0.02]}, probed_speeds=[])
+    looser = SongThresholds(max_absent_votes=6)
+    assert song_verdict(record, thresholds=looser)[0] == UNDECIDED
+    probed = dict(record, probed_speeds=[0.01, 0.02])
+    assert song_verdict(probed, thresholds=looser)[0] == ABSENT
+    no_probes = dict(record, match_params={"speed_probes": []})
+    assert song_verdict(no_probes, thresholds=looser)[0] == ABSENT
+    # and live: an absent call records every probe it tried
+    m = contains_song(_synth_song(CLIP_S, seed=7), index, sr=SR)
+    assert m.verdict == ABSENT
+    assert m.probed_speeds == fp.DEFAULT_SPEED_PROBES
 
 
 def _stats(votes, coverage, ratio, query_hashes):
