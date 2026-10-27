@@ -11,7 +11,7 @@ Tech 3342 LRA) and ``true_peak_db`` (4x oversampled) sit beside it.
 ``level_turns`` is :func:`mixing.audio.turns.process_turns` with a chain of
 stages per turn, all run on the turn padded by ``pad_s`` (so filters settle):
 the speaker's EQ -> pre-gain to a common level -> compressor -> gain to
-``target_lufs`` -> denoise when the noise floor is high -> short fades -> peak
+``target_lufs`` -> denoise when the noise floor is high -> short fades -> true-peak
 limiter at ``ceiling_db``. The chain runs on **float** samples (ffmpeg filters
 are piped as 64-bit float PCM), so gains carry headroom above full scale and
 nothing is clipped before the limiter; the turn is converted back to the
@@ -40,11 +40,12 @@ from ..loudness import (
     ABSOLUTE_GATE_LUFS,
     MAX_GAIN_DB,
     integrated_lufs,
+    limit_peaks,
     loudness_range_lu,
     true_peak_db as _true_peak_db,
 )
 from .samples import as_audio, audio_samples, ffmpeg_float, segment_samples, to_audio
-from .turns import DEFAULT_PAD_S, Core, Turn, conform_segment, process_turns
+from .turns import DEFAULT_PAD_S, Core, TurnLike, conform_segment, process_turns
 
 AudioFilter = Union[str, Callable[[Audio], Audio]]  # ffmpeg filter string or callable
 #: A stage of the per-turn chain: float samples ``(n, channels)`` in, same out.
@@ -60,9 +61,9 @@ DEFAULT_DENOISE = "afftdn=nr=10:nf=-50"
 DEFAULT_DENOISE_ABOVE_DBFS = -58.0
 DEFAULT_FADE_S = 0.02
 DEFAULT_CEILING_DB = -1.5
-#: Accepted ``ceiling_db`` range (dBFS); ffmpeg's ``alimiter`` takes limits
-#: from 0.0625 (-24.1 dBFS) to 1 (0 dBFS).
-CEILING_DB_RANGE = (-24.0, 0.0)
+#: Accepted ``ceiling_db`` range (dBTP, lower bound excluded): any level up to
+#: full scale.
+CEILING_DB_RANGE = (-float("inf"), 0.0)
 NOISE_FRAME_S = 0.05
 NOISE_PERCENTILE = 10
 
@@ -126,22 +127,25 @@ def _noise_floor(
 
 
 def noise_floor_db(
-    audio: Audio,
+    audio: Union[str, Path, Audio],
     *,
     frame_s: float = NOISE_FRAME_S,
     percentile: float = NOISE_PERCENTILE,
 ) -> float:
     """Noise floor estimate: a low percentile of the ``frame_s`` RMS levels (dBFS)."""
-    return _noise_floor(*audio_samples(audio), frame_s=frame_s, percentile=percentile)
+    return _noise_floor(
+        *audio_samples(as_audio(audio)), frame_s=frame_s, percentile=percentile
+    )
 
 
-def apply_gain(audio: Audio, db: float) -> Audio:
+def apply_gain(audio: Union[str, Path, Audio], db: float) -> Audio:
     """``audio`` with ``db`` decibels of gain, computed in float.
 
     The result is converted back to ``audio``'s integer sample width, so peaks
     pushed beyond full scale saturate; :func:`level_turns` keeps its gains in
     float and only converts after its limiter.
     """
+    audio = as_audio(audio)
     data, _ = audio_samples(audio)
     gained = data * 10.0 ** (db / 20.0)
     return to_audio(gained, audio._get_segment(), time_unit=audio.time_unit)
@@ -209,7 +213,7 @@ def _run_filter(
 
 
 def apply_ffmpeg_filter(
-    audio: Audio,
+    audio: Union[str, Path, Audio],
     filters: str,
     *,
     compensate_latency: bool = False,
@@ -226,6 +230,7 @@ def apply_ffmpeg_filter(
     :func:`filter_latency`, up to ``max_latency_s``) and removed, so onsets
     stay put. Leave it off for filters without one (EQ, compressors).
     """
+    audio = as_audio(audio)
     data, fs = audio_samples(audio)
     out = _run_filter(
         data,
@@ -284,13 +289,13 @@ def _chain(stages: Sequence[FloatStage | None]) -> FloatStage:
 
 def _check_ceiling(ceiling_db: float | None) -> None:
     lo, hi = CEILING_DB_RANGE
-    if ceiling_db is not None and not lo <= ceiling_db <= hi:
-        raise ValueError(f"ceiling_db must be in [{lo}, {hi}] dBFS, got {ceiling_db}")
+    if ceiling_db is not None and not lo < ceiling_db <= hi:
+        raise ValueError(f"ceiling_db must be in ({lo}, {hi}] dBTP, got {ceiling_db}")
 
 
 def level_turns(
     audio: Union[str, Path, Audio],
-    turns: Sequence[Turn],
+    turns: Sequence[TurnLike],
     *,
     target_lufs: float = DEFAULT_TARGET_LUFS,
     chains: Mapping[str, AudioFilter] | None = None,
@@ -313,8 +318,8 @@ def level_turns(
 
     Args:
         audio: the recording (path or :class:`Audio`; any ``time_unit``).
-        turns: ``[(speaker, start_s, end_s), ...]`` in seconds; every boundary
-            should lie in a pause.
+        turns: ``[(speaker, start_s, end_s), ...]`` in seconds (or ``Segment`` s,
+            ``label`` being the speaker); every boundary should lie in a pause.
         target_lufs: integrated loudness every turn ends at.
         chains: ``{speaker: ffmpeg filter string | Audio -> Audio}`` per-speaker
             EQ. Speakers without an entry get no EQ.
@@ -328,11 +333,11 @@ def level_turns(
         fade_s: fade at each turn boundary, hiding the seam.
         max_gain_db: most a turn's loudness may be raised; beyond it the gain
             is capped and a warning is issued.
-        ceiling_db: peak limit of every turn in dBFS, in
-            ``CEILING_DB_RANGE`` (a lookahead limiter, no auto-level,
-            latency-compensated); ``None`` to skip -- then any peak the gains
-            push above full scale **saturates** when the turn is written back
-            to integer PCM.
+        ceiling_db: true-peak limit of every turn in dBTP, in
+            ``CEILING_DB_RANGE`` (:func:`mixing.loudness.limit_peaks` with
+            ``true_peak=True``: lookahead, no auto-level, nothing moves in
+            time); ``None`` to skip -- then any peak the gains push above full
+            scale **saturates** when the turn is written back to integer PCM.
         output: see :mod:`mixing.egress` (``None`` returns the ``Audio``).
 
     Notes:
@@ -351,12 +356,6 @@ def level_turns(
     """
     _check_ceiling(ceiling_db)
     chains = chains or {}
-    limiter = None
-    if ceiling_db is not None:
-        limit = 10.0 ** (ceiling_db / 20.0)
-        # level=0: no auto make-up gain (the default raises output to 0 dBFS);
-        # latency=1: alimiter compensates its own lookahead delay.
-        limiter = f"alimiter=limit={limit:.6f}:level=0:latency=1"
 
     def process(speaker: str, padded: Audio, core: Core) -> Audio:
         like = padded._get_segment()
@@ -378,6 +377,12 @@ def level_turns(
             return stage
 
         clean = _as_stage(denoise, fs, like, compensate_latency=True)
+        limit = None
+        if ceiling_db is not None:
+            ceiling = 10.0 ** (ceiling_db / 20.0)
+
+            def limit(x: np.ndarray) -> np.ndarray:
+                return limit_peaks(x, ceiling=ceiling, true_peak=True, fs=fs)
 
         def denoise_if_noisy(x: np.ndarray) -> np.ndarray:
             floor = _noise_floor(
@@ -413,7 +418,7 @@ def level_turns(
                 gain_to(target),
                 denoise_if_noisy if clean else None,
                 lambda x: _fade(x, fs, core, fade_s),
-                _as_stage(limiter, fs, like),
+                limit,
             ]
         )(data)
         return to_audio(data, like)

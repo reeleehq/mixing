@@ -182,6 +182,21 @@ def test_default_path_hits_target_under_ceiling():
     assert _peak_dbfs(out) <= -1.5 + 0.1
 
 
+def test_limiter_holds_the_true_peak_not_just_the_sample_peak():
+    # an fs/4 tone at 45 degrees: its true peak sits 3 dB above every sample,
+    # so a sample-peak limiter (the old alimiter stage) let it 3 dB over
+    from mixing.audio import true_peak_db
+
+    n = np.arange(3 * RATE)
+    tone = np.sin(2 * np.pi * n / 4 + np.pi / 4) * 0.3
+    pcm = (tone * 32767).astype(np.int16).tobytes()
+    audio = Audio(AudioSegment(pcm, frame_rate=RATE, sample_width=2, channels=1))
+    out = level_turns(
+        audio, [("a", 0.0, 3.0)], target_lufs=0, compressor=None, denoise=None
+    )
+    assert true_peak_db(out) <= -1.5 + 0.1  # the default ceiling_db
+
+
 @pytest.mark.parametrize("time_unit", ["milliseconds", "samples"])
 def test_time_unit_does_not_break_slicing(time_unit):
     audio, turns = _three_speakers()
@@ -432,7 +447,7 @@ def test_24bit_wav_through_level_turns(tmp_path):
 # --- validation and warnings ----------------------------------------------------
 
 
-@pytest.mark.parametrize("ceiling_db", [0.5, -30.0])
+@pytest.mark.parametrize("ceiling_db", [0.5, float("nan"), float("-inf")])
 def test_ceiling_db_out_of_range_raises(ceiling_db):
     audio, turns = _three_speakers()
     with pytest.raises(ValueError, match="ceiling_db"):
@@ -496,3 +511,91 @@ def test_true_peak_is_independent_of_chunking(monkeypatch):
     whole = true_peak_db(Audio(seg))
     monkeypatch.setattr(lv, "FILTER_CHUNK_S", 0.37)
     assert true_peak_db(Audio(seg)) == pytest.approx(whole, abs=1e-6)
+
+
+@pytest.mark.parametrize("width", [1, 2, 4])
+def test_sample_conversions_scale_by_the_sample_width(width):
+    # AudioSamples and the ndarray conversion divided by 32768 whatever the width
+    from mixing.audio.audio_ops import AudioSamples
+    from mixing.audio.audio_util import _normalize_audio_source
+
+    half = AudioSegment(
+        np.array([1 << (8 * width - 2)], dtype={1: "i1", 2: "<i2", 4: "<i4"}[width])
+        .tobytes(),
+        frame_rate=RATE, sample_width=width, channels=1,
+    )  # fmt: skip
+    assert AudioSamples(half)[0] == pytest.approx(0.5)
+    assert _normalize_audio_source(half, target_type="ndarray")[0] == pytest.approx(0.5)
+
+
+def test_measurement_and_gain_helpers_accept_paths(tmp_path):
+    path = tmp_path / "voice.wav"
+    _voice(1, 0.3).export(path, format="wav")
+    audio = Audio(str(path))
+    assert noise_floor_db(path) == noise_floor_db(audio)
+    assert apply_gain(path, -6).duration == pytest.approx(audio.duration)
+    assert apply_ffmpeg_filter(path, "volume=0.5").duration == pytest.approx(
+        audio.duration
+    )
+
+
+def test_audio_is_not_padded_to_a_whole_millisecond():
+    # 147016 frames at 44.1 kHz is 3333.7 ms; pydub's ms slicing padded it
+    # with 13 frames of silence (to 3334 ms), so outputs outgrew their source
+    n = 147016
+    seg = AudioSegment(
+        np.zeros(n, dtype="<i2").tobytes(), frame_rate=RATE, sample_width=2, channels=1
+    )
+    audio = Audio(seg)
+    assert audio._get_segment().frame_count() == n
+    assert audio[0 : audio.duration]._get_segment().frame_count() == n
+    assert audio[1.0:]._get_segment().frame_count() == n - RATE
+
+
+def test_audio_keeps_its_last_frames_when_the_duration_rounds_down():
+    # 132322 frames is 3000.5 ms, which pydub rounds to 3000: the whole audio
+    # (open end) dropped its last 22 frames. An explicit end at the rounded
+    # duration still stops at 3.000 s (durations exact to the frame: #96).
+    n = 132322
+    seg = AudioSegment(
+        np.zeros(n, dtype="<i2").tobytes(), frame_rate=RATE, sample_width=2, channels=1
+    )
+    audio = Audio(seg)
+    assert audio._get_segment().frame_count() == n
+    assert audio[1.0:]._get_segment().frame_count() == n - RATE
+
+
+def test_namedtuple_turns_stay_tuples_and_unlabelled_segments_raise():
+    from collections import namedtuple
+
+    from mixing.audio.segmentation import Segment
+    from mixing.audio.turns import as_turn
+
+    T = namedtuple("T", "who start end")
+    assert as_turn(T("a", 0.0, 1.0)) == ("a", 0.0, 1.0)
+    Span = namedtuple("Span", "speaker start end")  # has .start/.end, no .label
+    assert as_turn(Span("b", 1.0, 2.0)) == ("b", 1.0, 2.0)
+    assert as_turn(["c", 2.0, 3.0]) == ("c", 2.0, 3.0)  # JSON diarization output
+    with pytest.raises(ValueError, match="no label"):
+        as_turn(Segment(0.0, 1.0))
+
+
+def test_turns_may_be_segments_labelled_by_speaker():
+    from mixing.audio.segmentation import Segment
+
+    audio, turns = _three_speakers()
+    as_segments = [Segment(start, end, label=speaker) for speaker, start, end in turns]
+    ref = level_turns(audio, turns, ceiling_db=None, denoise=None)
+    out = level_turns(audio, as_segments, ceiling_db=None, denoise=None)
+    assert out._get_segment().raw_data == ref._get_segment().raw_data
+
+
+def test_a_turn_may_end_at_the_reported_duration():
+    # 147016 frames: duration reads 3.334 s, the last frame ends at 3.33370 s
+    seg = AudioSegment(
+        np.zeros(147016, dtype="<i2").tobytes(), frame_rate=RATE, sample_width=2,
+        channels=1,
+    )  # fmt: skip
+    audio = Audio(seg)
+    out = process_turns(audio, [("a", 0.0, audio.duration)], lambda s, a, c: a)
+    assert out._get_segment().frame_count() == 147016

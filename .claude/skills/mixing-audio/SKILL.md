@@ -480,7 +480,7 @@ song, maps clips onto it via their known offset).
 
 ## Speaker turns: loudness, voice diagnosis, pitch
 
-Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), non-overlapping, boundaries in pauses.
+Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
 
 ```python
 from mixing.audio import (
@@ -494,7 +494,7 @@ from mixing.audio import (
 loudness("talk.wav")  # BS.1770-4 integrated LUFS; -inf for silence
 
 # one speaker much quieter than the other: bring every turn to -16 LUFS
-# (pregain -> compressor -> optional denoise -> gain -> -1.5 dBFS limiter, per turn)
+# (pregain -> compressor -> optional denoise -> gain -> -1.5 dBTP true-peak limiter, per turn)
 turns = [("host", 0.0, 12.4), ("guest", 12.9, 30.2), ("host", 30.6, 41.0)]
 level_turns(
     "talk.wav",
