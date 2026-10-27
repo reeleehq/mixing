@@ -472,6 +472,11 @@ def test_tracker_min_samples_sets_the_shortest_span_tracked():
     assert voice_profile(audio, spans, f0_tracker=tracker)["a"]["f0_hz"] == 100.0
     assert calls == [800]
     assert voice_module.pyin_tracker(frame_length=1024).min_samples == 1024
+    # without the attribute the shortest span is MIN_F0_SPAN_S, in seconds,
+    # at whatever rate tracking runs (0.05 s < 0.128 s at 8 kHz too)
+    del tracker.min_samples
+    out = voice_profile(audio, spans, f0_tracker=tracker, f0_sample_rate=8000)
+    assert out["a"]["f0_hz"] is None
 
 
 def test_pyin_arguments_on_voice_profile_are_deprecated(monkeypatch):
@@ -492,3 +497,6 @@ def test_pyin_arguments_on_voice_profile_are_deprecated(monkeypatch):
         pytest.raises(ValueError, match="pyin_tracker"),
     ):
         voice_profile(audio, fmax=300.0, f0_tracker=lambda y, fs: ([1.0], [True]))
+    with pytest.warns(DeprecationWarning, match="mixing#99") as caught:  # f0 off
+        voice_profile(audio, f0=False, fmax=300.0, f0_tracker=lambda y, fs: ([], []))
+    assert caught[0].filename == __file__  # attributed to the caller

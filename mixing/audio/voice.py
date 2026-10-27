@@ -59,15 +59,12 @@ Spans = Union[Sequence[tuple[Label, float, float]], Mapping[Label, Sequence[Span
 PitchStrategy = Callable[[np.ndarray, int, float, bool], np.ndarray]
 #: ``tracker(mono samples, rate) -> (f0_hz per frame, voiced flag per frame)``;
 #: ``f0_hz`` is only read where the flag is true, so a tracker applies its own
-#: voicing threshold. A tracker may carry a ``min_samples`` attribute, the
-#: shortest input it can track; shorter spans are skipped (default
-#: ``MIN_F0_SPAN_S``). Any pitch tracker fits behind this, e.g. ``denote``::
-#:
-#:     def denote_tracker(*, threshold=0.5, **kwargs):
-#:         def track(y, fs):
-#:             pitch = denote.get_pitch(y, sr=fs, **kwargs)
-#:             return pitch.frequencies, pitch.confidence >= threshold
-#:         return track
+#: voicing threshold. The callable itself may carry a ``min_samples``
+#: attribute, the shortest input (samples at the tracking rate) it can track;
+#: shorter spans are skipped. Without one (or ``None``) the shortest is
+#: ``MIN_F0_SPAN_S`` seconds at whatever ``f0_sample_rate`` is. Any pitch
+#: tracker fits behind this; the mixing-audio skill has an adapter over
+#: ``denote.get_pitch``.
 F0Tracker = Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
 
 
@@ -252,7 +249,9 @@ def _voiced_f0(
     ``sample_rate``; default ``MIN_F0_SPAN_S``) are skipped. ``(None, None)`` when no piece is long enough; the f0 is ``None``
     when no frame is voiced.
     """
-    min_samples = getattr(tracker, "min_samples", round(MIN_F0_SPAN_S * sample_rate))
+    min_samples = getattr(tracker, "min_samples", None)
+    if min_samples is None:
+        min_samples = round(MIN_F0_SPAN_S * sample_rate)
     voiced, n_frames = [], 0
     for piece in pieces:
         y = resample(piece, fs, sample_rate)
@@ -277,8 +276,8 @@ def _deprecated_pyin_args(**kwargs) -> dict:
     given = {k: v for k, v in kwargs.items() if v is not None}
     if given:
         warnings.warn(
-            f"voice_profile({', '.join(given)}=...) is deprecated; pass "
-            "f0_tracker=pyin_tracker(...) instead",
+            f"voice_profile({', '.join(given)}=...) is deprecated and will be "
+            "removed (reeleehq/mixing#99); pass f0_tracker=pyin_tracker(...) instead",
             DeprecationWarning,
             stacklevel=3,
         )
@@ -354,7 +353,7 @@ def voice_profile(
     )
     if f0_tracker is None:
         f0_tracker = pyin_tracker(**pyin_args)
-    elif pyin_args:
+    elif f0 and pyin_args:
         raise ValueError(
             "fmin, fmax, f0_frame_length and min_voiced_prob configure the default "
             "pyin tracker only; pass them to pyin_tracker() as f0_tracker"
