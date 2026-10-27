@@ -85,7 +85,9 @@ def default_translate_fn(
     one-to-one mapping with the input cues is preserved. Falls back to a clear
     error if ``aix`` is not importable — pass your own ``translate_fn`` then.
     """
-    chat = require_llm_chat("default_translate_fn", alternative="translate_fn to translate_srt()")
+    chat = require_llm_chat(
+        "default_translate_fn", alternative="translate_fn to translate_srt()"
+    )
 
     import json as _json
 

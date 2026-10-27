@@ -255,7 +255,9 @@ def default_segment_fn(
     boundaries as a JSON array of ``{"start", "title"}``. Pass your own
     ``segment_fn`` to :func:`detect_chapters` to avoid the ``aix`` dependency.
     """
-    chat = require_llm_chat("default_segment_fn", alternative="segment_fn to detect_chapters()")
+    chat = require_llm_chat(
+        "default_segment_fn", alternative="segment_fn to detect_chapters()"
+    )
 
     lines = "\n".join(f"[{_fmt(s['start'])}] {s['text']}" for s in segments)
     prompt = (

@@ -140,7 +140,8 @@ BEATS_INSTALL_HINT = install_hint(BEATS_EXTRA)
 
 
 def _is_importable(name: str) -> bool:
-    """True if top-level module ``name`` can be found, without importing it."""
+    """True if module ``name`` can be found, without importing it (a dotted
+    name's parent packages are imported, as ``find_spec`` must)."""
     try:
         return importlib.util.find_spec(name) is not None
     except (ImportError, ValueError):
@@ -198,7 +199,8 @@ def require_package(package_name: str, *, extra: Optional[str] = None):
     ``mixing.loudness``, scipy comes from ``loudness``, not ``media``), else the
     extra ``EXTRAS`` maps ``package_name`` to, else ``pip install <package>``.
     The error's ``name`` is ``package_name``, so a caller can map it to its own
-    install hint.
+    install hint. An installed package whose own imports fail re-raises that
+    error unchanged, rather than claiming the package is missing.
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
@@ -209,11 +211,13 @@ def require_package(package_name: str, *, extra: Optional[str] = None):
     try:
         return importlib.import_module(package_name)
     except ImportError as e:
+        if e.name and not _supplies(e.name, package_name):
+            raise  # the package is there; one of *its* imports failed
         extra = extra or extra_for(package_name)
         hint = install_hint(extra) if extra else f"pip install {package_name}"
         raise ImportError(
             f"Package '{package_name}' is required for this functionality. "
-            f"Please install it via '{hint}'.",
+            f"Install it with {hint}.",
             name=package_name,
         ) from e
 

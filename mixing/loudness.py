@@ -47,11 +47,6 @@ except ImportError as e:
 
 from mixing.decode import DECODE_CHUNK_S, decode_float_chunks  # noqa: E402
 
-def _scipy_signal():
-    """``scipy.signal``, or an ``ImportError`` naming the ``loudness`` extra."""
-    return require_package("scipy.signal", extra=LOUDNESS_EXTRA)
-
-
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
 
@@ -147,7 +142,7 @@ def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.n
     The filter state is carried across chunks, so the result is the same as
     filtering the whole signal while holding only a chunk at a time.
     """
-    lfilter = _scipy_signal().lfilter
+    lfilter = require_package("scipy.signal", extra=LOUDNESS_EXTRA).lfilter
 
     sections, states = _k_weighting_coefficients(fs), None
     for x in chunks:
@@ -412,7 +407,7 @@ def true_peak_envelope(
     looped. Chunked, with the filter's length of context shared between chunks,
     so the joins are exact.
     """
-    resample_poly = _scipy_signal().resample_poly
+    resample_poly = require_package("scipy.signal", extra=LOUDNESS_EXTRA).resample_poly
 
     data = _as_2d(data)
     if oversampling is None:

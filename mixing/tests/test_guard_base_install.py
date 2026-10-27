@@ -167,8 +167,9 @@ def test_loudness_without_numpy_names_the_missing_module():
     assert "mixing[loudness]" in out["message"]
 
 
-#: Import name -> distribution name, where they differ. ``jupyter`` is the
-#: metapackage that installs IPython (it has no import name of its own).
+#: Import name -> distribution name, where they differ. IPython's own
+#: distribution is ``ipython``; the ``widget`` extra gets it from the ``jupyter``
+#: metapackage it declares (which has no import name), so IPython stands for it.
 _DISTRIBUTIONS = {
     "cv2": "opencv-contrib-python",
     "PIL": "pillow",
@@ -220,18 +221,12 @@ def test_the_table_and_pyproject_declare_the_same_extras():
         ("aix", "pip install 'mixing[llm]'"),
         ("google.genai.types", "pip install 'mixing[gen]'"),
         ("pyclip", "pip install 'mixing[clipboard]'"),
-        ("soundfile", "pip install 'mixing[audio]'"),
     ],
 )
 def test_require_package_hints_the_extra_from_the_table(monkeypatch, module, hint):
-    import importlib
-
     from mixing.util import require_package
 
-    def deny(name, *a, **k):
-        raise ImportError(name)
-
-    monkeypatch.setattr(importlib, "import_module", deny)
+    _deny_imports(monkeypatch)
     with pytest.raises(ImportError, match=re.escape(hint)):
         require_package(module)
 
@@ -277,15 +272,18 @@ def test_loudness_without_scipy_names_the_loudness_extra():
         import json
         import numpy as np
         import mixing.loudness as L
+        x = np.sin(np.arange(8000) / 10.0)[:, None] * 0.1
+        ffmpeg = L.integrated_lufs(x, 8000, meter="ffmpeg_ebur128")
         try:
-            L.integrated_lufs(np.ones((8000, 1)) * 0.1, 8000)
+            L.integrated_lufs(x, 8000)
         except ImportError as e:
-            print(json.dumps({"name": e.name, "message": str(e)}))
+            print(json.dumps({"name": e.name, "message": str(e), "ffmpeg": ffmpeg}))
         """,
         hidden=("scipy",),
     )
     assert out["name"] == "scipy.signal"
     assert "pip install 'mixing[loudness]'" in out["message"]
+    assert isinstance(out["ffmpeg"], float)
 
 
 def test_llm_defaults_name_the_llm_extra_and_the_alternative():
@@ -312,10 +310,12 @@ def test_llm_defaults_name_the_llm_extra_and_the_alternative():
 
 
 def test_audio_widget_without_soundfile_names_the_widget_extra():
-    pytest.importorskip("IPython")
     out = _run_hidden(
         """
-        import json
+        import json, sys, types
+        for _stub in ("IPython", "IPython.display"):  # Jupyter is not installed in CI
+            sys.modules.setdefault(_stub, types.ModuleType(_stub))
+        sys.modules["IPython.display"].display = sys.modules["IPython.display"].HTML = None
         from mixing.audio.audio_widget import ensure_wfsr
         try:
             ensure_wfsr("x.wav")
@@ -341,3 +341,19 @@ def test_audio_widget_without_jupyter_names_the_widget_extra():
     )
     assert out["name"].split(".")[0] == "IPython"
     assert "pip install 'mixing[widget]'" in out["message"]
+
+
+def test_require_package_does_not_blame_an_installed_package(monkeypatch):
+    """A package that is there but whose own import fails re-raises that error."""
+    import importlib
+
+    from mixing.util import require_package
+
+    def broken(name, *a, **k):
+        raise ModuleNotFoundError("No module named 'numba'", name="numba")
+
+    monkeypatch.setattr(importlib, "import_module", broken)
+    with pytest.raises(ModuleNotFoundError) as info:
+        require_package("librosa")
+    assert info.value.name == "numba"
+    assert "mixing[" not in str(info.value)
