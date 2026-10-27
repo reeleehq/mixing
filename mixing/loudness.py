@@ -27,6 +27,7 @@ from __future__ import annotations
 import re
 import subprocess
 import warnings
+from functools import lru_cache
 from typing import Callable, Optional, Sequence, Union
 
 try:
@@ -64,9 +65,13 @@ TRUE_PEAK_OVERSAMPLING = 4
 #: The true-peak interpolation is meant for >= 48 kHz; below that the factor is
 #: raised so the oversampled rate reaches this.
 TRUE_PEAK_MIN_RATE = 192_000
-#: Context (s) shared by neighbouring chunks so the upsampling filter does not
-#: ring at chunk joins.
-TRUE_PEAK_MARGIN_S = 0.1
+#: The oversampling filter: a Kaiser-windowed sinc this many input samples long
+#: on each side. Its worst polyphase branch is within 0.002 dB to 0.45 fs and
+#: 0.2 dB at 0.47 fs, with images above 0.55 fs 80 dB down (scipy's default,
+#: 10 samples and beta 5, loses 1.4 dB at 0.45 fs and 4.5 dB at 0.47 fs). It is
+#: also the context neighbouring chunks share, so chunk joins are exact.
+TRUE_PEAK_FILTER_HALF_SAMPLES = 32
+TRUE_PEAK_FILTER_KAISER_BETA = 8.0
 
 
 #: Group leveling defaults.
@@ -261,6 +266,24 @@ def integrated_lufs(data: np.ndarray, fs: int, *, meter: Meter = "numpy") -> flo
 # --- true peak -----------------------------------------------------------------
 
 
+@lru_cache(maxsize=None)
+def _interpolation_filter(factor: int) -> np.ndarray:
+    """The windowed-sinc FIR that upsamples by ``factor``, scaled for
+    ``resample_poly`` (which multiplies by ``factor``). Its every ``factor``-th
+    tap is zero but the centre one, so the original samples pass unchanged and
+    a true peak never reads below the sample peak. Read-only: it is cached."""
+    from scipy.signal.windows import kaiser
+
+    half = TRUE_PEAK_FILTER_HALF_SAMPLES * factor
+    n = np.arange(-half, half + 1)
+    taps = np.sinc(n / factor) * kaiser(len(n), TRUE_PEAK_FILTER_KAISER_BETA)
+    taps[n % factor == 0] = 0.0  # exactly, not sinc's ~1e-17
+    taps[half] = 1.0
+    taps /= factor
+    taps.flags.writeable = False
+    return taps
+
+
 def true_peak_envelope(
     data: np.ndarray, fs: int, *, oversampling: Optional[int] = None
 ) -> np.ndarray:
@@ -268,21 +291,27 @@ def true_peak_envelope(
     oversampled signal in ``[n, n+1)``.
 
     ``oversampling`` defaults to 4x, raised for rates under 48 kHz so the
-    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. Chunked, with context
-    shared between chunks so the upsampling filter does not ring at the joins.
+    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. The interpolation is a
+    long windowed sinc (``TRUE_PEAK_FILTER_*``): content up to about 0.47 fs
+    reads as an ideal sinc reconstruction would (on the same oversampled grid),
+    content between there and Nyquist reads up to ~0.5 dB low. The signal is
+    taken as silent outside its span (as when played from silence), not
+    looped. Chunked, with the filter's length of context shared between chunks,
+    so the joins are exact.
     """
     from scipy.signal import resample_poly
 
     data = _as_2d(data)
     factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
+    taps = _interpolation_filter(factor)
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
-    margin = int(round(TRUE_PEAK_MARGIN_S * fs))
+    margin = TRUE_PEAK_FILTER_HALF_SAMPLES
     envelope = np.empty(len(data))
     for start in range(0, len(data), step):
         stop = min(start + step, len(data))
         lo, hi = max(0, start - margin), min(len(data), stop + margin)
-        up = np.abs(resample_poly(data[lo:hi], factor, 1, axis=0)).max(axis=1)
-        inner = up[(start - lo) * factor : (stop - lo) * factor]
+        up = resample_poly(data[lo:hi], factor, 1, axis=0, window=taps)
+        inner = np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max(axis=1)
         envelope[start:stop] = inner.reshape(-1, factor).max(axis=1)
     return envelope
 

@@ -15,6 +15,7 @@ from mixing.loudness import (
     limit_peaks,
     loudness_range_lu,
     true_peak_db,
+    true_peak_envelope,
 )
 from mixing.util import has_ffmpeg
 
@@ -89,7 +90,9 @@ def test_level_group_edge_cases():
     level_group([_voice(1, 0.3), _voice(1, 0.3, channels=2)], FS, target_lufs=-20.0)
     # a huge gain is capped, with a warning
     with pytest.warns(UserWarning, match="capped"):
-        gain, _ = level_group([_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0)
+        gain, _ = level_group(
+            [_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0
+        )
     assert gain == 6.0
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -176,3 +179,96 @@ def test_mixed_channel_counts_are_downmixed_and_measured():
     _, measured = level_group([mono, stereo], FS, target_lufs=-20.0)
     both_mono = np.vstack([mono, stereo.mean(axis=1, keepdims=True)])
     assert measured == pytest.approx(integrated_lufs(both_mono, FS))
+
+
+# --- true peak against an ideal sinc reconstruction ---------------------------
+
+TP_FS = 48000
+TP_UP = 4  # the meter's factor at 48 kHz
+TP_EDGE = 300  # samples kept out of interior-only comparisons
+#: The near-ideal reference: a windowed sinc ~100x longer than the meter's.
+REF_HALF_SAMPLES, REF_KAISER_BETA = 3000, 14.0
+
+
+def _db(x):
+    return 20 * np.log10(x)
+
+
+def _sinc_envelope(x, up=TP_UP):
+    """``|y|`` on the ``up``-times grid of a near-ideal sinc reconstruction of
+    ``x`` (taken as zero outside its span)."""
+    from scipy.signal import resample_poly
+    from scipy.signal.windows import kaiser
+
+    n = np.arange(-REF_HALF_SAMPLES * up, REF_HALF_SAMPLES * up + 1)
+    taps = np.sinc(n / up) * kaiser(len(n), REF_KAISER_BETA) / up
+    return np.abs(resample_poly(x, up, 1, window=taps))
+
+
+def _band_limited_noise(n, cutoff, rng):
+    """White noise with nothing above ``cutoff`` (a fraction of fs), peak 1."""
+    spectrum = np.fft.rfft(rng.standard_normal(n))
+    spectrum[np.fft.rfftfreq(n) > cutoff] = 0
+    x = np.fft.irfft(spectrum, n)
+    return x / np.abs(x).max()
+
+
+def _interior_peak_db(x):
+    """The meter and the reference, away from the edges: dB, dB."""
+    inner = slice(TP_EDGE, -TP_EDGE)
+    meter = true_peak_envelope(x, TP_FS)[inner].max()
+    ideal = _sinc_envelope(x)[TP_EDGE * TP_UP : -TP_EDGE * TP_UP].max()
+    return _db(meter), _db(ideal)
+
+
+def test_true_peak_reads_bright_noise_as_an_ideal_sinc_would():
+    # white noise band-limited at 0.45 and 0.47 fs (an ADC's anti-alias edge):
+    # the old filter (scipy's default) under-read these by up to 0.1 / 0.2 dB
+    rng = np.random.default_rng(2)
+    for cutoff, tolerance in ((0.45, 0.005), (0.47, 0.02)):
+        for _ in range(3):
+            meter, ideal = _interior_peak_db(_band_limited_noise(4000, cutoff, rng))
+            assert meter == pytest.approx(ideal, abs=tolerance)
+
+
+def test_true_peak_of_a_near_nyquist_sine():
+    # 21.6 kHz = 9/20 fs at 9 degrees: samples peak at sin(81 deg), 0.1 dB under
+    # the crest, which the 4x grid hits; the old filter lost 0.66 dB there and
+    # read only the sample peak. The reference is the sine itself.
+    n = np.arange(2400)
+    phase = np.pi / 20
+    x = np.sin(2 * np.pi * 9 / 20 * n + phase)
+    grid = np.arange(len(x) * TP_UP) / TP_UP
+    ideal = _db(np.abs(np.sin(2 * np.pi * 9 / 20 * grid + phase)).max())
+    assert _interior_peak_db(x)[0] == pytest.approx(ideal, abs=0.01)
+    assert true_peak_db(x, TP_FS) > _db(np.abs(x).max()) + 0.05
+
+
+def test_true_peak_does_not_loop_the_signal_at_its_edges():
+    # an FFT upsampler treats the clip as looping: the -0.8 -> +0.8 jump reads
+    # ~+0.2 dBTP. Taken as silence outside, it reads what the sinc sum reads.
+    x = np.linspace(-0.8, 0.8, 2400)
+    assert true_peak_db(x, TP_FS) == pytest.approx(
+        _db(_sinc_envelope(x).max()), abs=0.01
+    )
+    assert true_peak_db(x, TP_FS) < -0.5
+
+
+def test_true_peak_passes_the_samples_unchanged():
+    # an impulse's reconstruction peaks at the sample itself; the old filter's
+    # centre tap read it 0.0055 dB high
+    x = np.zeros(1000)
+    x[500] = 0.5
+    assert true_peak_envelope(x, TP_FS).max() == 0.5
+    rng = np.random.default_rng(7)
+    noise = np.clip(rng.standard_normal((TP_FS, 2)), -1, 1)
+    assert (true_peak_envelope(noise, TP_FS) >= np.abs(noise).max(axis=1)).all()
+
+
+def test_true_peak_limiter_holds_the_ceiling_by_an_independent_meter():
+    # limited by its own meter, re-measured by the reference: the old filter
+    # let bright material through at -0.92 dBTP for a -1 dBTP ceiling
+    x = _band_limited_noise(TP_FS, 0.45, np.random.default_rng(4))[:, None]
+    out = limit_peaks(x, ceiling=10 ** (-1.0 / 20), true_peak=True, fs=TP_FS)
+    inner = slice(TP_EDGE * TP_UP, -TP_EDGE * TP_UP)
+    assert _db(_sinc_envelope(out[:, 0])[inner].max()) <= -1.0 + 0.01
