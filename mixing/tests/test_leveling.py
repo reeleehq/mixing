@@ -578,6 +578,23 @@ def test_audio_times_are_exact_to_the_frame(n):
     in_samples = Audio(seg, time_unit="samples")
     assert in_samples[1001:2002]._get_segment().frame_count() == 1001  # not ms-snapped
     assert audio[0.5]._get_segment().frame_count() == 1  # a single index: one frame
+    part = audio[1.0:2.0]
+    assert part[part.duration]._get_segment().frame_count() == 1  # the slice's last
+    assert len(audio[1.2345:2.3456].samples) == audio[1.2345:2.3456].sample_count
+
+
+def test_a_turn_may_end_at_a_slices_duration():
+    # bounds between frames: duration is the frames', so the turn fits
+    seg = AudioSegment(
+        np.zeros(3 * RATE, dtype="<i2").tobytes(), frame_rate=RATE, sample_width=2,
+        channels=1,
+    )  # fmt: skip
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        s, e = sorted(rng.uniform(0, 3, 2))
+        part = Audio(seg)[s:e]
+        out = process_turns(part, [("x", 0.0, part.duration)], lambda sp, a, c: a)
+        assert out.sample_count == part.sample_count
 
 
 def test_namedtuple_turns_stay_tuples_and_unlabelled_segments_raise():

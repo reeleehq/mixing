@@ -215,8 +215,9 @@ class Audio:
 
     @property
     def duration(self) -> float:
-        """Duration of this audio/segment in seconds."""
-        return self.end_time - self.start_time
+        """Duration of this audio/segment in seconds: its frame count over the
+        rate, so a turn or slice ending at ``duration`` ends at the last frame."""
+        return self.sample_count / self.sample_rate
 
     @property
     def sample_rate(self) -> int:
@@ -309,13 +310,15 @@ class Audio:
             else:
                 time_seconds = self.start_time + idx_seconds
 
-            time_seconds = max(self.start_time, min(time_seconds, self.end_time))
-            sample_duration = 1.0 / self.sample_rate
+            # the frame at that time, kept inside this segment
+            first, last = self._frame_bounds()
+            frame = round(time_seconds * self.sample_rate)
+            frame = max(first, min(frame, last - 1))
             return Audio(
                 self._audio,
                 time_unit=self.time_unit,
-                start_time=time_seconds,
-                end_time=time_seconds + sample_duration,
+                start_time=frame / self.sample_rate,
+                end_time=(frame + 1) / self.sample_rate,
             )
         else:
             raise TypeError(
@@ -564,8 +567,7 @@ class Audio:
     @property
     def samples(self) -> AudioSamples:
         """Get sample-by-sample Mapping interface for this audio."""
-        start_sample = int(self.start_time * self.sample_rate)
-        end_sample = int(self.end_time * self.sample_rate)
+        start_sample, end_sample = self._frame_bounds()
         return AudioSamples(
             self._audio, start_sample=start_sample, end_sample=end_sample
         )
