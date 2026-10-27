@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Callable, Sequence
 
 from mixing.srt import parse_srt as _parse_srt
+from mixing.util import require_llm_chat
 
 #: A segmenter maps (segments, target_count) -> [{"start": float, "title": str}].
 #: ``segments`` is a list of ``{"start", "end", "text"}`` sentence-ish units.
@@ -254,13 +255,7 @@ def default_segment_fn(
     boundaries as a JSON array of ``{"start", "title"}``. Pass your own
     ``segment_fn`` to :func:`detect_chapters` to avoid the ``aix`` dependency.
     """
-    try:
-        from aix import chat
-    except ImportError as e:  # pragma: no cover - environment dependent
-        raise ImportError(
-            "default_segment_fn needs the 'aix' package. Install it, or pass a "
-            "custom segment_fn to detect_chapters()."
-        ) from e
+    chat = require_llm_chat("default_segment_fn", alternative="segment_fn to detect_chapters()")
 
     lines = "\n".join(f"[{_fmt(s['start'])}] {s['text']}" for s in segments)
     prompt = (

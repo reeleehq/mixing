@@ -6,9 +6,29 @@ import logging
 import numpy as np
 from pathlib import Path
 from typing import Union, Tuple, Optional
-from IPython.display import display, HTML
+
+from ..util import WIDGET_EXTRA, install_hint
+
+try:
+    from IPython.display import display, HTML
+except ImportError as e:
+    raise ImportError(
+        f"The audio widget needs Jupyter: {install_hint(WIDGET_EXTRA)}", name=e.name
+    ) from e
 
 logger = logging.getLogger(__name__)
+
+
+def _soundfile():
+    """``soundfile``, or an ``ImportError`` naming the ``widget`` extra."""
+    try:
+        import soundfile
+    except ImportError as e:
+        raise ImportError(
+            f"soundfile is required for the audio widget: {install_hint(WIDGET_EXTRA)}",
+            name="soundfile",
+        ) from e
+    return soundfile
 
 
 # Type aliases
@@ -49,13 +69,7 @@ def ensure_wfsr(audio_input: AudioInput) -> WfSr:
         >>> wf, sr = ensure_wfsr(audio_bytes)  # doctest: +SKIP
         >>> wf, sr = ensure_wfsr((wf, sr))  # doctest: +SKIP
     """
-    try:
-        import soundfile as sf
-    except ImportError:
-        raise ImportError(
-            "soundfile is required for audio processing. "
-            "Install it with: pip install soundfile"
-        )
+    sf = _soundfile()
 
     # Already in (wf, sr) format
     if isinstance(audio_input, tuple) and len(audio_input) == 2:
@@ -99,10 +113,7 @@ def wf_to_base64_wav(wf: WaveformArray, sr: SampleRate) -> str:
     Returns:
         Base64-encoded data URL string suitable for HTML audio element
     """
-    try:
-        import soundfile as sf
-    except ImportError:
-        raise ImportError("soundfile required for audio encoding")
+    sf = _soundfile()
 
     # Ensure wf is in proper format
     if wf.dtype != np.float32 and wf.dtype != np.float64:
@@ -653,10 +664,7 @@ __temp_sel_end = ${{sel.end}}
             filepath: Output file path
             format: Audio format (auto-detected from extension if None)
         """
-        try:
-            import soundfile as sf
-        except ImportError:
-            raise ImportError("soundfile required for saving audio")
+        sf = _soundfile()
 
         filepath = Path(filepath)
 

@@ -35,7 +35,7 @@ from contextlib import closing
 from functools import lru_cache
 from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
 
-from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint
+from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
 
 try:  # numpy only: scipy is imported where used, so the ffmpeg meter works without it
     import numpy as np
@@ -46,6 +46,11 @@ except ImportError as e:
     ) from e
 
 from mixing.decode import DECODE_CHUNK_S, decode_float_chunks  # noqa: E402
+
+def _scipy_signal():
+    """``scipy.signal``, or an ``ImportError`` naming the ``loudness`` extra."""
+    return require_package("scipy.signal", extra=LOUDNESS_EXTRA)
+
 
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
@@ -142,7 +147,7 @@ def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.n
     The filter state is carried across chunks, so the result is the same as
     filtering the whole signal while holding only a chunk at a time.
     """
-    from scipy.signal import lfilter
+    lfilter = _scipy_signal().lfilter
 
     sections, states = _k_weighting_coefficients(fs), None
     for x in chunks:
@@ -344,8 +349,6 @@ def ebur128_lufs(data: np.ndarray, fs: int) -> float:
 def pyloudnorm_lufs(data: np.ndarray, fs: int) -> float:
     """Integrated loudness by ``pyloudnorm`` (needs it installed; >= 0.4 s of
     audio, at most 5 channels -- it raises otherwise)."""
-    from mixing.util import require_package
-
     meter = require_package("pyloudnorm").Meter(fs)
     return float(meter.integrated_loudness(data))
 
@@ -381,7 +384,7 @@ def _interpolation_filter(factor: int) -> np.ndarray:
     ``resample_poly`` (which multiplies by ``factor``). Its every ``factor``-th
     tap is zero but the centre one, so the original samples pass unchanged and
     a true peak never reads below the sample peak. Read-only: it is cached."""
-    from scipy.signal.windows import kaiser
+    kaiser = require_package("scipy.signal.windows", extra=LOUDNESS_EXTRA).kaiser
 
     half = TRUE_PEAK_FILTER_HALF_SAMPLES * factor
     n = np.arange(-half, half + 1)
@@ -409,7 +412,7 @@ def true_peak_envelope(
     looped. Chunked, with the filter's length of context shared between chunks,
     so the joins are exact.
     """
-    from scipy.signal import resample_poly
+    resample_poly = _scipy_signal().resample_poly
 
     data = _as_2d(data)
     if oversampling is None:

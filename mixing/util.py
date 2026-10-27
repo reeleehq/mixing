@@ -63,6 +63,11 @@ MEDIA_EXTRA = "media"
 ML_EXTRA = "ml"
 BEATS_EXTRA = "beats"
 LOUDNESS_EXTRA = "loudness"
+AUDIO_EXTRA = "audio"
+WIDGET_EXTRA = "widget"
+GEN_EXTRA = "gen"
+LLM_EXTRA = "llm"
+CLIPBOARD_EXTRA = "clipboard"
 
 # Import names (top-level) that the ``media`` extra provides, per media area.
 AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
@@ -74,15 +79,24 @@ ML_IMPORT_NAMES = ("torch", "transformers")
 BEATS_IMPORT_NAMES = ("librosa",)
 LOUDNESS_IMPORT_NAMES = ("numpy", "scipy")
 
-#: The one table of the extras mixing checks for: ``{extra: import names it
-#: supplies}``. A module in several extras (numpy) maps to the first, so the
-#: broadest install wins. ``extra_for`` / ``install_hint`` are public so a
-#: caller can map a missing module (``ImportError.name``) to its install line.
+#: The one table of mixing's extras: ``{extra: import names it supplies}``,
+#: each declared by the same-named extra in ``pyproject.toml`` (a test holds the
+#: two equal). A name may be dotted (``google.genai``: ``google`` is a shared
+#: namespace). A module in several extras (numpy) maps to the first, so the
+#: broadest install wins; a caller that knows better names its extra
+#: (``require_package("scipy.signal", extra=LOUDNESS_EXTRA)``). ``extra_for`` /
+#: ``install_hint`` are public so a caller can map a missing module
+#: (``ImportError.name``) to its install line.
 EXTRAS: dict[str, tuple[str, ...]] = {
     MEDIA_EXTRA: MEDIA_IMPORT_NAMES,
     ML_EXTRA: ML_IMPORT_NAMES,
     BEATS_EXTRA: BEATS_IMPORT_NAMES,
     LOUDNESS_EXTRA: LOUDNESS_IMPORT_NAMES,
+    AUDIO_EXTRA: ("pydub", "ffmpeg", "soundfile"),
+    WIDGET_EXTRA: ("ipywidgets", "soundfile", "IPython"),
+    GEN_EXTRA: ("google.genai",),
+    LLM_EXTRA: ("aix",),
+    CLIPBOARD_EXTRA: ("pyclip",),
 }
 
 
@@ -97,14 +111,27 @@ def install_hint(extra: str) -> str:
     return f"pip install 'mixing[{extra}]'"
 
 
-def extra_for(module: str) -> Optional[str]:
-    """The extra that supplies ``module`` (dotted names by their top level), or ``None``.
+def _supplies(name: str, module: str) -> bool:
+    """True if import name ``name`` is ``module`` or one of its parent packages."""
+    return module == name or module.startswith(name + ".")
 
-    >>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("requests")
-    ('media', 'beats', None)
+
+def extra_for(module: str) -> Optional[str]:
+    """The extra that supplies ``module`` (or a parent package of it), or ``None``.
+
+    >>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("google.genai.types")
+    ('media', 'beats', 'gen')
+    >>> extra_for("requests"), extra_for("google.protobuf")
+    (None, None)
     """
-    top = module.split(".")[0]
-    return next((extra for extra, names in EXTRAS.items() if top in names), None)
+    return next(
+        (
+            extra
+            for extra, names in EXTRAS.items()
+            if any(_supplies(name, module) for name in names)
+        ),
+        None,
+    )
 
 
 MEDIA_INSTALL_HINT = install_hint(MEDIA_EXTRA)
@@ -163,11 +190,13 @@ def require_ml_extra(feature: str, *, modules: tuple[str, ...] = ML_IMPORT_NAMES
     require_extra(feature, ML_EXTRA, modules=modules)
 
 
-def require_package(package_name: str):
+def require_package(package_name: str, *, extra: Optional[str] = None):
     """
     Import a package, raising an informative error if not installed.
 
-    A package an extra supplies (see ``EXTRAS``) gets a hint naming that extra.
+    The hint names ``extra`` when given (the extra the caller belongs to: in
+    ``mixing.loudness``, scipy comes from ``loudness``, not ``media``), else the
+    extra ``EXTRAS`` maps ``package_name`` to, else ``pip install <package>``.
     The error's ``name`` is ``package_name``, so a caller can map it to its own
     install hint.
 
@@ -175,15 +204,32 @@ def require_package(package_name: str):
     >>> math.pi  # doctest: +SKIP
     3.141592653589793
     """
+    if extra is not None:
+        install_hint(extra)  # an unknown extra is the caller's bug: fail now
     try:
         return importlib.import_module(package_name)
     except ImportError as e:
-        extra = extra_for(package_name)
+        extra = extra or extra_for(package_name)
         hint = install_hint(extra) if extra else f"pip install {package_name}"
         raise ImportError(
             f"Package '{package_name}' is required for this functionality. "
             f"Please install it via '{hint}'.",
             name=package_name,
+        ) from e
+
+
+def require_llm_chat(feature: str, *, alternative: str):
+    """``aix.chat``, the LLM call behind ``feature``, or an ``ImportError`` naming
+    the ``llm`` extra and the ``alternative`` that needs no LLM.
+
+    >>> require_llm_chat("demo", alternative="segment_fn")  # doctest: +SKIP
+    """
+    try:
+        return require_package("aix", extra=LLM_EXTRA).chat
+    except ImportError as e:
+        raise ImportError(
+            f"{feature} needs an LLM. {e} Or pass your own {alternative}.",
+            name=e.name,
         ) from e
 
 
