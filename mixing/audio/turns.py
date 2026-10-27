@@ -5,7 +5,8 @@
 per-segment treatment (per-speaker EQ, denoising, ducking, ...):
 
 - turns are ``(speaker, start_s, end_s)`` in **seconds**, whatever the
-  ``Audio.time_unit``; all slicing is done in sample frames of
+  ``Audio.time_unit``, or :class:`~mixing.audio.segmentation.Segment` s whose
+  ``label`` is the speaker; all slicing is done in sample frames of
   ``audio._get_segment()``, so the unit cannot break it;
 - each turn is cut **padded** by ``pad_s`` on both sides (clamped to the audio)
   so filters have settled by the time the turn itself starts;
@@ -28,11 +29,16 @@ per-segment treatment (per-speaker EQ, denoising, ducking, ...):
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Sequence, Union
+from typing import TYPE_CHECKING, Callable, Sequence, Union
 
 from .audio_ops import Audio
 
+if TYPE_CHECKING:
+    from .segmentation import Segment
+
 Turn = tuple[str, float, float]  # (speaker, start_s, end_s)
+#: A turn as given: a ``Turn`` tuple or a ``Segment`` (``label`` = speaker).
+TurnLike = Union[Turn, "Segment"]
 Core = tuple[float, float]  # (start_s, end_s) of the turn inside its padded clip
 TurnProcess = Callable[[str, Audio, Core], Audio]
 
@@ -41,14 +47,24 @@ DEFAULT_PAD_S = 0.5
 TURN_BOUND_TOLERANCE_S = 1e-6
 
 
+def as_turn(turn: TurnLike) -> Turn:
+    """``turn`` as a ``(speaker, start_s, end_s)`` tuple; a ``Segment``'s
+    ``label`` is the speaker."""
+    if hasattr(turn, "start") and hasattr(turn, "end"):
+        return (turn.label, turn.start, turn.end)
+    speaker, start, end = turn
+    return (speaker, start, end)
+
+
 def check_turns(
-    turns: Sequence[Turn],
+    turns: Sequence[TurnLike],
     duration: float,
     *,
     tolerance: float = TURN_BOUND_TOLERANCE_S,
 ) -> list[Turn]:
-    """``turns`` sorted by start; raises ``ValueError`` if out of range or overlapping."""
-    ordered = sorted(turns, key=lambda t: t[1])
+    """``turns`` as tuples sorted by start; raises ``ValueError`` if out of
+    range or overlapping."""
+    ordered = sorted(map(as_turn, turns), key=lambda t: t[1])
     previous_end = 0.0
     for speaker, start, end in ordered:
         if not 0 <= start < end <= duration + tolerance:
@@ -74,7 +90,7 @@ def conform_segment(segment, like):
 
 def process_turns(
     audio: Union[str, Path, Audio],
-    turns: Sequence[Turn],
+    turns: Sequence[TurnLike],
     process: TurnProcess,
     *,
     pad_s: float = DEFAULT_PAD_S,
@@ -83,7 +99,8 @@ def process_turns(
 
     Args:
         audio: the recording (path or :class:`Audio`).
-        turns: ``[(speaker, start_s, end_s), ...]`` in seconds, non-overlapping.
+        turns: ``[(speaker, start_s, end_s), ...]`` in seconds, non-overlapping
+            (or ``Segment`` s, ``label`` being the speaker).
         process: ``process(speaker, padded, core) -> padded'``; ``padded`` is the
             turn with ``pad_s`` of context each side (a seconds-unit
             :class:`Audio`), ``core`` the turn's ``(start_s, end_s)`` within it.
@@ -100,7 +117,8 @@ def process_turns(
     fs, width = segment.frame_rate, segment.frame_width
     raw = segment.raw_data
     n_frames = len(raw) // width
-    ordered = check_turns(turns, n_frames / fs)
+    # audio.duration rounds up to a millisecond: a turn may end there
+    ordered = check_turns(turns, max(n_frames / fs, audio.duration))
     pad_n = max(0, int(round(pad_s * fs)))
 
     pieces: list[bytes] = []

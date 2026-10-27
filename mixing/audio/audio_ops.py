@@ -94,14 +94,11 @@ class AudioSamples(Mapping[int, float]):
             self.audio_src = None
             self._audio = audio_src
 
-        # Get samples as numpy array
-        self._samples = np.array(self._audio.get_array_of_samples())
-        if self._audio.channels == 2:
-            # Reshape stereo to (n_samples, 2)
-            self._samples = self._samples.reshape((-1, 2))
+        from .samples import segment_samples
 
-        # Normalize to [-1, 1]
-        self._samples = self._samples.astype(np.float32) / 32768.0
+        # Float samples in [-1, 1]: (n,) for mono, (n, channels) otherwise
+        samples = segment_samples(self._audio, dtype=np.float32)
+        self._samples = samples[:, 0] if self._audio.channels == 1 else samples
 
         self.start_sample = start_sample
         self.end_sample = end_sample if end_sample is not None else len(self._samples)
@@ -311,10 +308,20 @@ class Audio:
             )
 
     def _get_segment(self) -> "AudioSegment":
-        """Get the AudioSegment for this time range."""
-        start_ms = int(self.start_time * 1000)
-        end_ms = int(self.end_time * 1000)
-        return self._audio[start_ms:end_ms]
+        """Get the AudioSegment for this time range.
+
+        Bounds are whole milliseconds, as pydub slices, but the result never
+        runs past the last frame: ``full_duration`` rounds up to a millisecond,
+        and pydub pads a slice that overshoots with up to 2 ms of silence. An
+        open end runs to the last frame.
+        """
+        segment = self._audio
+
+        def frame(seconds: float) -> int:
+            return int(segment.frame_count(ms=int(seconds * 1000)))
+
+        end = None if self._end_time is None else frame(self._end_time)
+        return segment.get_sample_slice(frame(self.start_time), end)
 
     def save(
         self,
@@ -901,11 +908,9 @@ def _frame_rms_db(segment: "AudioSegment", *, frame_n: int) -> np.ndarray:
     frame is zero-padded, which only ever *lowers* its level — a partial frame
     can't fake activity.
     """
-    samples = np.array(segment.get_array_of_samples(), dtype=np.float64)
-    if segment.channels > 1:
-        samples = samples.reshape(-1, segment.channels).mean(axis=1)
-    full_scale = float(1 << (8 * segment.sample_width - 1))
-    samples = samples / full_scale
+    from .samples import segment_samples
+
+    samples = segment_samples(segment).mean(axis=1)
 
     n_frames = max(1, int(np.ceil(len(samples) / frame_n)))
     padded = np.zeros(n_frames * frame_n, dtype=np.float64)
@@ -1193,31 +1198,13 @@ class AudioOffset:
     sample_rate: int
 
 
-def _resample_samples(
-    samples: np.ndarray, native_rate: int, target_rate: int
-) -> np.ndarray:
-    """Anti-aliased polyphase resample of mono ``samples`` (native → target rate).
-
-    Uses :func:`scipy.signal.resample_poly`, which low-pass filters before
-    decimating, so downsampling does not fold energy above the target Nyquist
-    back into the band. Rational rate ratios (e.g. 44100 → 16000 = 160/441)
-    are reduced exactly via :class:`fractions.Fraction`.
-    """
-    if native_rate == target_rate:
-        return samples
-    from fractions import Fraction
-
-    ratio = Fraction(target_rate, native_rate)
-    resample_poly = require_package("scipy.signal").resample_poly
-    return resample_poly(samples, ratio.numerator, ratio.denominator)
-
-
 def _load_mono_samples(source: AudioSource, sample_rate: int) -> np.ndarray:
     """Load any :data:`AudioSource` as a mono float64 array at ``sample_rate``.
 
     Decodes at the source's NATIVE rate (pydub → ffmpeg), downmixes to mono,
     then resamples with an anti-aliased polyphase filter
-    (:func:`_resample_samples`). pydub's ``set_frame_rate`` is deliberately NOT
+    (:func:`mixing.audio.samples.resample`, which low-pass filters before
+    decimating). pydub's ``set_frame_rate`` is deliberately NOT
     used for the rate change: it delegates to ``audioop.ratecv`` — linear
     interpolation with no anti-alias filter — so downsampling a 48 kHz camera
     track to the 16 kHz analysis rate folds everything above 8 kHz back over
@@ -1227,8 +1214,10 @@ def _load_mono_samples(source: AudioSource, sample_rate: int) -> np.ndarray:
     """
     seg = _normalize_audio_source(source, target_type="AudioSegment")
     seg = seg.set_channels(1)
+    from .samples import resample
+
     samples = np.array(seg.get_array_of_samples(), dtype=np.float64)
-    return _resample_samples(samples, seg.frame_rate, sample_rate)
+    return resample(samples, seg.frame_rate, sample_rate)
 
 
 def _xcorr_surface(
