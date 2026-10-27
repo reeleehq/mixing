@@ -44,6 +44,7 @@ Focused subpackages, each with a clear dependency footprint:
 | `mixing.video` | `Video`/`VideoFrames`, crop/loop/speed, `replace_audio`, `normalize_audio`, `overlay_ambient_bed`, `ken_burns_*`, `concatenate_videos`, thumbnails, subtitles | `moviepy`, `opencv`, `pillow`, `looks` (vocabulary only — stdlib) |
 | `mixing.video.genai` | Google Vertex AI **Veo** generation | `google-genai` (extra `gen`) |
 | `mixing.edit` | `render` a re-edit of a finished video from a sound edit list (`Span`/`Gap`) and picture clips (`Cam` punch-ins, `Still` moves, dissolves, overlays), frame-exact; `timeline` is the pure frame/sample arithmetic | stdlib + an ffmpeg (stills via `burns`, extra `media`, lazy) |
+| `mixing.probe` | `probe` → frozen `MediaProbe`: ffprobe first (exact `Fraction` rate, packet count, per-stream `start_time`, rotation + displayed size, `r_frame_rate` vs `avg_frame_rate` VFR detection, duration, sample rate/channels), `ffmpeg -i` banner fallback (approximate) when no ffprobe sits beside `ffmpeg_exe()`; the one probe `mixing.edit` and `mixing.video.cutaways` read through | stdlib + an ffmpeg |
 | `mixing.transcript` | ElevenLabs **Scribe** STT (stdlib HTTP, cached), filler removal, SRT/prose | stdlib only |
 | `mixing.dubbing` | ElevenLabs **TTS** re-voice / translate (stdlib HTTP, cached) | stdlib (`dub_video_from_srt` needs `moviepy`) |
 | `mixing.srt` | **canonical** SRT/timeline `Cue` + parse/format/shift | pure stdlib |

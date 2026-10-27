@@ -11,7 +11,7 @@ than parse prose.
 
 import math
 
-__all__ = ["MixingError", "WindowTooWideForClip"]
+__all__ = ["MixingError", "WindowTooWideForClip", "ProbeError", "MediaNotFoundError"]
 
 #: Decimal places the remedy in a :class:`WindowTooWideForClip` message is stated to.
 #: The number is rounded DOWN to them, so what the message tells a caller to pass is
@@ -21,6 +21,18 @@ _ADVICE_DECIMALS = 6
 
 class MixingError(Exception):
     """Base for every error `mixing` raises on its own behalf."""
+
+
+class ProbeError(MixingError, ValueError):
+    """ffmpeg/ffprobe could not read a media file (see :func:`mixing.probe.probe`).
+
+    A :class:`ValueError`, so the ``except ValueError`` handlers that caught the
+    probes it replaced keep working.
+    """
+
+
+class MediaNotFoundError(ProbeError, FileNotFoundError):
+    """The media file to probe does not exist (also a :class:`FileNotFoundError`)."""
 
 
 class WindowTooWideForClip(MixingError, ValueError):

@@ -130,6 +130,7 @@ _SUBMODULES = (
     "dubbing",
     "chapters",
     "edit",
+    "probe",
     "srt",
     "egress",
     "errors",
