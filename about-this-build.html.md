@@ -2,20 +2,18 @@
 
 # About this build
 
-This documentation was built on **2026-10-27 16:30 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/ecf0194e1b70eef63db5b2a156a10c53e37d0032"><code>ecf0194</code></a> on branch <code>main</code>, for **mixing 0.0.82** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-27 19:29 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/2a506481e2255e1c5fbee89af627bb312f7cf10e"><code>2a50648</code></a> on branch <code>main</code>, for **mixing 0.0.83** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.82) is ahead of the latest release on PyPI (0.0.81): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/ecf0194e1b70eef63db5b2a156a10c53e37d0032"><code>ecf0194e1b70eef63db5b2a156a10c53e37d0032</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/2a506481e2255e1c5fbee89af627bb312f7cf10e"><code>2a506481e2255e1c5fbee89af627bb312f7cf10e</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.82</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.83</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -24,9 +22,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40533708925">40533708925</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40558179948">40558179948</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>a6285da86daa745b5ba92e3e08462196f894224b</code> (in the history of the built commit) |
+| Event commit | <code>0212d70978a19ac4a85862a195cf1faebf79810d</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -51,13 +49,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.81/">0.0.81</a>, older than the documented version (0.0.82).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.83/">0.0.83</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout ecf0194e1b70eef63db5b2a156a10c53e37d0032
+git checkout 2a506481e2255e1c5fbee89af627bb312f7cf10e
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
