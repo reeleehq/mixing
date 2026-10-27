@@ -519,7 +519,17 @@ shift_pitch(
 )  # +2 semitones, same duration and loudness
 ```
 
-- `voice_profile`: `f0_hz` is the median pyin f0 over voiced frames (needs `mixing[beats]`; `f0=False` skips it). Search range `fmin=65`, `fmax=600` Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than one pyin frame (128 ms) give `f0_hz=None, voiced_fraction=None`. `low_band_db` is the 60-150 Hz share of the energy: it overlaps a low male fundamental, so compare it across takes of one speaker rather than across speakers. A voice that *sounds* low is often just quieter and boomier: fix with EQ in `level_turns(chains=...)`, not with pitch.
+- `voice_profile`: `f0_hz` is the median f0 over voiced frames of `f0_tracker` (default `pyin_tracker()`, needs `mixing[beats]`; `f0=False` skips it). Configure pyin through the tracker, `f0_tracker=pyin_tracker(fmin=50, fmax=400, min_voiced_prob=0.2)` (the same arguments on `voice_profile` are deprecated). Default range 65-600 Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than the tracker's `min_samples` (pyin: one 128 ms frame) give `f0_hz=None, voiced_fraction=None`. Any `(mono samples, rate) -> (f0 per frame, voiced flags)` callable is a tracker; it applies its own voicing threshold, e.g. over `denote`:
+
+  ```python
+  def denote_tracker(*, threshold=0.5, **kwargs):
+      def track(y, fs):
+          pitch = denote.get_pitch(y, sr=fs, **kwargs)
+          return pitch.frequencies, pitch.confidence >= threshold
+      return track
+
+  voice_profile("talk.wav", turns, f0_tracker=denote_tracker(backend="torchcrepe"))
+  ``` `low_band_db` is the 60-150 Hz share of the energy: it overlaps a low male fundamental, so compare it across takes of one speaker rather than across speakers. A voice that *sounds* low is often just quieter and boomier: fix with EQ in `level_turns(chains=...)`, not with pitch.
 - `shift_pitch(audio, semitones, *, preserve_formants=True, preserve_loudness=True, method="auto")`: `"rubberband"` (ffmpeg built with librubberband; the only method that keeps formants, so the voice stays the same person), `"resample"` (stock ffmpeg `asetrate`+`aresample`+`atempo`, no extra dependency), `"librosa"` (`mixing[beats]`), or a callable `(samples (n, ch) float, rate, semitones, preserve_formants) -> (n, ch)` (length within 5 ms, else `ValueError`). `"auto"` = rubberband if `has_rubberband()`, else resample with a warning when `preserve_formants=True`. Point mixing at a rubberband ffmpeg with `IMAGEIO_FFMPEG_EXE`.
 - The ffmpeg methods' delay depends on the ratio (rubberband at 44.1 kHz: +60 ms at -24 st, +22 at -12, -11 at +12); it is measured per ratio on five seeded probes (median; `shift_latency`, cached per filter, rate and ffmpeg executable; `RuntimeError` if the lag hits the 0.5 s search limit, e.g. a filter that outputs silence) and removed, and the tail is kept. Residual on tone bursts: rubberband under 4 ms on average at 44.1/48 kHz; resample's `atempo` smears each burst by 10-30 ms; at the extremes (+-24 st) single bursts can be off by tens of ms with either method.
 - Loudness is restored unless that would clip: if the restored peak would exceed full scale, the result is scaled so its peak lands at `CLIP_CEILING` (~-0.1 dBFS), costing only the overshoot in loudness.

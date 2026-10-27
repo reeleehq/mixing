@@ -58,9 +58,16 @@ Spans = Union[Sequence[tuple[Label, float, float]], Mapping[Label, Sequence[Span
 #: ``strategy(samples (n, channels) float, rate, semitones, preserve_formants) -> samples``
 PitchStrategy = Callable[[np.ndarray, int, float, bool], np.ndarray]
 #: ``tracker(mono samples, rate) -> (f0_hz per frame, voiced flag per frame)``;
-#: ``f0_hz`` is only read where the flag is true. Any pitch tracker fits behind
-#: this (e.g. an adapter over ``denote.get_pitch``'s ``frequencies`` and
-#: ``confidence``).
+#: ``f0_hz`` is only read where the flag is true, so a tracker applies its own
+#: voicing threshold. A tracker may carry a ``min_samples`` attribute, the
+#: shortest input it can track; shorter spans are skipped (default
+#: ``MIN_F0_SPAN_S``). Any pitch tracker fits behind this, e.g. ``denote``::
+#:
+#:     def denote_tracker(*, threshold=0.5, **kwargs):
+#:         def track(y, fs):
+#:             pitch = denote.get_pitch(y, sr=fs, **kwargs)
+#:             return pitch.frequencies, pitch.confidence >= threshold
+#:         return track
 F0Tracker = Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
 
 
@@ -72,6 +79,9 @@ DEFAULT_F0_FMAX_HZ = 600.0
 DEFAULT_F0_SAMPLE_RATE = 16000
 #: pyin frame (samples at ``DEFAULT_F0_SAMPLE_RATE``): 128 ms, > 8 periods of fmin.
 DEFAULT_F0_FRAME_LENGTH = 2048
+#: Shortest span (s) handed to a tracker without a ``min_samples`` attribute:
+#: one default pyin frame.
+MIN_F0_SPAN_S = DEFAULT_F0_FRAME_LENGTH / DEFAULT_F0_SAMPLE_RATE
 #: librosa ``pyin``'s default hop is a quarter frame.
 PYIN_HOPS_PER_FRAME = 4
 #: pyin frames flagged voiced but less likely than this are dropped: on noise
@@ -211,6 +221,7 @@ def pyin_tracker(
 
     Frames pyin flags voiced with probability below ``min_voiced_prob`` count
     as unvoiced; digital silence is all unvoiced frames without running pyin.
+    Its ``min_samples`` is ``frame_length``: a shorter span is not tracked.
     """
 
     def track(y: np.ndarray, fs: int):
@@ -223,6 +234,7 @@ def pyin_tracker(
         )
         return f0, flags & (probs >= min_voiced_prob)
 
+    track.min_samples = frame_length
     return track
 
 
@@ -232,15 +244,15 @@ def _voiced_f0(
     *,
     tracker: F0Tracker,
     sample_rate: int,
-    min_samples: int,
 ) -> tuple[Optional[float], Optional[float]]:
     """``(median f0 over voiced frames, voiced fraction)`` of mono ``pieces``.
 
     Each piece (one span) is tracked separately, so span seams make no false
-    pitch; pieces shorter than ``min_samples`` (at ``sample_rate``) are
-    skipped. ``(None, None)`` when no piece is long enough; the f0 is ``None``
+    pitch; pieces shorter than the tracker's ``min_samples`` (at
+    ``sample_rate``; default ``MIN_F0_SPAN_S``) are skipped. ``(None, None)`` when no piece is long enough; the f0 is ``None``
     when no frame is voiced.
     """
+    min_samples = getattr(tracker, "min_samples", round(MIN_F0_SPAN_S * sample_rate))
     voiced, n_frames = [], 0
     for piece in pieces:
         y = resample(piece, fs, sample_rate)
@@ -259,19 +271,33 @@ def _voiced_f0(
     return (float(np.median(values)) if len(values) else None), len(values) / n_frames
 
 
+def _deprecated_pyin_args(**kwargs) -> dict:
+    """The pyin arguments ``voice_profile`` was given (``None`` = not given),
+    with a ``DeprecationWarning`` when there are any."""
+    given = {k: v for k, v in kwargs.items() if v is not None}
+    if given:
+        warnings.warn(
+            f"voice_profile({', '.join(given)}=...) is deprecated; pass "
+            "f0_tracker=pyin_tracker(...) instead",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+    return given
+
+
 def voice_profile(
     audio: Union[str, Path, Audio],
     spans: Optional[Spans] = None,
     *,
     f0: bool = True,
-    fmin: float = DEFAULT_F0_FMIN_HZ,
-    fmax: float = DEFAULT_F0_FMAX_HZ,
-    f0_sample_rate: int = DEFAULT_F0_SAMPLE_RATE,
-    f0_frame_length: int = DEFAULT_F0_FRAME_LENGTH,
-    min_voiced_prob: float = DEFAULT_MIN_VOICED_PROB,
     f0_tracker: Optional[F0Tracker] = None,
+    f0_sample_rate: int = DEFAULT_F0_SAMPLE_RATE,
     low_band: Span = DEFAULT_LOW_BAND_HZ,
     welch_nperseg: int = DEFAULT_WELCH_NPERSEG,
+    fmin: Optional[float] = None,
+    fmax: Optional[float] = None,
+    f0_frame_length: Optional[int] = None,
+    min_voiced_prob: Optional[float] = None,
 ) -> dict:
     """Pitch, loudness and timbre of each labelled part of ``audio``.
 
@@ -284,20 +310,19 @@ def voice_profile(
             :func:`mixing.audio.level_turns` -- or ``{label: [(start_s, end_s),
             ...]}``, in seconds. ``None`` measures the whole audio under the
             label ``WHOLE_AUDIO_LABEL``. Spans of different labels may overlap.
-        f0: estimate f0 (needs librosa, extra ``beats``); ``False`` skips it
-            (``f0_hz`` and ``voiced_fraction`` are then ``None``).
-        fmin, fmax: pyin f0 search range (Hz). A voice whose pitch is above
-            ``fmax`` is reported at a subharmonic (e.g. half its f0), not as
-            unvoiced.
-        f0_sample_rate, f0_frame_length: the f0 tracker's rate and frame size.
-        min_voiced_prob: pyin voicing probability below which a frame counts
-            as unvoiced (keeps noise from producing a spurious f0).
-        f0_tracker: an :data:`F0Tracker` replacing pyin (then ``fmin``, ``fmax``,
-            ``f0_frame_length`` and ``min_voiced_prob`` configure only the
-            default; ``f0_sample_rate`` and ``f0_frame_length`` still set the
-            rate spans are resampled to and the shortest span tracked).
+        f0: estimate f0; ``False`` skips it (``f0_hz`` and ``voiced_fraction``
+            are then ``None``).
+        f0_tracker: the :data:`F0Tracker`; default :func:`pyin_tracker` (needs
+            librosa, extra ``beats``). Configure pyin through it:
+            ``f0_tracker=pyin_tracker(fmin=50, fmax=400)``. pyin's default
+            range is ``DEFAULT_F0_FMIN_HZ``-``DEFAULT_F0_FMAX_HZ``; a voice
+            above ``fmax`` is reported at a subharmonic (e.g. half its f0), not
+            as unvoiced.
+        f0_sample_rate: the rate spans are resampled to before tracking.
         low_band: ``(lo_hz, hi_hz)`` of the band reported by ``low_band_db``.
         welch_nperseg: Welch segment length for centroid and low-band ratio.
+        fmin, fmax, f0_frame_length, min_voiced_prob: deprecated; pass them to
+            :func:`pyin_tracker` as ``f0_tracker``.
 
     Returns:
         ``{label: {...}}`` of plain JSON-able dicts with keys
@@ -321,12 +346,18 @@ def voice_profile(
     fs = segment.frame_rate
     data = segment_samples(segment)
     grouped = _spans_by_label(spans, len(data) / fs)
-    if f0 and f0_tracker is None:
-        f0_tracker = pyin_tracker(
-            fmin=fmin,
-            fmax=fmax,
-            frame_length=f0_frame_length,
-            min_voiced_prob=min_voiced_prob,
+    pyin_args = _deprecated_pyin_args(
+        fmin=fmin,
+        fmax=fmax,
+        frame_length=f0_frame_length,
+        min_voiced_prob=min_voiced_prob,
+    )
+    if f0_tracker is None:
+        f0_tracker = pyin_tracker(**pyin_args)
+    elif pyin_args:
+        raise ValueError(
+            "fmin, fmax, f0_frame_length and min_voiced_prob configure the default "
+            "pyin tracker only; pass them to pyin_tracker() as f0_tracker"
         )
 
     def profile(ranges) -> dict:
@@ -347,7 +378,6 @@ def voice_profile(
                 fs,
                 tracker=f0_tracker,
                 sample_rate=f0_sample_rate,
-                min_samples=f0_frame_length,
             )
         return {
             "duration_s": len(union) / fs,

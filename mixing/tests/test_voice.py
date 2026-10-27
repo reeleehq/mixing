@@ -420,7 +420,9 @@ def test_voice_profile_accepts_a_custom_f0_tracker():
 
     def tracker(y, fs):
         calls.append((len(y), fs))
-        return np.array([100.0, 120.0, 140.0, np.nan]), np.array([True, True, True, False])
+        return np.array([100.0, 120.0, 140.0, np.nan]), np.array(
+            [True, True, True, False]
+        )
 
     audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
     out = voice_profile(audio, [("a", 0.0, 0.5)], f0_tracker=tracker)
@@ -454,3 +456,39 @@ def test_custom_f0_tracker_output_is_normalised():
 
     with pytest.raises(ValueError, match="voiced flags"):
         voice_profile(audio, f0_tracker=lambda y, fs: ([1.0, 2.0], [True]))
+
+
+def test_tracker_min_samples_sets_the_shortest_span_tracked():
+    calls = []
+
+    def tracker(y, fs):
+        calls.append(len(y))
+        return np.array([100.0]), np.array([True])
+
+    audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
+    spans = [("a", 0.0, 0.05)]  # 800 samples, under one default pyin frame
+    assert voice_profile(audio, spans, f0_tracker=tracker)["a"]["f0_hz"] is None
+    tracker.min_samples = 512
+    assert voice_profile(audio, spans, f0_tracker=tracker)["a"]["f0_hz"] == 100.0
+    assert calls == [800]
+    assert voice_module.pyin_tracker(frame_length=1024).min_samples == 1024
+
+
+def test_pyin_arguments_on_voice_profile_are_deprecated(monkeypatch):
+    built = []
+    real = voice_module.pyin_tracker
+    monkeypatch.setattr(
+        voice_module, "pyin_tracker", lambda **kw: built.append(kw) or real(**kw)
+    )
+    audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
+    with pytest.warns(DeprecationWarning, match="pyin_tracker"):
+        voice_profile(audio, fmin=80.0, min_voiced_prob=0.3)
+    assert built[-1] == {"fmin": 80.0, "min_voiced_prob": 0.3}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        voice_profile(audio)
+    with (
+        pytest.warns(DeprecationWarning),
+        pytest.raises(ValueError, match="pyin_tracker"),
+    ):
+        voice_profile(audio, fmax=300.0, f0_tracker=lambda y, fs: ([1.0], [True]))
