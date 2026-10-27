@@ -1213,7 +1213,10 @@ def _load_mono_samples(source: AudioSource, sample_rate: int) -> np.ndarray:
     depend on the decode path rather than the signal (issue #25).
     """
     seg = _normalize_audio_source(source, target_type="AudioSegment")
-    samples = segment_samples(seg).mean(axis=1)
+    seg = seg.set_channels(1)
+    # raw integer values, deliberately unscaled: the alignment features and
+    # their tests (test_native_rate_load_is_lossless) work on these levels
+    samples = np.array(seg.get_array_of_samples(), dtype=np.float64)
     return resample(samples, seg.frame_rate, sample_rate)
 
 

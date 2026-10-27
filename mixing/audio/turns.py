@@ -50,7 +50,7 @@ TURN_BOUND_TOLERANCE_S = 1e-6
 def as_turn(turn: TurnLike) -> Turn:
     """``turn`` as a ``(speaker, start_s, end_s)`` tuple; a ``Segment``'s
     ``label`` is the speaker (an unlabelled one is a ``ValueError``)."""
-    if isinstance(turn, tuple):  # namedtuples too, whatever their fields
+    if isinstance(turn, (tuple, list)):  # namedtuples, JSON lists
         speaker, start, end = turn
         return (speaker, start, end)
     if turn.label is None:

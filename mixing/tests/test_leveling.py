@@ -548,7 +548,7 @@ def test_audio_is_not_padded_to_a_whole_millisecond():
     )
     audio = Audio(seg)
     assert audio._get_segment().frame_count() == n
-    assert audio[1.0:]._get_segment().frame_count() == n - RATE
+    assert audio[0 : audio.duration]._get_segment().frame_count() == n
     assert audio[1.0:]._get_segment().frame_count() == n - RATE
 
 
@@ -575,6 +575,7 @@ def test_namedtuple_turns_stay_tuples_and_unlabelled_segments_raise():
     assert as_turn(T("a", 0.0, 1.0)) == ("a", 0.0, 1.0)
     Span = namedtuple("Span", "speaker start end")  # has .start/.end, no .label
     assert as_turn(Span("b", 1.0, 2.0)) == ("b", 1.0, 2.0)
+    assert as_turn(["c", 2.0, 3.0]) == ("c", 2.0, 3.0)  # JSON diarization output
     with pytest.raises(ValueError, match="no label"):
         as_turn(Segment(0.0, 1.0))
 
