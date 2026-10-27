@@ -24,7 +24,12 @@ from mixing.video.video_concat import (
     trim_and_crossfade,
     trim_first_frame_from_subsequent_clips,
 )
-from mixing.video.thumbnail import make_thumbnail, THUMBNAIL_SIZE, YOUTUBE_THUMB_SIZE
+from mixing.video.thumbnail import (
+    grab_frame,
+    make_thumbnail,
+    THUMBNAIL_SIZE,
+    YOUTUBE_THUMB_SIZE,
+)
 from mixing.video.gif import make_gif
 from mixing.video.video_ops import (
     Video,
@@ -48,7 +53,15 @@ from mixing.video.video_util import (
     normalize_video_dimensions,
 )
 
-from mixing.video.shot_boundaries import shots, contact_sheet, adaptive_threshold
+from mixing.video.shot_boundaries import (
+    SHOT_STRATEGIES,
+    shots,
+    contact_sheet,
+    adaptive_threshold,
+    frame_changes,
+    spans_from_changes,
+    merge_short_spans,
+)
 from mixing.video.cutaways import (
     Cutaway,
     MediaInfo,

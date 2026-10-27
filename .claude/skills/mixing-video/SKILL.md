@@ -196,6 +196,21 @@ make_thumbnail(
 — all keyword-only after `video`. `text` is overlaid bottom-left on a dark
 gradient band. Default `output=None` writes `<stem>.thumb.jpg` beside the video.
 
+## Shots (cuts in a finished video)
+
+```python
+from mixing.video import shots, contact_sheet, grab_frame
+
+spans = shots("talk.mp4")  # [(start, end), ...] seconds, tiling the video
+spans = shots("talk.mp4", fps=5, min_shot_s=0.5)  # finer cuts; merge dissolve fragments
+spans = shots("talk.mp4", strategy="pyscenedetect")  # frame-accurate (pip install scenedetect)
+contact_sheet("talk.mp4", spans, output="sheet.png")  # mid-shot thumbnails, start-end labels
+grab_frame("talk.mp4", 12.5, width=320)  # one frame as a PIL image
+```
+
+- `strategy`: `"diff"` (default: 2 fps grayscale frame differences streamed from ffmpeg, adaptive threshold, cuts accurate to `1/fps`), `"pyscenedetect"`, or any `(video, **kwargs) -> spans` callable. Strategy options go as keywords (`fps`, `threshold`, `sampler` for `"diff"`).
+- `min_shot_s` merges shorter spans into a neighbour (`merge_short_spans`); without it a dissolve reads as a short fake shot.
+
 ## Subtitles
 
 ```python
