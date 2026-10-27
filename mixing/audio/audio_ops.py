@@ -209,13 +209,15 @@ class Audio:
 
     @property
     def full_duration(self) -> float:
-        """Duration of the source audio in seconds."""
-        return len(self._audio) / 1000.0
+        """Duration of the source audio in seconds, exact to the frame (not
+        pydub's ``len``, which rounds to a millisecond)."""
+        return self._audio.frame_count() / self._audio.frame_rate
 
     @property
     def duration(self) -> float:
-        """Duration of this audio/segment in seconds."""
-        return self.end_time - self.start_time
+        """Duration of this audio/segment in seconds: its frame count over the
+        rate, so a turn or slice ending at ``duration`` ends at the last frame."""
+        return self.sample_count / self.sample_rate
 
     @property
     def sample_rate(self) -> int:
@@ -229,8 +231,21 @@ class Audio:
 
     @property
     def sample_count(self) -> int:
-        """Total number of samples in this segment."""
-        return int(self.duration * self.sample_rate)
+        """Number of frames (samples per channel) in this segment."""
+        start, end = self._frame_bounds()
+        return end - start
+
+    def _frame_bounds(self) -> tuple[int, int]:
+        """``(start, end)`` frame indices of this segment: each bound is the
+        nearest frame to its time, clamped to the source; an open end is the
+        last frame."""
+        n = int(self._audio.frame_count())
+
+        def frame(seconds: float) -> int:
+            return min(n, max(0, round(seconds * self._audio.frame_rate)))
+
+        end = n if self._end_time is None else frame(self._end_time)
+        return frame(self.start_time), end
 
     def _normalize_index(self, idx: int | float | None, is_start: bool) -> float:
         """Convert slice index to seconds, handling None and negative indices."""
@@ -295,13 +310,15 @@ class Audio:
             else:
                 time_seconds = self.start_time + idx_seconds
 
-            time_seconds = max(self.start_time, min(time_seconds, self.end_time))
-            sample_duration = 1.0 / self.sample_rate
+            # the frame at that time, kept inside this segment
+            first, last = self._frame_bounds()
+            frame = round(time_seconds * self.sample_rate)
+            frame = max(first, min(frame, last - 1))
             return Audio(
                 self._audio,
                 time_unit=self.time_unit,
-                start_time=time_seconds,
-                end_time=time_seconds + sample_duration,
+                start_time=frame / self.sample_rate,
+                end_time=(frame + 1) / self.sample_rate,
             )
         else:
             raise TypeError(
@@ -309,21 +326,9 @@ class Audio:
             )
 
     def _get_segment(self) -> "AudioSegment":
-        """Get the AudioSegment for this time range.
-
-        Bounds are whole milliseconds, as pydub slices, but the result never
-        runs past the last frame, and an open end runs exactly to it:
-        ``full_duration`` is rounded to a millisecond, so slicing to it padded
-        up to 2 ms of silence (rounded up) or dropped the last frames (rounded
-        down).
-        """
-        segment = self._audio
-
-        def frame(seconds: float) -> int:
-            return int(segment.frame_count(ms=int(seconds * 1000)))
-
-        end = None if self._end_time is None else frame(self._end_time)
-        return segment.get_sample_slice(frame(self.start_time), end)
+        """Get the AudioSegment for this time range, exact to the frame (see
+        ``_frame_bounds``; never padded, never past the last frame)."""
+        return self._audio.get_sample_slice(*self._frame_bounds())
 
     def save(
         self,
@@ -562,8 +567,7 @@ class Audio:
     @property
     def samples(self) -> AudioSamples:
         """Get sample-by-sample Mapping interface for this audio."""
-        start_sample = int(self.start_time * self.sample_rate)
-        end_sample = int(self.end_time * self.sample_rate)
+        start_sample, end_sample = self._frame_bounds()
         return AudioSamples(
             self._audio, start_sample=start_sample, end_sample=end_sample
         )

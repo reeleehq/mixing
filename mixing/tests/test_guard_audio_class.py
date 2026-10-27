@@ -50,8 +50,9 @@ def test_basic_properties_on_full_audio(tone_audio):
     assert audio.channels == 1
     assert audio.start_time == 0.0
     assert abs(audio.end_time - 1.0) < DUR_TOL
-    # sample_count is derived: int(duration * sample_rate)
-    assert audio.sample_count == int(audio.duration * audio.sample_rate)
+    # duration and sample_count agree exactly: duration is the frame count over
+    # the rate (#96; it was end_time - start_time in rounded milliseconds)
+    assert audio.duration == audio.sample_count / audio.sample_rate
     assert abs(audio.sample_count - 44100) < 44100 * DUR_TOL
 
 

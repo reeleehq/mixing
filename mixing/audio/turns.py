@@ -119,8 +119,7 @@ def process_turns(
     fs, width = segment.frame_rate, segment.frame_width
     raw = segment.raw_data
     n_frames = len(raw) // width
-    # audio.duration is rounded to a millisecond (up or down): a turn may end there
-    ordered = check_turns(turns, max(n_frames / fs, audio.duration))
+    ordered = check_turns(turns, n_frames / fs)
     pad_n = max(0, int(round(pad_s * fs)))
 
     pieces: list[bytes] = []
