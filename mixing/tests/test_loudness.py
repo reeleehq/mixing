@@ -186,6 +186,8 @@ def test_mixed_channel_counts_are_downmixed_and_measured():
 TP_FS = 48000
 TP_UP = 4  # the meter's factor at 48 kHz
 TP_EDGE = 300  # samples kept out of interior-only comparisons
+#: The near-ideal reference: a windowed sinc ~100x longer than the meter's.
+REF_HALF_SAMPLES, REF_KAISER_BETA = 3000, 14.0
 
 
 def _db(x):
@@ -193,34 +195,40 @@ def _db(x):
 
 
 def _sinc_envelope(x, up=TP_UP):
-    """``|y|`` on the ``up``-times grid of the ideal (infinite sinc) reconstruction
-    of ``x``, taken as zero outside its span."""
-    n = np.arange(len(x))
-    t = np.arange(len(x) * up) / up
-    return np.abs(
-        np.concatenate([np.sinc(c[:, None] - n) @ x for c in np.array_split(t, 8)])
-    )
+    """``|y|`` on the ``up``-times grid of a near-ideal sinc reconstruction of
+    ``x`` (taken as zero outside its span)."""
+    from scipy.signal import resample_poly
+    from scipy.signal.windows import kaiser
+
+    n = np.arange(-REF_HALF_SAMPLES * up, REF_HALF_SAMPLES * up + 1)
+    taps = np.sinc(n / up) * kaiser(len(n), REF_KAISER_BETA) / up
+    return np.abs(resample_poly(x, up, 1, window=taps))
+
+
+def _band_limited_noise(n, cutoff, rng):
+    """White noise with nothing above ``cutoff`` (a fraction of fs), peak 1."""
+    spectrum = np.fft.rfft(rng.standard_normal(n))
+    spectrum[np.fft.rfftfreq(n) > cutoff] = 0
+    x = np.fft.irfft(spectrum, n)
+    return x / np.abs(x).max()
 
 
 def _interior_peak_db(x):
-    """The meter and the ideal reconstruction, away from the edges: dB, dB."""
+    """The meter and the reference, away from the edges: dB, dB."""
     inner = slice(TP_EDGE, -TP_EDGE)
     meter = true_peak_envelope(x, TP_FS)[inner].max()
     ideal = _sinc_envelope(x)[TP_EDGE * TP_UP : -TP_EDGE * TP_UP].max()
     return _db(meter), _db(ideal)
 
 
-def test_true_peak_reads_full_band_noise_as_an_ideal_sinc_would():
-    # white noise band-limited at 0.45 fs (an ADC's anti-alias edge): the old
-    # filter (scipy's default) under-read this by ~0.03 dB, at 0.47 fs by ~2 dB
+def test_true_peak_reads_bright_noise_as_an_ideal_sinc_would():
+    # white noise band-limited at 0.45 and 0.47 fs (an ADC's anti-alias edge):
+    # the old filter (scipy's default) under-read these by up to 0.1 / 0.2 dB
     rng = np.random.default_rng(2)
-    for _ in range(3):
-        spectrum = np.fft.rfft(rng.standard_normal(4000))
-        spectrum[np.fft.rfftfreq(4000) > 0.45] = 0
-        x = np.fft.irfft(spectrum, 4000)
-        x /= np.abs(x).max()
-        meter, ideal = _interior_peak_db(x)
-        assert meter == pytest.approx(ideal, abs=0.005)
+    for cutoff, tolerance in ((0.45, 0.005), (0.47, 0.02)):
+        for _ in range(3):
+            meter, ideal = _interior_peak_db(_band_limited_noise(4000, cutoff, rng))
+            assert meter == pytest.approx(ideal, abs=tolerance)
 
 
 def test_true_peak_of_a_near_nyquist_sine():
@@ -246,8 +254,21 @@ def test_true_peak_does_not_loop_the_signal_at_its_edges():
     assert true_peak_db(x, TP_FS) < -0.5
 
 
-def test_true_peak_never_reads_below_the_sample_peak():
+def test_true_peak_passes_the_samples_unchanged():
+    # an impulse's reconstruction peaks at the sample itself; the old filter's
+    # centre tap read it 0.0055 dB high
+    x = np.zeros(1000)
+    x[500] = 0.5
+    assert true_peak_envelope(x, TP_FS).max() == 0.5
     rng = np.random.default_rng(7)
-    x = np.clip(rng.standard_normal((TP_FS, 2)), -1, 1)
-    envelope = true_peak_envelope(x, TP_FS)
-    assert (envelope >= np.abs(x).max(axis=1) - 1e-12).all()
+    noise = np.clip(rng.standard_normal((TP_FS, 2)), -1, 1)
+    assert (true_peak_envelope(noise, TP_FS) >= np.abs(noise).max(axis=1)).all()
+
+
+def test_true_peak_limiter_holds_the_ceiling_by_an_independent_meter():
+    # limited by its own meter, re-measured by the reference: the old filter
+    # let bright material through at -0.92 dBTP for a -1 dBTP ceiling
+    x = _band_limited_noise(TP_FS, 0.45, np.random.default_rng(4))[:, None]
+    out = limit_peaks(x, ceiling=10 ** (-1.0 / 20), true_peak=True, fs=TP_FS)
+    inner = slice(TP_EDGE * TP_UP, -TP_EDGE * TP_UP)
+    assert _db(_sinc_envelope(out[:, 0])[inner].max()) <= -1.0 + 0.01
