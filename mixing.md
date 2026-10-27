@@ -1,4 +1,4 @@
-> built 2026-10-27 19:29 UTC from 2a50648 (main) · mixing 0.0.83. Details: build_info.json
+> built 2026-10-27 21:02 UTC from 46db70a (main) · mixing 0.0.84. Details: build_info.json
 
 # index.html.md
 
@@ -133,7 +133,7 @@ logging.basicConfig(level=logging.INFO)  # or level=logging.ERROR for errors onl
 
 ```bash
 pip install mixing[media]      # moviepy / opencv / scipy / pydub: mixing.audio + mixing.video
-pip install mixing[audio]      # ffmpeg-python / soundfile (on top of media)
+pip install mixing[audio]      # an alias: media + soundfile (kept for existing installs)
 pip install mixing[widget]     # interactive Jupyter audio widget
 pip install mixing[gen]        # Google Vertex AI Veo generation
 pip install mixing[llm]        # aix — chapter titling + SRT translation
@@ -2833,7 +2833,7 @@ General utilities for mixing video, audio, etc.
 | [`require_package`](_autosummary/mixing.util.html.md#mixing.util.require_package)(package_name, \*[, extra])   | Import a package, raising an informative error if not installed.                                                                                                                          |
 | [`to_seconds`](_autosummary/mixing.util.html.md#mixing.util.to_seconds)(value, \*, unit, rate)            | Convert time value to seconds based on unit.                                                                                                                                              |
 
-### mixing.util.EXTRAS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]]* *= {'audio': ('pydub', 'ffmpeg', 'soundfile'), 'beats': ('librosa',), 'clipboard': ('pyclip',), 'demucs': ('demucs',), 'gen': ('google.genai',), 'llm': ('aix',), 'loudness': ('numpy', 'scipy'), 'media': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'), 'ml': ('torch', 'transformers'), 'separation': ('torch', 'torchaudio', 'huggingface_hub', 'librosa', 'soundfile', 'einops', 'rotary_embedding_torch', 'yamlargparse', 'tqdm', 'torchinfo', 'joblib'), 'widget': ('ipywidgets', 'soundfile', 'IPython')}*
+### mixing.util.EXTRAS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]]* *= {'audio': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks', 'soundfile'), 'beats': ('librosa',), 'clipboard': ('pyclip',), 'demucs': ('demucs',), 'gen': ('google.genai',), 'llm': ('aix',), 'loudness': ('numpy', 'scipy'), 'media': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'), 'ml': ('torch', 'transformers'), 'separation': ('torch', 'torchaudio', 'huggingface_hub', 'librosa', 'soundfile', 'einops', 'rotary_embedding_torch', 'yamlargparse', 'tqdm', 'torchinfo', 'joblib'), 'widget': ('ipywidgets', 'soundfile', 'IPython')}*
 
 `{extra: import names it supplies}`,
 each declared by the same-named extra in `pyproject.toml` (a test holds the
@@ -3027,18 +3027,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-27 19:29 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/2a506481e2255e1c5fbee89af627bb312f7cf10e"><code>2a50648</code></a> on branch <code>main</code>, for **mixing 0.0.83** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-27 21:02 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/46db70ace9ed2390a4bb316aa038b799893b7182"><code>46db70a</code></a> on branch <code>main</code>, for **mixing 0.0.84** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.84) is ahead of the latest release on PyPI (0.0.83): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/2a506481e2255e1c5fbee89af627bb312f7cf10e"><code>2a506481e2255e1c5fbee89af627bb312f7cf10e</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/46db70ace9ed2390a4bb316aa038b799893b7182"><code>46db70ace9ed2390a4bb316aa038b799893b7182</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.83</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.84</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3047,9 +3049,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40558179948">40558179948</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40580369447">40580369447</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>0212d70978a19ac4a85862a195cf1faebf79810d</code> (in the history of the built commit) |
+| Event commit | <code>467e5f7b2892e06ecc220b499169552f9b30d056</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3074,13 +3076,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.83/">0.0.83</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.83/">0.0.83</a>, older than the documented version (0.0.84).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 2a506481e2255e1c5fbee89af627bb312f7cf10e
+git checkout 46db70ace9ed2390a4bb316aa038b799893b7182
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
