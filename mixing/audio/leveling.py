@@ -61,9 +61,9 @@ DEFAULT_DENOISE = "afftdn=nr=10:nf=-50"
 DEFAULT_DENOISE_ABOVE_DBFS = -58.0
 DEFAULT_FADE_S = 0.02
 DEFAULT_CEILING_DB = -1.5
-#: Accepted ``ceiling_db`` range (dBTP): the range of the ffmpeg ``alimiter``
-#: the limiter stage used before, kept so calls validate as they did.
-CEILING_DB_RANGE = (-24.0, 0.0)
+#: Accepted ``ceiling_db`` range (dBTP, lower bound excluded): any level up to
+#: full scale.
+CEILING_DB_RANGE = (-float("inf"), 0.0)
 NOISE_FRAME_S = 0.05
 NOISE_PERCENTILE = 10
 
@@ -289,8 +289,8 @@ def _chain(stages: Sequence[FloatStage | None]) -> FloatStage:
 
 def _check_ceiling(ceiling_db: float | None) -> None:
     lo, hi = CEILING_DB_RANGE
-    if ceiling_db is not None and not lo <= ceiling_db <= hi:
-        raise ValueError(f"ceiling_db must be in [{lo}, {hi}] dBTP, got {ceiling_db}")
+    if ceiling_db is not None and not lo < ceiling_db <= hi:
+        raise ValueError(f"ceiling_db must be in ({lo}, {hi}] dBTP, got {ceiling_db}")
 
 
 def level_turns(

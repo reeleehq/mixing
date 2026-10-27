@@ -447,7 +447,7 @@ def test_24bit_wav_through_level_turns(tmp_path):
 # --- validation and warnings ----------------------------------------------------
 
 
-@pytest.mark.parametrize("ceiling_db", [0.5, -30.0])
+@pytest.mark.parametrize("ceiling_db", [0.5, float("nan"), float("-inf")])
 def test_ceiling_db_out_of_range_raises(ceiling_db):
     audio, turns = _three_speakers()
     with pytest.raises(ValueError, match="ceiling_db"):
@@ -548,8 +548,35 @@ def test_audio_is_not_padded_to_a_whole_millisecond():
     )
     audio = Audio(seg)
     assert audio._get_segment().frame_count() == n
-    assert audio[0 : audio.duration]._get_segment().frame_count() == n
     assert audio[1.0:]._get_segment().frame_count() == n - RATE
+    assert audio[1.0:]._get_segment().frame_count() == n - RATE
+
+
+def test_audio_keeps_its_last_frames_when_the_duration_rounds_down():
+    # 132322 frames is 3000.5 ms, which pydub rounds to 3000: the whole audio
+    # (open end) dropped its last 22 frames. An explicit end at the rounded
+    # duration still stops at 3.000 s (durations exact to the frame: #96).
+    n = 132322
+    seg = AudioSegment(
+        np.zeros(n, dtype="<i2").tobytes(), frame_rate=RATE, sample_width=2, channels=1
+    )
+    audio = Audio(seg)
+    assert audio._get_segment().frame_count() == n
+    assert audio[1.0:]._get_segment().frame_count() == n - RATE
+
+
+def test_namedtuple_turns_stay_tuples_and_unlabelled_segments_raise():
+    from collections import namedtuple
+
+    from mixing.audio.segmentation import Segment
+    from mixing.audio.turns import as_turn
+
+    T = namedtuple("T", "who start end")
+    assert as_turn(T("a", 0.0, 1.0)) == ("a", 0.0, 1.0)
+    Span = namedtuple("Span", "speaker start end")  # has .start/.end, no .label
+    assert as_turn(Span("b", 1.0, 2.0)) == ("b", 1.0, 2.0)
+    with pytest.raises(ValueError, match="no label"):
+        as_turn(Segment(0.0, 1.0))
 
 
 def test_turns_may_be_segments_labelled_by_speaker():

@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from typing import Union
 from ..util import require_package
+from ._pcm import segment_samples
 
 
 AudioSource = Union[str, Path, np.ndarray, "AudioSegment"]
@@ -41,8 +42,6 @@ def _normalize_audio_source(source: AudioSource, *, target_type: str = "AudioSeg
         else:
             raise TypeError(f"Unsupported audio source type: {type(source).__name__}")
     elif target_type == "ndarray":
-        from .samples import segment_samples
-
         if isinstance(source, np.ndarray):
             return source
         elif isinstance(source, (str, Path)):

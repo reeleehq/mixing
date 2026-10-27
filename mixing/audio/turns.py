@@ -49,11 +49,13 @@ TURN_BOUND_TOLERANCE_S = 1e-6
 
 def as_turn(turn: TurnLike) -> Turn:
     """``turn`` as a ``(speaker, start_s, end_s)`` tuple; a ``Segment``'s
-    ``label`` is the speaker."""
-    if hasattr(turn, "start") and hasattr(turn, "end"):
-        return (turn.label, turn.start, turn.end)
-    speaker, start, end = turn
-    return (speaker, start, end)
+    ``label`` is the speaker (an unlabelled one is a ``ValueError``)."""
+    if isinstance(turn, tuple):  # namedtuples too, whatever their fields
+        speaker, start, end = turn
+        return (speaker, start, end)
+    if turn.label is None:
+        raise ValueError(f"turn {turn!r} has no label to use as its speaker")
+    return (turn.label, turn.start, turn.end)
 
 
 def check_turns(
@@ -117,7 +119,7 @@ def process_turns(
     fs, width = segment.frame_rate, segment.frame_width
     raw = segment.raw_data
     n_frames = len(raw) // width
-    # audio.duration rounds up to a millisecond: a turn may end there
+    # audio.duration is rounded to a millisecond (up or down): a turn may end there
     ordered = check_turns(turns, max(n_frames / fs, audio.duration))
     pad_n = max(0, int(round(pad_s * fs)))
 

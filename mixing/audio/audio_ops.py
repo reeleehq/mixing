@@ -48,6 +48,7 @@ import tempfile
 import numpy as np
 
 from ..util import require_package, AudioTimeUnit, to_seconds, get_path_from_clipboard
+from ._pcm import resample, segment_samples
 from .audio_util import AudioSource, _normalize_audio_source
 from ..egress import Output, deliver, is_sink, resolve_output_path
 from ..errors import WindowTooWideForClip
@@ -93,8 +94,6 @@ class AudioSamples(Mapping[int, float]):
         else:
             self.audio_src = None
             self._audio = audio_src
-
-        from .samples import segment_samples
 
         # Float samples in [-1, 1]: (n,) for mono, (n, channels) otherwise
         samples = segment_samples(self._audio, dtype=np.float32)
@@ -278,12 +277,14 @@ class Audio:
                     f"Invalid time range: start ({start}s) must be before end ({end}s)"
                 )
 
-            # Return new Audio instance
+            # An open end stays open (to the last frame, not the ms-rounded
+            # duration)
+            open_end = key.stop is None and self._end_time is None
             return Audio(
                 self._audio,
                 time_unit=self.time_unit,
                 start_time=start,
-                end_time=end,
+                end_time=None if open_end else end,
             )
 
         elif isinstance(key, (int, float)):
@@ -311,9 +312,10 @@ class Audio:
         """Get the AudioSegment for this time range.
 
         Bounds are whole milliseconds, as pydub slices, but the result never
-        runs past the last frame: ``full_duration`` rounds up to a millisecond,
-        and pydub pads a slice that overshoots with up to 2 ms of silence. An
-        open end runs to the last frame.
+        runs past the last frame, and an open end runs exactly to it:
+        ``full_duration`` is rounded to a millisecond, so slicing to it padded
+        up to 2 ms of silence (rounded up) or dropped the last frames (rounded
+        down).
         """
         segment = self._audio
 
@@ -908,8 +910,6 @@ def _frame_rms_db(segment: "AudioSegment", *, frame_n: int) -> np.ndarray:
     frame is zero-padded, which only ever *lowers* its level — a partial frame
     can't fake activity.
     """
-    from .samples import segment_samples
-
     samples = segment_samples(segment).mean(axis=1)
 
     n_frames = max(1, int(np.ceil(len(samples) / frame_n)))
@@ -1213,10 +1213,7 @@ def _load_mono_samples(source: AudioSource, sample_rate: int) -> np.ndarray:
     depend on the decode path rather than the signal (issue #25).
     """
     seg = _normalize_audio_source(source, target_type="AudioSegment")
-    seg = seg.set_channels(1)
-    from .samples import resample
-
-    samples = np.array(seg.get_array_of_samples(), dtype=np.float64)
+    samples = segment_samples(seg).mean(axis=1)
     return resample(samples, seg.frame_rate, sample_rate)
 
 
