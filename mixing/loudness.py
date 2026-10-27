@@ -88,6 +88,10 @@ MIN_MEASURE_S = 1.0
 #: and back out over this much on each side, so nothing below ~20 Hz is
 #: modulated within a cycle.
 DEFAULT_LIMITER_WINDOW_S = 0.05
+#: Frames the limiter works on at a time (~5.5 s at 48 kHz). Memory is the
+#: output plus a fixed per-chunk overhead (tens of MB; more for a true peak,
+#: whose envelope oversamples the chunk), however long the signal.
+LIMITER_CHUNK_FRAMES = 1 << 18
 _EBUR128_I = re.compile(r"I:\s*(-?\d+(?:\.\d+)?|-inf)\s*LUFS")
 _FFMPEG_FLOAT = "f32le"
 
@@ -422,7 +426,10 @@ def limit_peaks(
     a peak. Every sample's gain is at most what that sample needs, so the
     ceiling holds exactly; nothing moves in time. ``window`` is in samples;
     by default ``DEFAULT_LIMITER_WINDOW_S`` * ``fs`` when ``fs`` is given, else 1.
-    Returned unchanged (the same object) when nothing exceeds the ceiling.
+    Returned unchanged (the same object, for 2-D input) when nothing exceeds
+    the ceiling.
+    Works in ``LIMITER_CHUNK_FRAMES`` chunks sharing the context each gain
+    depends on, so the result is the whole-signal one at a bounded memory.
 
     With ``true_peak=True`` (needs ``fs``) the need comes from the oversampled
     peak (see :func:`true_peak_envelope`) of each sample and the gap before it,
@@ -446,26 +453,57 @@ def limit_peaks(
     """
     if not 0 < ceiling <= 1:
         raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
-    data = _as_2d(data)
-    if not len(data):
-        return data
-    if window is None:
-        window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
     if oversampling is not None and not true_peak:
         raise ValueError("oversampling applies to true_peak=True only")
+    if true_peak and fs is None:
+        raise ValueError("true_peak=True needs fs")
+    data = _as_2d(data)
+    if window is None:
+        window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
+    w = max(1, int(window))
+    # a gain sees the need up to ~1.5w samples away on each side (sliding
+    # minimum, then moving average); a true peak, the interpolation filter's
+    # length of samples and the one before
+    margin = 2 * w + 1 + (TRUE_PEAK_FILTER_HALF_SAMPLES + 1 if true_peak else 0)
+    n, out = len(data), None
+    for start in range(0, n, LIMITER_CHUNK_FRAMES):
+        stop = min(n, start + LIMITER_CHUNK_FRAMES)
+        lo, hi = max(0, start - margin), min(n, stop + margin)
+        need = _peak_need(
+            data[lo:hi],
+            ceiling=ceiling,
+            true_peak=true_peak,
+            fs=fs,
+            oversampling=oversampling,
+        )
+        gain = _smoothed_gain(need, w)[start - lo : stop - lo]
+        if out is None:
+            if gain.min() >= 1.0:
+                continue  # untouched so far
+            out = data.astype(np.result_type(data.dtype, np.float64))
+        out[start:stop] = data[start:stop] * gain[:, None]
+    return data if out is None else out
+
+
+def _peak_need(
+    data: np.ndarray, *, ceiling: float, true_peak: bool, fs, oversampling
+) -> np.ndarray:
+    """The gain each sample needs, ``ceiling / peak`` at most 1 ``(n,)``: by its
+    sample peak, or by the true peak of it and the gap before it."""
     if true_peak:
-        if fs is None:
-            raise ValueError("true_peak=True needs fs")
         peak = true_peak_envelope(data, fs, oversampling=oversampling)
         peak = np.maximum(peak, np.concatenate([[0.0], peak[:-1]]))  # the gap before
     else:
         peak = np.abs(data).max(axis=1)
-    need = np.minimum(1.0, ceiling / np.maximum(peak, 1e-12))
+    return np.minimum(1.0, ceiling / np.maximum(peak, 1e-12))
+
+
+def _smoothed_gain(need: np.ndarray, w: int) -> np.ndarray:
+    """``need`` eased in and out over ``w`` samples (sliding minimum over
+    ``2w + 1``, then a moving average over ``w``), never above ``need``."""
     if need.min() >= 1.0:
-        return data
-    w = max(1, int(window))
+        return need
     lows = _sliding_min(np.pad(need, (w, w), constant_values=1.0), 2 * w + 1)
     padded = np.pad(lows, (w // 2, w - 1 - w // 2), mode="edge")
     gain = np.convolve(padded, np.ones(w) / w, mode="valid")
-    gain = np.minimum(gain, need)  # float rounding never lets a peak through
-    return data * gain[:, None]
+    return np.minimum(gain, need)  # float rounding never lets a peak through

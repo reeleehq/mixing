@@ -298,3 +298,36 @@ def test_oversampling_is_validated():
             true_peak_envelope(x, FS, oversampling=bad)
     with pytest.raises(ValueError, match="true_peak=True only"):
         limit_peaks(x, ceiling=0.5, oversampling=8)
+
+
+@pytest.mark.parametrize("window, chunk", [(4, FS // 3), (3000, 1000), (None, FS // 3)])
+def test_chunked_limiter_matches_the_whole_signal(monkeypatch, window, chunk):
+    # small windows make the true-peak part of the chunk margin the one that
+    # matters; a chunk shorter than the window makes the window part matter
+    import mixing.loudness as loudness
+
+    rng = np.random.default_rng(9)
+    data = rng.standard_normal((FS * 2, 2)) * 0.4
+    data[FS // 3 + 7] = 2.5  # a peak near a chunk join
+    for true_peak in (False, True):
+        kwargs = dict(ceiling=0.8, window=window, true_peak=true_peak, fs=FS)
+        whole = limit_peaks(data, **kwargs)
+        monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", chunk)
+        chunked = limit_peaks(data, **kwargs)
+        monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", 1 << 30)
+        np.testing.assert_allclose(chunked, whole, rtol=0, atol=1e-12)
+
+
+def test_limiter_memory_stays_near_the_output(monkeypatch):
+    import tracemalloc
+
+    import mixing.loudness as loudness
+
+    monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", FS)
+    data = np.random.default_rng(2).standard_normal((FS * 20, 2)) * 0.5
+    tracemalloc.start()
+    limit_peaks(data, ceiling=0.5, fs=FS)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    # the output (one input's worth) plus one chunk's temporaries; whole it was ~5x
+    assert peak < 2 * data.nbytes
