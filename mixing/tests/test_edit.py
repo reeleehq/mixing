@@ -919,6 +919,11 @@ def test_compressed_sound_starts_where_it_plays(media, codec, container):
     first decoded frame, so the flash and the click stay together for all."""
     import numpy as np
 
+    from mixing.probe import find_ffprobe
+
+    if find_ffprobe() is None:  # the banner fallback assumes 0 starts (documented)
+        pytest.skip("no ffprobe: the banner fallback cannot read stream starts")
+
     flash_s = FLASH_FRAME / FLASH_RATE
     picture = (
         f"color=black:s={W}x{H}:r={FLASH_RATE}:d=3,"
