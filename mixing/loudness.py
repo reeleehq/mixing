@@ -84,8 +84,8 @@ TRUE_PEAK_FILTER_KAISER_BETA = 8.0
 #: lower beta trading image rejection for a narrower transition at Nyquist.
 #: Passband within +-0.0025 dB to 0.497 fs; images ~57 dB down from 0.5005 fs,
 #: 71 dB from 0.503 fs. Against an exact sinc reconstruction, hard-clipped
-#: full-band noise reads ~0.01-0.03 dB low (the tail it truncates; the short
-#: filter: 0.3-1 dB low). It is a windowed sinc, not a brickwall FFT
+#: full-band noise reads within ~0.05 dB (the tail it truncates; the short
+#: filter: 0.2-1 dB low). It is a windowed sinc, not a brickwall FFT
 #: upsampler, because a finite filter keeps the chunk joins exact.
 TRUE_PEAK_LONG_HALF_SAMPLES = 2048
 TRUE_PEAK_LONG_KAISER_BETA = 5.0
@@ -464,9 +464,9 @@ def true_peak_envelope(
     FFT. ``"short"`` (default) is 32 samples a side (``TRUE_PEAK_FILTER_*``):
     content up to about 0.47 fs reads as an ideal sinc reconstruction would
     (on the same oversampled grid), content between there and Nyquist reads
-    low: ~0.35 dB for noise up to Nyquist, 0.3-1 dB for hard-clipped full-band
+    low: ~0.35 dB for noise up to Nyquist, 0.2-1 dB for hard-clipped full-band
     material. ``"long"`` is 2048 samples a side (``TRUE_PEAK_LONG_*``), flat to
-    0.497 fs: hard-clipped full-band material reads ~0.01-0.03 dB low, at about
+    0.497 fs: hard-clipped full-band material reads within ~0.05 dB, at about
     the cost of ``"short"``. The signal is taken as silent outside its span (as
     when played from silence), not looped. Chunked, with the filter's length of
     context shared between chunks, so the joins are exact.
@@ -623,10 +623,10 @@ def limit_peaks(
     at 8x, -0.99 at 16x, at roughly 1x / 2x / 4x the cost. Content between
     0.47 fs and Nyquist reads low whatever the factor with the default
     ``method="short"`` (see :func:`true_peak_envelope`): limited to -1 dBTP,
-    hard-clipped full-band material measures about -0.2 dBTP, so set the
+    hard-clipped full-band material measures -0.2 to -0.7 dBTP, so set the
     ceiling ~1 dB under the target. ``method="long"`` (with ``true_peak=True``
     only; the meter's interpolation) reads that content too, and holds the
-    -1 dBTP ceiling on clipped material to ~0.03 dB whatever the factor
+    -1 dBTP ceiling on clipped material to ~0.06 dB whatever the factor
     (clipped noise peaks midway between samples, on every even grid); on
     band-limited bright material the grid still matters as above.
     """
