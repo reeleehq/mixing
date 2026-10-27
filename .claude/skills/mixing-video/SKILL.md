@@ -4,7 +4,8 @@ description: >
   Use for VIDEO editing with the `mixing` Python package: trim/crop a clip,
   loop it, speed it up or down, replace or mix in a new audio track, normalize
   audio levels, pan/zoom a still image (Ken Burns), build a film from panels,
-  concatenate clips, grab/extract frames, make a YouTube-style thumbnail, burn
+  concatenate clips, re-edit a finished video from a sound edit list (punch-ins,
+  held stills with moves, dissolves, overlays, frame-exact), grab/extract frames, make a YouTube-style thumbnail, burn
   in subtitles, or resize for shorts/tiktok/square. Trigger on phrasings like
   "trim this video", "loop the intro", "speed up / slow down this clip",
   "replace the audio with this music", "lay room tone / ambience under the cut", "add a pan-zoom over this photo", "make a
@@ -179,6 +180,25 @@ plan = plan_cutaways(
     "talk.mp4", items
 )  # inspect first: plan.filter_complex, plan.command(out)
 ```
+
+## Re-edit a finished video — sound and picture edit lists (`mixing.edit`)
+
+`mixing.edit.render(segments, clips, *, source, overlays=(), fps=None, output=None, ...)` re-cuts a finished talking-head video, frame-exact. Two edit lists of the same length: the **sound** (`Span(src_in, src_out, clip)` source seconds, `Gap(duration, clip)` silence) and the **picture** each segment names by clip id (`Cam(zoom=1.0, cx=0.5, cy=0.5, dissolve_in=0.0)` the source, optionally punched in; `Still(image, path="hold", zoom=None, fit="fit", content_box=None, on_aspect_mismatch="raise", dissolve_in=0.0)` a held still with a slow move: `path` is a `burns` move name such as `"push_in"`/`"drift_left"`, a `BurnsPath` or its dict, resolved by `burns.resolve_move`; a still of another aspect is pillar/letterboxed (`fit="fit"`) unless you ask for `fit="fill"`; windows are slid inside `content_box`). Consecutive segments with the same clip id are ONE picture clip, so a still keeps its move across a sound cut (remove a pause invisibly) and a punch-in hides a jump cut. A `Gap` under a `Cam` holds the neighbouring frame (previous span's last frame; the next span's first when the gap opens the clip). `dissolve_in=D` renders the clip D/2 early and the outgoing one D/2 late (`xfade`), so the length is unchanged. `Overlay(image, start, end, x=0, y=0, fade=0.0)` composites a PNG/PIL image (e.g. a `tituli` render) in the final pass; `closing_fade=` fades picture and sound out. Stdlib-only import, ffmpeg subprocesses; stills need `burns` (extra `media`) unless you pass your own `still_renderer`.
+
+```python
+from mixing.edit import Span, Gap, Cam, Still, Overlay, render, timeline
+
+segments = [Span(0.0, 4.2, "a"), Span(5.1, 9.0, "b"), Gap(1.5, "card"), Span(9.0, 12.0, "a")]
+clips = {"a": Cam(), "b": Cam(zoom=1.3, cx=0.4), "card": Still("card.png", dissolve_in=0.5)}
+render(segments, clips, source="talk.mp4", overlays=[Overlay("lower_third.png", 1.0, 5.0, fade=0.3)])
+# -> talk_edit.mp4 beside the source. Inspect the arithmetic first (pure, no ffmpeg):
+plan = timeline(segments, clips, fps="30000/1001", sample_rate=48000)
+plan.frame_bounds, plan.sample_bounds, plan.picture
+```
+
+The timeline runs at the source's exact rate (a `Fraction`; `fps=` overrides); every sound boundary is `round(frame * sr / fps)` of the same frame boundary, so sound and picture never drift. Contiguous source spans play as one run; other sound joins get a 6 ms fade (`JOIN_FADE_S`). Memory is bounded: one small ffmpeg run per piece (lossless intermediates in a temp dir, so budget disk), at most two decoders per run, joined by the concat demuxer.
+
+Source assumptions (refused or warned otherwise): a video AND a sound stream, even width/height; frame-exact identity needs a constant frame rate (a VFR source is resampled to its nominal rate by time, with a warning); a span past the source's end is refused; a sound stream starting late/early is re-synced; display rotation is honoured; overlays past the film's end are clipped (starting after it: refused). Without `ffprobe`, the rate comes from ffmpeg's banner and both streams are assumed to start together.
 
 ## Thumbnails
 
