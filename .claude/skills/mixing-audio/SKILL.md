@@ -526,7 +526,9 @@ shift_pitch(
       def track(y, fs):
           pitch = denote.get_pitch(y, sr=fs, **kwargs)
           return pitch.frequencies, pitch.confidence >= threshold
+
       return track
+
 
   voice_profile("talk.wav", turns, f0_tracker=denote_tracker(backend="torchcrepe"))
   ```
