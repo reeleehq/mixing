@@ -203,8 +203,12 @@ from mixing.video import shots, contact_sheet, grab_frame
 
 spans = shots("talk.mp4")  # [(start, end), ...] seconds, tiling the video
 spans = shots("talk.mp4", fps=5, min_shot_s=0.5)  # finer cuts; merge dissolve fragments
-spans = shots("talk.mp4", strategy="pyscenedetect")  # frame-accurate (pip install scenedetect)
-contact_sheet("talk.mp4", spans, output="sheet.png")  # mid-shot thumbnails, start-end labels
+spans = shots(
+    "talk.mp4", strategy="pyscenedetect"
+)  # frame-accurate (pip install scenedetect)
+contact_sheet(
+    "talk.mp4", spans, output="sheet.png"
+)  # mid-shot thumbnails, start-end labels
 grab_frame("talk.mp4", 12.5, width=320)  # one frame as a PIL image
 ```
 
