@@ -107,7 +107,16 @@ from dataclasses import dataclass
 from fractions import Fraction
 from itertools import count, groupby
 from pathlib import Path
-from typing import Any, Callable, Hashable, Iterable, Mapping, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Hashable,
+    Iterable,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Union,
+)
 
 from mixing.egress import Output, PathLike, write_egress
 from mixing.util import ffmpeg_exe, require_media_extra
@@ -119,16 +128,12 @@ __all__ = [
     "Still",
     "Overlay",
     "SourceInfo",
-    "SoundPiece",
-    "PicturePiece",
-    "PictureClip",
     "Timeline",
     "as_rate",
     "punch_in_box",
     "timeline",
     "probe_source",
     "burns_still_renderer",
-    "slide_into",
     "render",
     "JOIN_FADE_S",
     "DEFAULT_ENCODE_ARGS",
@@ -169,18 +174,22 @@ STILL_BACKEND = "ffmpeg"
 DEFAULT_STILL_MOVE = "hold"
 #: The zoom of a ``"hold"`` when ``Still.zoom`` is not given: the untouched frame.
 HOLD_ZOOM = 1.0
-#: How a still whose aspect differs from the frame's is fitted: ``"pad"`` letter-
-#: or pillarboxes it (the whole picture is shown; the padding becomes the
-#: content box), ``"fill"`` lets ``burns`` cover-crop it.
-STILL_FITS = ("pad", "fill")
-DEFAULT_STILL_FIT = "pad"
-#: Colour of the padding a ``"pad"`` fit adds.
+#: How a still whose aspect differs from the frame's is placed, in the
+#: ``looks.geometry.FitMode`` vocabulary: ``"fit"`` letter- or pillarboxes it
+#: (the whole picture is shown; the bars are outside the content box),
+#: ``"fill"`` lets ``burns`` cover-crop it.
+STILL_FITS = ("fit", "fill")
+DEFAULT_STILL_FIT = "fit"
+#: Colour of the bars a ``"fit"`` adds, and under a transparent still.
 PAD_COLOR = (0, 0, 0)
 #: Relative difference under which two aspect ratios are the same shape.
 ASPECT_TOLERANCE = 1e-3
 #: Relative disagreement between a stream's ``r_frame_rate`` and its
 #: ``avg_frame_rate`` above which the source is taken to be variable-rate.
 VFR_TOLERANCE = 0.01
+#: Frames by which a stream's packet count may differ from its duration times
+#: its rate before it is taken to be variable-rate (container rounding).
+VFR_FRAME_SLACK = 2
 #: Default closing fade (s) of picture and sound; 0 means none.
 DEFAULT_CLOSING_FADE_S = 0.0
 #: Suffix of the default output name, beside the source.
@@ -267,13 +276,14 @@ class Still:
     :data:`HOLD_ZOOM` for a hold, ``burns``' default otherwise).
 
     ``fit`` decides what happens when the image's aspect is not the frame's:
-    ``"pad"`` (default) letter- or pillarboxes it, so the whole picture is
+    ``"fit"`` (default) letter- or pillarboxes it, so the whole picture is
     held and never silently cover-cropped; ``"fill"`` lets ``burns`` crop it to
     cover the frame. ``content_box`` (normalized ``(x, y, w, h)`` of the image)
     is the part that is picture, e.g. inside a pillarboxed card: every window
     of the move is slid inside it (centred on it where the window is larger),
-    so a zoomed move never shows the bars. Padding added by ``fit="pad"`` is
-    outside the content box automatically. ``on_aspect_mismatch`` is passed to
+    so a zoomed move never shows the bars. Bars added by ``fit="fit"`` are
+    outside the content box automatically. A transparent still is flattened
+    onto :data:`PAD_COLOR`, its alpha honoured. ``on_aspect_mismatch`` is passed to
     ``burns.resolve_move`` for an explicit path authored at another aspect
     (``"raise"``, default, or ``"refit"``).
 
@@ -447,12 +457,6 @@ def _sample_at(frame: int, fps: Fraction, sample_rate: int) -> int:
     return round(frame * Fraction(sample_rate) / fps)
 
 
-def _checked_segment(segment) -> Segment:
-    if not isinstance(segment, (Span, Gap)):
-        raise TypeError(f"a segment is a Span or a Gap, got {segment!r}")
-    return segment
-
-
 def _segment_frames(segments, fps, source_frames) -> list[tuple[Optional[int], int]]:
     """Per segment: (first source frame or None for a gap, output frame count).
 
@@ -478,18 +482,16 @@ def _segment_frames(segments, fps, source_frames) -> list[tuple[Optional[int], i
     return out
 
 
-def _sound_pieces(
-    segments, frames, frame_bounds, sample_bounds, *, fps, sample_rate, join_fade
-):
+def _sound_pieces(frames, sample_bounds, *, fps, sample_rate, join_fade):
     """The sound plan: continuous source runs, silences, fades at real joins."""
-    last = len(segments) - 1
+    last = len(frames) - 1
     # contiguous[k]: segment k flows on, in the source, into segment k + 1
     contiguous = [
         k < last
         and frames[k][0] is not None
         and frames[k + 1][0] is not None
         and frames[k][0] + frames[k][1] == frames[k + 1][0]
-        for k in range(len(segments))
+        for k in range(len(frames))
     ]
     fade = round(join_fade * sample_rate)
     pieces: list[SoundPiece] = []
@@ -639,7 +641,10 @@ def timeline(
     >>> plan.frame_bounds, plan.sample_bounds
     ((0, 30, 45), (0, 48048, 72072))
     """
-    segments = [_checked_segment(s) for s in segments]
+    segments = list(segments)
+    for segment in segments:
+        if not isinstance(segment, (Span, Gap)):
+            raise TypeError(f"a segment is a Span or a Gap, got {segment!r}")
     if not segments:
         raise ValueError("an edit needs at least one segment")
     missing = sorted({repr(s.clip) for s in segments if s.clip not in clips})
@@ -652,9 +657,8 @@ def timeline(
         frame_bounds.append(frame_bounds[-1] + n)
     sample_bounds = [_sample_at(b, fps, sample_rate) for b in frame_bounds]
     sound = _sound_pieces(
-        segments, frames, frame_bounds, sample_bounds,
-        fps=fps, sample_rate=sample_rate, join_fade=join_fade,
-    )  # fmt: skip
+        frames, sample_bounds, fps=fps, sample_rate=sample_rate, join_fade=join_fade
+    )
     picture = _picture_clips(
         segments, clips, frames, frame_bounds, fps=fps, source_frames=source_frames
     )
@@ -698,6 +702,8 @@ class SourceInfo:
     count at ``fps``. ``video_start`` is where the first video frame sits after
     the file's start (what an input seek counts from), and ``audio_offset``
     how far the sound starts after the first video frame (negative: before).
+    ``variable_rate`` says the picture is not at a constant rate (it is then
+    resampled by time, and ``frames`` comes from the duration).
     """
 
     width: int
@@ -708,6 +714,7 @@ class SourceInfo:
     channels: Optional[int] = None
     video_start: float = 0.0
     audio_offset: float = 0.0
+    variable_rate: bool = False
 
 
 def _ffprobe_exe() -> Optional[str]:
@@ -740,6 +747,17 @@ def _seconds(text) -> Optional[float]:
         return None
 
 
+def _clock(text) -> Optional[float]:
+    """Seconds of an ``HH:MM:SS.fff`` tag (what mkv stores per stream)."""
+    parts = str(text or "").split(":")
+    if len(parts) != 3:
+        return None
+    hours, minutes, seconds = (_seconds(part) for part in parts)
+    if None in (hours, minutes, seconds):
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
 def _probe_with_ffprobe(binary: str, path) -> SourceInfo:
     proc = subprocess.run(
         [binary, "-v", "error", "-count_packets", "-show_streams", "-show_format",
@@ -759,25 +777,26 @@ def _probe_with_ffprobe(binary: str, path) -> SourceInfo:
     fps = nominal or average
     if fps is None:
         raise ValueError(f"cannot read the frame rate of {path}")
-    variable = bool(nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
-    if variable:
-        warnings.warn(
-            f"{path} looks variable-rate (r_frame_rate {nominal}, avg_frame_rate "
-            f"{average}): its picture is resampled to {fps} fps by time. Pass "
-            "fps= to choose the timeline rate.",
-            stacklevel=3,
-        )
     packets = video.get("nb_read_packets")
-    duration = _seconds(video.get("duration")) or _seconds(fmt.get("duration"))
-    if packets and packets.isdigit() and not variable:
-        frames = int(packets)
-    else:
-        frames = _frame_at(duration, fps) if duration else None
+    packets = int(packets) if packets and packets.isdigit() else None
     origin = _seconds(fmt.get("start_time")) or 0.0
     video_start = (_seconds(video.get("start_time")) or origin) - origin
     audio_start = (
         (_seconds(audio.get("start_time")) or origin) - origin if audio else 0.0
     )
+    # a stream's own duration is its length; mkv's DURATION tag and the
+    # format's duration run from the file's start, so the video's start is
+    # not part of the video
+    end = _clock(video.get("tags", {}).get("DURATION")) or _seconds(fmt.get("duration"))
+    duration = _seconds(video.get("duration")) or (end and end - video_start)
+    timed = _frame_at(duration, fps) if duration else None
+    # avg_frame_rate is barely filled by mkv: the packet count against the
+    # duration is the other witness of a variable rate
+    variable = bool(
+        (nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
+        or (packets and timed and abs(packets - timed) > VFR_FRAME_SLACK)
+    )
+    frames = packets if packets and not variable else timed
     width, height = int(video["width"]), int(video["height"])
     if _is_quarter_turn(_rotation(video)):
         width, height = height, width
@@ -790,6 +809,7 @@ def _probe_with_ffprobe(binary: str, path) -> SourceInfo:
         channels=int(audio["channels"]) if audio else None,
         video_start=video_start,
         audio_offset=audio_start - video_start,
+        variable_rate=variable,
     )
 
 
@@ -835,6 +855,21 @@ def _probe_with_banner(path) -> SourceInfo:
     )
 
 
+def _probe(path) -> SourceInfo:
+    binary = _ffprobe_exe()
+    return _probe_with_ffprobe(binary, path) if binary else _probe_with_banner(path)
+
+
+def _warn_if_variable(info: SourceInfo, path, *, stacklevel: int) -> None:
+    if info.variable_rate:
+        warnings.warn(
+            f"{path} looks variable-rate: its picture is resampled to {info.fps} "
+            "fps by time, each frame the nearest source frame. Pass fps= to "
+            "choose the timeline rate.",
+            stacklevel=stacklevel + 1,
+        )
+
+
 def probe_source(path: PathLike) -> SourceInfo:
     """Displayed size, exact frame rate, frame count, sound format and stream
     offsets of ``path``.
@@ -845,10 +880,9 @@ def probe_source(path: PathLike) -> SourceInfo:
     :func:`as_rate`, frame count from the duration, no stream offsets). Warns
     when the source looks variable-rate.
     """
-    binary = _ffprobe_exe()
-    if binary:
-        return _probe_with_ffprobe(binary, path)
-    return _probe_with_banner(path)
+    info = _probe(path)
+    _warn_if_variable(info, path, stacklevel=2)
+    return info
 
 
 # --- rendering ------------------------------------------------------------------
@@ -862,7 +896,9 @@ def _rate(fps: Fraction) -> str:
     return f"{fps.numerator}/{fps.denominator}"
 
 
-def _run(argv: list[str]) -> None:
+def _run(*args: str) -> None:
+    """Run ffmpeg with ``args`` (quiet, overwriting); raise with its stderr on failure."""
+    argv = [ffmpeg_exe(), "-y", "-v", "error", *args]
     proc = subprocess.run(argv, capture_output=True, text=True)
     if proc.returncode:
         raise RuntimeError(f"ffmpeg failed ({proc.returncode}): {proc.stderr[-2000:]}")
@@ -897,35 +933,52 @@ def _slice(pieces, start: int, stop: int) -> list[PicturePiece]:
     return out
 
 
-def _parts(plan: Timeline) -> list[tuple]:
-    """The bounded render jobs of the picture, in output order.
+class _Part(NamedTuple):
+    """Frames ``[start, stop)`` of picture clip ``clip``'s render; with
+    ``blend``, cross-dissolved from the last ``stop - start`` frames of the
+    clip before it."""
 
-    ``("solo", k, a, b)``: frames ``[a, b)`` of clip ``k``'s render.
-    ``("dissolve", k, d)``: the last ``d`` frames of clip ``k - 1`` blended
-    into the first ``d`` of clip ``k``. Their frame counts sum to the film's.
-    """
-    parts = []
-    picture = plan.picture
+    clip: int
+    start: int
+    stop: int
+    blend: bool = False
+
+
+def _parts(plan: Timeline) -> list[_Part]:
+    """The bounded render jobs of the picture, in output order; their frame
+    counts sum to the film's."""
+    parts, picture = [], plan.picture
     for k, clip in enumerate(picture):
         d_out = picture[k + 1].dissolve if k + 1 < len(picture) else 0
         if clip.dissolve:
-            parts.append(("dissolve", k, clip.dissolve))
+            parts.append(_Part(k, 0, clip.dissolve, blend=True))
         if clip.render_frames - d_out > clip.dissolve:
-            parts.append(("solo", k, clip.dissolve, clip.render_frames - d_out))
+            parts.append(_Part(k, clip.dissolve, clip.render_frames - d_out))
     return parts
 
 
-def _cam_piece_command(
-    source, piece: PicturePiece, cam: Cam, *, info: SourceInfo, fps: Fraction, output
-) -> list[str]:
-    """One ffmpeg run, one decoder: a piece of source picture, exactly ``frames`` long.
+def _part(inputs: list[str], chain: list[str], frames: int, *, fps, output) -> None:
+    """One single-input ffmpeg run writing ``frames`` frames of ``chain``'s output.
 
-    Seeked half a frame before its first frame, re-zeroed, then resampled to
-    the timeline rate by time (``fps``), so a variable-rate source plays at
-    its speed; a hold repeats one frame; a punch-in crops and scales back.
+    The shared tail: square pixels, ``yuv420p``, the last frame held should the
+    input end early (rather than shortening the part), frames restamped.
     """
+    chain = [*chain, "setsar=1", "format=yuv420p", "tpad=stop_mode=clone:stop=-1"]
+    _run(
+        *inputs,
+        "-vf",
+        ",".join([*chain, _stamp(fps)]),
+        *_intermediate(frames, fps, output),
+    )
+
+
+def _cam_piece(source, piece: PicturePiece, cam: Cam, *, info: SourceInfo, fps, output):
+    """A piece of source picture: seeked half a frame before its first frame,
+    re-zeroed, resampled to the timeline rate by time (so a variable-rate
+    source plays at its speed); a hold repeats one frame; a punch-in crops
+    and scales back."""
     seek = info.video_start + (piece.src_frame - SEEK_LEAD_FRAMES) / fps
-    inputs = ["-ss", _t(seek)] if seek > 0 else []
+    inputs = [*(["-ss", _t(seek)] if seek > 0 else []), "-i", str(source)]
     chain = ["setpts=PTS-STARTPTS", f"fps={_rate(fps)}"]
     if piece.hold:
         chain += ["trim=end_frame=1", f"tpad=stop_mode=clone:stop={piece.frames - 1}"]
@@ -939,61 +992,36 @@ def _cam_piece_command(
             f"crop={w}:{h}:{x}:{y}",
             f"scale={info.width}:{info.height}:flags={SCALE_FLAGS}",
         ]
-    # a source that ends early holds its last frame rather than shortening the part
-    chain += ["setsar=1", "format=yuv420p", "tpad=stop_mode=clone:stop=-1", _stamp(fps)]
-    return [
-        ffmpeg_exe(), "-y", "-v", "error", *inputs, "-i", str(source),
-        "-vf", ",".join(chain), *_intermediate(piece.frames, fps, output),
-    ]  # fmt: skip
+    _part(inputs, chain, piece.frames, fps=fps, output=output)
 
 
-def _still_slice_command(
-    still: Path, start: int, stop: int, *, size, fps: Fraction, output
-) -> list[str]:
+def _still_slice(still: Path, start: int, stop: int, *, size, fps, output):
     """Frames ``[start, stop)`` of a rendered still (its last frame held if short)."""
-    w, h = size
     chain = [
         "tpad=stop_mode=clone:stop=-1",
         f"trim=start_frame={start}:end_frame={stop}",
-        f"scale={w}:{h}:flags={SCALE_FLAGS}",
-        "setsar=1",
-        "format=yuv420p",
-        _stamp(fps),
+        f"scale={size[0]}:{size[1]}:flags={SCALE_FLAGS}",
     ]
-    return [
-        ffmpeg_exe(), "-y", "-v", "error", "-i", str(still),
-        "-vf", ",".join(chain), *_intermediate(stop - start, fps, output),
-    ]  # fmt: skip
-
-
-def _concat_list(files, path: Path) -> Path:
-    """A concat-demuxer list of ``files``, written to ``path``."""
-
-    def quoted(f) -> str:
-        return "'" + str(Path(f).resolve()).replace("'", "'\\''") + "'"
-
-    path.write_text("".join(f"file {quoted(f)}\n" for f in files))
-    return path
+    _part(["-i", str(still)], chain, stop - start, fps=fps, output=output)
 
 
 def _sequence_input(files, list_path: Path) -> list[str]:
-    """Input arguments reading ``files`` back to back with ONE decoder."""
+    """Input arguments reading ``files`` back to back with ONE decoder (the
+    concat demuxer, its list written to ``list_path``)."""
     if len(files) == 1:
         return ["-i", str(files[0])]
-    return ["-f", "concat", "-safe", "0", "-i", str(_concat_list(files, list_path))]
+    quoted = ("'" + str(Path(f).resolve()).replace("'", "'\\''") + "'" for f in files)
+    list_path.write_text("".join(f"file {q}\n" for q in quoted))
+    return ["-f", "concat", "-safe", "0", "-i", str(list_path)]
 
 
-def _dissolve_command(outgoing, incoming, frames: int, *, fps: Fraction, output):
-    """Two inputs, ``xfade``: ``frames`` frames blending ``outgoing`` into ``incoming``."""
-    graph = (
-        f"[0:v]{_stamp(fps)},fps={_rate(fps)}[a];[1:v]{_stamp(fps)},fps={_rate(fps)}[b];"
-        f"[a][b]xfade=transition={DISSOLVE_TRANSITION}:"
+def _dissolve_graph(frames: int, fps: Fraction) -> str:
+    """``xfade`` of input 0 into input 1 over ``frames`` frames (both that long)."""
+    side = f"{_stamp(fps)},fps={_rate(fps)}"
+    return (
+        f"[0:v]{side}[a];[1:v]{side}[b];[a][b]xfade=transition={DISSOLVE_TRANSITION}:"
         f"duration={_t(Fraction(frames) / fps)}:offset=0,{_stamp(fps)}[v]"
     )
-    return [
-        ffmpeg_exe(), "-y", "-v", "error", *outgoing, *incoming,
-        "-filter_complex", graph, "-map", "[v]", *_intermediate(frames, fps, output),
-    ]  # fmt: skip
 
 
 def _render_picture(
@@ -1005,8 +1033,8 @@ def _render_picture(
     names = count()
     stills: dict[int, Path] = {}
 
-    def new_path(stem="part") -> Path:
-        return workdir / f"{stem}{next(names):05d}{INTERMEDIATE_SUFFIX}"
+    def new_path(stem="part", suffix=INTERMEDIATE_SUFFIX) -> Path:
+        return workdir / f"{stem}{next(names):05d}{suffix}"
 
     def still_file(k: int) -> Path:  # each still is rendered once, when first needed
         if k not in stills:
@@ -1027,58 +1055,58 @@ def _render_picture(
         if isinstance(clip.clip, Cam):
             for piece in _slice(clip.pieces, start, stop):
                 files.append(new_path())
-                _run(
-                    _cam_piece_command(
-                        source, piece, clip.clip, info=info, fps=fps, output=files[-1]
-                    )
+                _cam_piece(
+                    source, piece, clip.clip, info=info, fps=fps, output=files[-1]
                 )
         else:
             files.append(new_path())
-            _run(
-                _still_slice_command(
-                    still_file(k), start, stop, size=size, fps=fps, output=files[-1]
-                )
+            _still_slice(
+                still_file(k), start, stop, size=size, fps=fps, output=files[-1]
             )
         return files
 
     sequence: list[Path] = []
     for part in _parts(plan):
-        if part[0] == "solo":
-            _, k, start, stop = part
-            sequence += frames_of(k, start, stop)
+        if not part.blend:
+            sequence += frames_of(part.clip, part.start, part.stop)
             continue
-        _, k, d = part
-        before = plan.picture[k - 1].render_frames
-        outgoing = _sequence_input(frames_of(k - 1, before - d, before), new_path("a"))
-        incoming = _sequence_input(frames_of(k, 0, d), new_path("b"))
+        d, before = part.stop, plan.picture[part.clip - 1].render_frames
+        outgoing = frames_of(part.clip - 1, before - d, before)
+        incoming = frames_of(part.clip, 0, d)
         sequence.append(new_path())
-        _run(_dissolve_command(outgoing, incoming, d, fps=fps, output=sequence[-1]))
+        _run(
+            *_sequence_input(outgoing, new_path("a", ".txt")),
+            *_sequence_input(incoming, new_path("b", ".txt")),
+            "-filter_complex", _dissolve_graph(d, fps), "-map", "[v]",
+            *_intermediate(d, fps, sequence[-1]),
+        )  # fmt: skip
     return sequence
 
 
-def _pad_to_aspect(image, aspect: float, Image):
-    """``image`` letter- or pillarboxed to ``aspect``, and where it now sits
-    (normalized ``(x, y, w, h)``; ``None`` when it already had that aspect)."""
+def _pad_to_aspect(image, aspect: Optional[float], content_box):
+    """``image`` flattened onto :data:`PAD_COLOR` (its alpha honoured) and
+    letter- or pillarboxed to ``aspect`` (``None``: kept as it is), with
+    ``content_box`` carried into the new coordinates (the picture's own box
+    when there was none)."""
+    from looks.geometry import Size, center_box
+    from PIL import Image
+
+    image = image.convert("RGBA")
     iw, ih = image.size
-    if abs(iw / ih / aspect - 1) <= ASPECT_TOLERANCE:
-        return image, None
-    if iw / ih < aspect:
+    if aspect is None or abs(iw / ih / aspect - 1) <= ASPECT_TOLERANCE:
+        width, height = iw, ih
+    elif iw / ih < aspect:
         width, height = round(ih * aspect), ih
     else:
         width, height = iw, round(iw / aspect)
+    placed = center_box(Size(iw, ih), Size(width, height))
     canvas = Image.new("RGB", (width, height), PAD_COLOR)
-    x, y = (width - iw) // 2, (height - ih) // 2
-    canvas.paste(image, (x, y))
-    return canvas, (x / width, y / height, iw / width, ih / height)
-
-
-def _within(outer, box):
-    """``box`` (normalized to an image) in the coordinates ``outer`` places it at."""
-    if box is None:
-        return outer
-    ox, oy, ow, oh = outer
-    bx, by, bw, bh = box
-    return (ox + bx * ow, oy + by * oh, bw * ow, bh * oh)
+    canvas.paste(image, (placed.x, placed.y), mask=image)
+    if (width, height) == (iw, ih):
+        return canvas, content_box
+    ox, oy, ow, oh = placed.x / width, placed.y / height, iw / width, ih / height
+    bx, by, bw, bh = content_box if content_box is not None else (0, 0, 1, 1)
+    return canvas, (ox + bx * ow, oy + by * oh, bw * ow, bh * oh)
 
 
 def slide_into(window, box) -> tuple[float, float, float, float]:
@@ -1110,27 +1138,25 @@ def burns_still_renderer(
 
     The move is resolved by ``burns.resolve_move`` at the frame's aspect
     (named moves, explicit paths, and its ``on_aspect_mismatch`` refusal);
-    the image is padded to that aspect first when ``fit="pad"``, and every
-    window is slid inside the content box (see :class:`Still`). ``burns``
-    renders integer rates only, so a fractional ``fps`` (29.97) is rendered at
-    the next integer with the **same frame count**; each part restamps the
-    frames at the edit's rate (the move runs 0.1% slower; no frame is dropped
-    or repeated). The default ``still_renderer`` of :func:`render`; any
-    callable with this signature can replace it.
+    the image is letter- or pillarboxed to that aspect first when
+    ``fit="fit"``, and every window is slid inside the content box (see
+    :class:`Still`). ``burns`` renders integer rates only, so a fractional
+    ``fps`` (29.97) is rendered at the next integer with the **same frame
+    count**; each part restamps the frames at the edit's rate (the move runs
+    0.1% slower; no frame is dropped or repeated). The default
+    ``still_renderer`` of :func:`render`; any callable with this signature
+    can replace it.
     """
-    require_media_extra("still clips in mixing.edit", modules=("burns", "PIL"))
+    require_media_extra("still clips in mixing.edit", modules=("burns", "PIL", "looks"))
     import burns
     from PIL import Image
 
     image = still.image
     image = Image.open(image) if isinstance(image, (str, os.PathLike)) else image
-    image = image.convert("RGB")
     aspect = size[0] / size[1]
-    box = still.content_box
-    if still.fit == "pad":
-        image, placed = _pad_to_aspect(image, aspect, Image)
-        if placed is not None:
-            box = _within(placed, box)
+    image, box = _pad_to_aspect(
+        image, aspect if still.fit == "fit" else None, still.content_box
+    )
     zoom = still.zoom
     if zoom is None:
         zoom = HOLD_ZOOM if still.path == DEFAULT_STILL_MOVE else burns.DFLT_ZOOM
@@ -1277,7 +1303,7 @@ def _final_graph(
             )
         parts.append(f"[{index}:v]format=rgba,{_stamp(fps)}{fades}[o{j}]")
         parts.append(
-            f"[{acc}][o{j}]overlay=x={overlay.x}:y={overlay.y}:eof_action=pass:"
+            f"[{acc}][o{j}]overlay=x='{overlay.x}':y='{overlay.y}':eof_action=pass:"
             f"enable='between(n,{a},{b - 1})'[ov{j}]"
         )
         acc = f"ov{j}"
@@ -1312,7 +1338,6 @@ def render(
     closing_fade: float = DEFAULT_CLOSING_FADE_S,
     join_fade: float = JOIN_FADE_S,
     encode_args: tuple[str, ...] = DEFAULT_ENCODE_ARGS,
-    probe: Callable[[PathLike], SourceInfo] = probe_source,
 ) -> Union[Path, Any]:
     """Render the edit ``segments`` / ``clips`` of ``source``, frame-exact.
 
@@ -1331,7 +1356,6 @@ def render(
         closing_fade: seconds of fade to black (and to silence) at the end.
         join_fade: seconds of fade at each sound join (see :data:`JOIN_FADE_S`).
         encode_args: the final encode's ffmpeg arguments.
-        probe: ``probe(source) -> SourceInfo`` (see :func:`probe_source`).
 
     Returns:
         The written ``Path`` or, when ``output`` is a callable, what it
@@ -1339,7 +1363,8 @@ def render(
     """
     source = Path(source)
     overlays = tuple(overlays)
-    info = probe(source)
+    info = _probe(source)
+    _warn_if_variable(info, source, stacklevel=2)
     _check_source(source, info)
     rate = as_rate(fps) if fps is not None else info.fps
     source_frames = info.frames
@@ -1383,11 +1408,10 @@ def render(
                 plan, overlays=overlays, spans=spans,
                 overlay_inputs=overlay_inputs, closing_frames=closing_frames,
             )  # fmt: skip
-            _run([
-                ffmpeg_exe(), "-y", "-v", "error", *inputs, "-filter_complex", graph,
-                "-map", "[vout]", "-map", "1:a", "-r", _rate(rate),
-                *encode_args, str(target),
-            ])  # fmt: skip
+            _run(
+                *inputs, "-filter_complex", graph, "-map", "[vout]", "-map", "1:a",
+                "-r", _rate(rate), *encode_args, str(target),
+            )  # fmt: skip
 
     default_path = source.with_name(source.stem + DEFAULT_OUTPUT_SUFFIX)
     return write_egress(output, default_path=default_path, write=write)

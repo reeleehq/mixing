@@ -164,10 +164,10 @@ def test_parts_tile_the_film_exactly():
         fps=NTSC,
         sample_rate=SR,
     )
-    lengths = [p[3] - p[2] if p[0] == "solo" else p[2] for p in _parts(plan)]
-    assert sum(lengths) == plan.total_frames
-    assert [p[0] for p in _parts(plan)] == [
-        "solo", "dissolve", "solo", "solo", "dissolve", "solo",
+    parts = _parts(plan)
+    assert sum(p.stop - p.start for p in parts) == plan.total_frames
+    assert [(p.clip, p.blend) for p in parts] == [
+        (0, False), (1, True), (1, False), (2, False), (3, True), (3, False),
     ]  # fmt: skip
 
 
@@ -708,9 +708,9 @@ def test_many_spans_never_open_more_than_two_decoders(monkeypatch, media):
     calls = []
     real_run = mixing.edit._run
 
-    def counting_run(argv):
-        calls.append(argv.count("-i"))
-        real_run(argv)
+    def counting_run(*args):
+        calls.append(args.count("-i"))
+        real_run(*args)
 
     monkeypatch.setattr(mixing.edit, "_run", counting_run)
     segments = [Span(0.1 * k, 0.1 * k + 0.05, "a") for k in range(16)]
@@ -810,6 +810,59 @@ def test_named_move_and_aspect_mismatch_refusal(media):
         (SourceInfo(64, 36, NTSC, 90), "no sound stream"),
     ],
 )
-def test_unsupported_sources_are_refused_before_any_work(info, match):
+def test_unsupported_sources_are_refused_before_any_work(monkeypatch, info, match):
+    import mixing.edit
+
+    monkeypatch.setattr(mixing.edit, "_probe", lambda _: info)
     with pytest.raises(ValueError, match=match):
-        render([Span(0, 1, "a")], {"a": Cam()}, source="x.mp4", probe=lambda _: info)
+        render([Span(0, 1, "a")], {"a": Cam()}, source="x.mp4")
+
+
+def test_overlay_position_expressions_with_commas(media):
+    Image = pytest.importorskip("PIL.Image")
+    dot = Image.new("RGBA", (8, 8), (0, 255, 0, 255))
+    out = render(
+        [Span(0.0, 0.3, "a")], {"a": Cam()}, source=media["source"],
+        overlays=[Overlay(dot, 0.0, 0.3, x="min(60,W-w)", y="max(H-h,0)")],
+        output=media["dir"] / "overlay_expr.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    frame = _frames(out)[0]
+    assert frame[H - 4, W - 4, 1] > 200 and frame[H - 4, W - 4, 2] < 60  # bottom right
+    assert frame[4, W - 4, 1] < 60  # not at the top
+
+
+def test_variable_rate_mkv_is_detected_by_its_packet_count(media):
+    # mkv barely fills avg_frame_rate: 60 packets over 3 s at a nominal 30 fps
+    source = _make_source(
+        media["dir"] / "vfr.mkv", rate="30", select="not(eq(mod(n\\,3)\\,2))"
+    )
+    with pytest.warns(UserWarning, match="variable-rate"):
+        info = probe_source(source)
+    # from the duration (the last kept frame is 88), not the 60 packets
+    assert info.variable_rate and info.frames == 89
+    with pytest.warns(UserWarning, match="variable-rate"):
+        out = render(
+            [Span(2.2, 2.8, "a")], {"a": Cam()}, source=source,  # past packet 60
+            output=media["dir"] / "vfr_mkv_out.mkv", encode_args=PCM_MKV,
+        )  # fmt: skip
+    seen = _top_left_frames(out)
+    assert len(seen) == 18
+    assert all(abs(f - (66 + k) % GREY_PERIOD) <= 1.3 for k, f in enumerate(seen))
+
+
+def test_transparent_still_is_flattened_onto_the_bars_colour(media):
+    pytest.importorskip("burns")
+    Image = pytest.importorskip("PIL.Image")
+    card = Image.new("RGBA", (W, H), (255, 255, 255, 0))  # white, but transparent
+    card.paste((255, 0, 0, 255), (24, 12, 40, 24))
+    held = _frames(
+        render(
+            [Span(0.0, 0.3, "a"), Gap(0.3, "card")],
+            {"a": Cam(), "card": Still(card)},
+            source=media["source"],
+            output=media["dir"] / "alpha_card.mkv",
+            encode_args=PCM_MKV,
+        )  # fmt: skip
+    )[-1]
+    assert held[2, 2].max() < 30  # transparent: the bars colour, not the hidden white
+    assert held[H // 2, W // 2, 0] > 200 and held[H // 2, W // 2, 1] < 60
