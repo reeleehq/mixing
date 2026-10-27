@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_at": "2026-10-27T12:07:56Z",
+  "built_at": "2026-10-27T12:31:51Z",
   "package": {
     "name": "mixing",
     "version": "0.0.77",
@@ -23,12 +23,12 @@
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "5b9bb1e45f05c6f3b3a49ff5a2612c00e464e086",
+    "sha": "f47260af3d6144138ae77bf2b800d1a7b044fff2",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "40500228228",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/40500228228",
+    "run_id": "40493483845",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/40493483845",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -62,16 +62,14 @@
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.76",
-    "relation": "ahead",
+    "latest": "0.0.77",
+    "relation": "same",
     "error": null
   },
   "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout ee188f85d3ef43324fd22780fd3132025701c108\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
-    "aligned": false,
-    "notes": [
-      "The documented version (0.0.77) is ahead of the latest release on PyPI (0.0.76): these docs describe unreleased code."
-    ]
+    "aligned": true,
+    "notes": []
   }
 }
