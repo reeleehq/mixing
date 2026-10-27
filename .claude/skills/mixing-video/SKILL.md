@@ -188,9 +188,23 @@ plan = plan_cutaways(
 ```python
 from mixing.edit import Span, Gap, Cam, Still, Overlay, render, timeline
 
-segments = [Span(0.0, 4.2, "a"), Span(5.1, 9.0, "b"), Gap(1.5, "card"), Span(9.0, 12.0, "a")]
-clips = {"a": Cam(), "b": Cam(zoom=1.3, cx=0.4), "card": Still("card.png", dissolve_in=0.5)}
-render(segments, clips, source="talk.mp4", overlays=[Overlay("lower_third.png", 1.0, 5.0, fade=0.3)])
+segments = [
+    Span(0.0, 4.2, "a"),
+    Span(5.1, 9.0, "b"),
+    Gap(1.5, "card"),
+    Span(9.0, 12.0, "a"),
+]
+clips = {
+    "a": Cam(),
+    "b": Cam(zoom=1.3, cx=0.4),
+    "card": Still("card.png", dissolve_in=0.5),
+}
+render(
+    segments,
+    clips,
+    source="talk.mp4",
+    overlays=[Overlay("lower_third.png", 1.0, 5.0, fade=0.3)],
+)
 # -> talk_edit.mp4 beside the source. Inspect the arithmetic first (pure, no ffmpeg):
 plan = timeline(segments, clips, fps="30000/1001", sample_rate=48000)
 plan.frame_bounds, plan.sample_bounds, plan.picture
