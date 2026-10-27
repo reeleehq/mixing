@@ -16,8 +16,10 @@ whose ``method`` says how it was read:
 
 - ``"ffprobe"`` (exact): the rate is ``r_frame_rate`` as a
   :class:`~fractions.Fraction` (``30000/1001`` stays exact), the frame count is
-  the counted video packets (or the container's ``nb_frames`` header), every
-  stream has its own ``start_time``, the rotation comes from the display
+  the counted video packets (or the container's ``nb_frames`` header), the
+  video starts at its ``start_time`` and the sound at its first **decoded**
+  frame (an opus stream's first packet precedes it by its pre-skip), cover
+  art (``attached_pic``) is not taken for the picture, the rotation comes from the display
   matrix (side data) or the ``rotate`` tag, and ``r_frame_rate`` is checked
   against ``avg_frame_rate`` (and the packet count against the duration) to
   detect a variable rate.
@@ -72,6 +74,11 @@ FFPROBE_METHOD = "ffprobe"
 BANNER_METHOD = "banner"
 #: Name of the ffprobe executable, looked for beside ffmpeg and then on ``PATH``.
 FFPROBE_NAME = "ffprobe"
+#: ffprobe ``-read_intervals`` reading only the first packet (of the selected
+#: stream): enough to see when its first decoded frame plays.
+FIRST_PACKET_INTERVAL = "%+#1"
+#: Executable suffix carried over from ffmpeg's name to ffprobe's (Windows).
+WINDOWS_EXE_SUFFIX = ".exe"
 #: Relative disagreement between a stream's ``r_frame_rate`` and its
 #: ``avg_frame_rate`` above which the source is taken to be variable-rate.
 VFR_TOLERANCE = 0.01
@@ -133,8 +140,9 @@ class MediaProbe:
         video_start: where the first video frame sits after the file's start
             (what an input seek counts from).
         video_duration: the video stream's own length (s).
-        audio_start: where the sound starts after the file's start (from the
-            banner, assumed ``0.0``: it states no stream start times).
+        audio_start: where the sound's first decoded frame plays after the
+            file's start (from the banner, assumed ``0.0``: it states no
+            stream start times).
         sample_rate, channels: of the first audio stream.
         variable_rate: the picture is not at a constant rate (the nominal and
             average rates disagree by more than :data:`VFR_TOLERANCE`, or, from
@@ -264,22 +272,56 @@ def _rates_disagree(nominal: Optional[Fraction], average: Optional[Fraction]) ->
     return bool(nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
 
 
-def _unreadable(media, detail: str) -> ProbeError:
+def _unreadable(media, proc: subprocess.CompletedProcess) -> ProbeError:
     """The error for a file ffmpeg/ffprobe could not open: missing, or unreadable."""
     text = str(media)
     if URL_MARKER not in text and not Path(text).exists():
         return MediaNotFoundError(f"no such media file: {media}")
-    tail = detail.strip()[-ERROR_TAIL_CHARS:]
-    return ProbeError(f"cannot probe {media}: {tail or 'ffmpeg could not read it'}")
+    tool = Path(proc.args[0]).name
+    tail = proc.stderr.strip()[-ERROR_TAIL_CHARS:]
+    detail = f": {tail}" if tail else ""  # a crash (negative code) may print nothing
+    return ProbeError(
+        f"cannot probe {media}: {tool} could not read it "
+        f"(exit code {proc.returncode}){detail}"
+    )
 
 
 # --- ffprobe (exact) ----------------------------------------------------------------
 
 
+def _first_audio_start(binary: str, media, audio: dict, origin: float) -> float:
+    """When the first audio stream's first **decoded** frame plays, after the
+    file's start (``origin``).
+
+    Not its ``start_time``, which is its first packet: an opus decoder drops
+    its pre-skip samples, so a stream whose first packet is at -0.007 s
+    plays from 0.000 s (aac and mp3 do start at their first packet). Falls
+    back to ``start_time`` (see :func:`_start`) when no frame is reported.
+    """
+    proc = subprocess.run(
+        [binary, "-v", "error", "-select_streams", "a:0", "-show_frames",
+         "-read_intervals", FIRST_PACKET_INTERVAL, "-show_entries", "frame=pts_time",
+         "-of", "json", str(media)],
+        capture_output=True, text=True,
+    )  # fmt: skip
+    frames = json.loads(proc.stdout or "{}").get("frames", []) if not proc.returncode else []
+    decoded = next((_seconds(f.get("pts_time")) for f in frames), None)
+    return _start(audio, origin) if decoded is None else decoded - origin
+
+
+def _is_picture_stream(stream: dict) -> bool:
+    """A video stream that moves (not an mp3's or m4a's cover art)."""
+    attached = stream.get("disposition", {}).get("attached_pic", 0)
+    return stream.get("codec_type") == "video" and not attached
+
+
 def find_ffprobe() -> Optional[str]:
     """The ffprobe beside :func:`mixing.util.ffmpeg_exe`, else on ``PATH``, else ``None``."""
     ffmpeg = Path(ffmpeg_exe())
-    sibling = ffmpeg.with_name(FFPROBE_NAME + ffmpeg.suffix)  # ffprobe.exe on Windows
+    # ffprobe.exe beside ffmpeg.exe (Windows); any other suffix is not an
+    # extension (imageio's Linux build is ``ffmpeg-linux-x86_64-v7.0.2``)
+    suffix = WINDOWS_EXE_SUFFIX if ffmpeg.suffix.lower() == WINDOWS_EXE_SUFFIX else ""
+    sibling = ffmpeg.with_name(FFPROBE_NAME + suffix)
     return str(sibling) if sibling.is_file() else shutil.which(FFPROBE_NAME)
 
 
@@ -292,16 +334,16 @@ def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProb
     except OSError as e:  # not MediaNotFoundError: it is the binary that is missing
         raise ProbeError(f"cannot run ffprobe {binary!r}: {e}") from e
     if proc.returncode != 0:
-        raise _unreadable(media, proc.stderr)
+        raise _unreadable(media, proc)
     probed = json.loads(proc.stdout or "{}")
     streams, fmt = probed.get("streams", []), probed.get("format", {})
-    video = next((s for s in streams if s.get("codec_type") == "video"), None)
+    video = next((s for s in streams if _is_picture_stream(s)), None)
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
     origin = _seconds(fmt.get("start_time")) or 0.0
     audio_fields = {}
     if audio is not None:
         audio_fields = dict(
-            audio_start=_start(audio, origin),
+            audio_start=_first_audio_start(binary, media, audio, origin),
             sample_rate=_count(audio.get("sample_rate")),
             channels=_count(audio.get("channels")),
         )
@@ -358,6 +400,8 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
 
 _BANNER_INPUT = re.compile(r"^Input #\d+", re.MULTILINE)
 _BANNER_VIDEO = re.compile(r"Stream #.*Video:.*")
+#: How the banner marks a video stream that is cover art, not a picture track.
+BANNER_ATTACHED_PIC = "(attached pic)"
 _BANNER_SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})")
 _BANNER_FPS = re.compile(r"([\d.]+)(k?)\s*fps")
 _BANNER_TBR = re.compile(r"([\d.]+)(k?)\s*tbr")
@@ -373,7 +417,8 @@ def _banner_rate(pattern: re.Pattern, line: str) -> Optional[Fraction]:
     if not found:
         return None
     value = float(found.group(1)) * (KILO if found.group(2) else 1)
-    return snap_rate(value) if value > 0 else None
+    rate = snap_rate(value)
+    return rate if rate > 0 else None  # ``0.0033 fps`` snaps to 0: no rate
 
 
 def parse_banner(text: str) -> MediaProbe:
@@ -410,7 +455,10 @@ def parse_banner(text: str) -> MediaProbe:
                 sample_rate=int(sound.group(1)),
                 channels=CHANNEL_LAYOUTS.get(sound.group(2), DEFAULT_BANNER_CHANNELS),
             )
-    line = _BANNER_VIDEO.search(text)
+    line = next(
+        (m for m in _BANNER_VIDEO.finditer(text) if BANNER_ATTACHED_PIC not in m.group(0)),
+        None,
+    )
     size = _BANNER_SIZE.search(line.group(0)) if line else None
     if size:
         width, height = int(size.group(1)), int(size.group(2))
@@ -438,7 +486,7 @@ def _probe_with_banner(media) -> MediaProbe:
         [ffmpeg_exe(), "-hide_banner", "-i", str(media)], capture_output=True, text=True
     )
     if not _BANNER_INPUT.search(proc.stderr):
-        raise _unreadable(media, proc.stderr)
+        raise _unreadable(media, proc)
     return parse_banner(proc.stderr)
 
 

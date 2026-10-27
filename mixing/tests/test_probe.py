@@ -274,6 +274,74 @@ def test_snap_rate():
     assert snap_rate(12.5) == Fraction(25, 2)
 
 
+def test_a_banner_rate_snapping_to_zero_is_no_rate():
+    found = parse_banner("Stream #0:0: Video: png, rgb24, 64x48, 0.0033 fps, 0.0033 tbr")
+    assert found.has_video and (found.fps, found.avg_fps) == (None, None)
+
+
+def test_cover_art_is_not_the_picture_in_a_banner():
+    found = parse_banner(
+        "Duration: 00:00:02.00\n"
+        "Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s\n"
+        "Stream #0:1: Video: mjpeg (Baseline), yuvj420p, 300x300, 90k tbr, 90k tbn"
+        " (attached pic)\n"
+    )
+    assert not found.has_video and found.has_audio
+
+
+@BOTH_WAYS
+def test_an_mp3_with_cover_art_is_audio_only(media, tmp_path, ffprobe):
+    song = tmp_path / "song.mp3"
+    _ffmpeg(
+        "-f", "lavfi", "-i", f"sine=r={SR}:d=1", "-i", str(media["still"]),
+        "-map", "0:a", "-map", "1:v", "-c:a", "libmp3lame", "-c:v", "png",
+        "-disposition:v", "attached_pic", str(song),
+    )  # fmt: skip
+    found = probe(song, ffprobe=ffprobe)
+    assert not found.has_video and found.fps is None
+    assert found.has_audio and found.sample_rate == SR
+
+
+@needs_ffprobe
+def test_first_audio_frame_not_first_packet(tmp_path):
+    """opus drops its pre-skip: its first packet (-0.007 s) plays from 0."""
+    clip = tmp_path / "opus.mkv"
+    _ffmpeg(
+        "-f", "lavfi", "-i", f"testsrc=s={W}x{H}:r=25:d=1",
+        "-f", "lavfi", "-i", "sine=r=48000:d=1", "-c:v", "libx264",
+        "-pix_fmt", "yuv420p", "-c:a", "libopus", str(clip),
+    )  # fmt: skip
+    found = probe(clip)
+    assert found.audio_offset == pytest.approx(0.0, abs=1e-3)
+
+
+def test_find_ffprobe_ignores_a_non_exe_suffix(tmp_path, monkeypatch):
+    """imageio's Linux ffmpeg is ``ffmpeg-linux-x86_64-v7.0.2``: its sibling is
+    ``ffprobe``, not ``ffprobe.2``."""
+    import mixing.probe
+
+    (tmp_path / "ffmpeg-linux-x86_64-v7.0.2").touch()
+    (tmp_path / "ffprobe").touch()
+    monkeypatch.setattr(
+        mixing.probe, "ffmpeg_exe", lambda: str(tmp_path / "ffmpeg-linux-x86_64-v7.0.2")
+    )
+    assert find_ffprobe() == str(tmp_path / "ffprobe")
+
+
+def test_banner_error_states_the_exit_code(tmp_path, monkeypatch):
+    import mixing.probe
+
+    junk = tmp_path / "crash.ts"
+    junk.touch()
+
+    def crashed(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, -11, stdout="", stderr="")
+
+    monkeypatch.setattr(mixing.probe.subprocess, "run", crashed)
+    with pytest.raises(ProbeError, match=r"could not read it \(exit code -11\)"):
+        probe(junk, ffprobe=None)
+
+
 def test_find_ffprobe_takes_ffmpegs_suffix(tmp_path, monkeypatch):
     """Beside ``ffmpeg.exe`` the sibling is ``ffprobe.exe`` (Windows)."""
     import mixing.probe

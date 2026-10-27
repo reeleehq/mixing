@@ -898,3 +898,53 @@ def test_sound_starting_before_the_picture_stays_in_sync(media):
     loud = samples[int((onset + 0.03) * SR) : int((onset + 0.3) * SR)]
     assert not quiet.any()
     assert np.sqrt(np.mean(loud**2)) > 1000
+
+
+#: A white flash on frame FLASH_FRAME and a click at the same instant: the
+#: rendered film keeps them together when the sound's start is read right.
+FLASH_FRAME, FLASH_RATE, CLICK_S = 25, 25, 0.02
+#: A/V tolerance (s) of the measured sync: a quarter of a 1 kHz cycle's slack
+#: either side, far under the 7-23 ms codec offsets the probe must get right.
+SYNC_TOLERANCE_S = 0.003
+
+
+@pytest.mark.parametrize(
+    "codec, container",
+    [("aac", "mkv"), ("libmp3lame", "mkv"), ("libopus", "mkv"), ("libopus", "webm")],
+)
+def test_compressed_sound_starts_where_it_plays(media, codec, container):
+    """Regression (#122 re-review): a stream's ``start_time`` is its first
+    packet. aac/mp3 in mkv really play from it (-21/-23 ms); opus drops its
+    pre-skip, so its first packet at -7 ms plays from 0. The probe reads the
+    first decoded frame, so the flash and the click stay together for all."""
+    import numpy as np
+
+    flash_s = FLASH_FRAME / FLASH_RATE
+    picture = (
+        f"color=black:s={W}x{H}:r={FLASH_RATE}:d=3,"
+        f"drawbox=enable='eq(n,{FLASH_FRAME})':c=white:t=fill"
+    )
+    click = (
+        f"aevalsrc='0.9*sin(2*PI*1000*t)*between(t,{flash_s},{flash_s + CLICK_S})'"
+        f":s={SR}:d=3"
+    )
+    video_codec = "libvpx-vp9" if container == "webm" else "libx264"
+    source = media["dir"] / f"click_{codec}.{container}"
+    proc = subprocess.run(
+        [_ffmpeg(), "-v", "error", "-y", "-f", "lavfi", "-i", picture,
+         "-f", "lavfi", "-i", click, "-c:v", video_codec, "-pix_fmt", "yuv420p",
+         "-c:a", codec, str(source)],
+        capture_output=True, text=True,
+    )  # fmt: skip
+    if proc.returncode:
+        pytest.skip(f"this ffmpeg cannot encode {codec}/{container}: {proc.stderr[-200:]}")
+    out = render(
+        [Span(0.0, 2.0, "a")], {"a": Cam()}, source=source,
+        output=media["dir"] / f"click_{codec}_{container}_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    sound = np.abs(_samples(out).astype(float))
+    onset = int(np.argmax(sound > 0.1 * sound.max())) / SR
+    brightness = _frames(out).mean(axis=(1, 2, 3))
+    flash = int(np.argmax(brightness > 128)) / FLASH_RATE
+    assert flash == pytest.approx(flash_s)
+    assert onset == pytest.approx(flash, abs=SYNC_TOLERANCE_S)
