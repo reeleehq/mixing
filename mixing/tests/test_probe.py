@@ -34,6 +34,9 @@ SECONDS = 2  # 2 s at 30000/1001 is 59.94 frames: ffmpeg writes 60
 NTSC_FRAMES = 60
 VFR_RATE = 30
 VFR_SECONDS = 3
+#: Seconds the sound of ``early_sound.mkv`` starts before its picture (mkv
+#: timestamps are milliseconds).
+AUDIO_LEAD = 0.27
 
 needs_ffmpeg = pytest.mark.skipif(not has_ffmpeg(), reason="needs ffmpeg on PATH")
 needs_ffprobe = pytest.mark.skipif(
@@ -55,7 +58,7 @@ def media(tmp_path_factory):
     d = tmp_path_factory.mktemp("probe")
     files = {k: d / name for k, name in [
         ("ntsc", "ntsc.mp4"), ("rotated", "rotated.mp4"), ("vfr", "vfr.mp4"),
-        ("audio", "tone.wav"), ("still", "still.png"),
+        ("audio", "tone.wav"), ("still", "still.png"), ("early", "early_sound.mkv"),
     ]}  # fmt: skip
     _ffmpeg(
         "-f", "lavfi", "-i", f"testsrc=s={W}x{H}:r=30000/1001:d={SECONDS}",
@@ -73,6 +76,14 @@ def media(tmp_path_factory):
     _ffmpeg("-f", "lavfi", "-i", "sine=r=22050:d=1.5", "-ac", "1", str(files["audio"]))
     _ffmpeg("-f", "lavfi", "-i", f"testsrc=s={W}x{H}", "-frames:v", "1",
             str(files["still"]))  # fmt: skip
+    # video at 0.0, sound from -AUDIO_LEAD (and the file with it): both starts
+    # are stated, one of them exactly 0.0
+    _ffmpeg(
+        "-f", "lavfi", "-i", f"testsrc=s={W}x{H}:r=25:d={SECONDS}",
+        "-itsoffset", str(-AUDIO_LEAD), "-f", "lavfi", "-i", f"sine=r={SR}:d={SECONDS}",
+        "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "pcm_s16le", "-avoid_negative_ts", "disabled", str(files["early"]),
+    )  # fmt: skip
     return files
 
 
@@ -189,19 +200,47 @@ def test_explicit_ffprobe_path_is_used(media, monkeypatch):
 
 
 def test_banner_fallback_is_approximate(media):
-    found = probe(media["vfr"], ffprobe=None)
+    found = probe(media["ntsc"], ffprobe=None)
     assert found.method == BANNER_METHOD and not found.exact
-    # no second rate and no packet count: a variable rate goes unnoticed, and
-    # the frame count is the container duration times the printed (average) rate
-    assert not found.variable_rate
-    assert found.avg_fps is None and found.packets is None
+    # no packet count: the frame count is the container duration times the rate
+    assert found.packets is None
     assert found.frames == round(Fraction(found.duration) * found.fps)
+    # no stream start times: both are assumed to be the file's
+    assert (found.video_start, found.audio_start) == (0.0, 0.0)
+
+
+def test_banner_reads_vfr_from_its_two_rates(media):
+    """``tbr`` is the nominal rate, the printed ``fps`` the average: ``fps``
+    means the same on both methods, and a VFR source is seen without ffprobe."""
+    found = probe(media["vfr"], ffprobe=None)
+    assert found.fps == VFR_RATE  # tbr, like ffprobe's r_frame_rate
+    assert found.avg_fps == Fraction(573, 25)  # the printed 22.92 fps
+    assert found.variable_rate
+    assert found.frames == round(Fraction(found.duration) * found.fps)
+
+
+@needs_ffprobe
+def test_fps_means_the_nominal_rate_on_both_methods(media):
+    for name in ("ntsc", "vfr", "still"):
+        assert probe(media[name]).fps == probe(media[name], ffprobe=None).fps, name
+
+
+@needs_ffprobe
+def test_a_stated_zero_start_is_a_start_not_a_missing_value(media):
+    """Regression: video at exactly 0.0 under a file starting at -0.27 s sits
+    0.27 s in, and the sound 0.27 s before it (``or origin`` read 0.0 as unset)."""
+    found = probe(media["early"])
+    assert found.video_start == pytest.approx(AUDIO_LEAD, abs=2e-3)
+    assert found.audio_start == pytest.approx(0.0, abs=2e-3)
+    assert found.audio_offset == pytest.approx(-AUDIO_LEAD, abs=2e-3)
+    # mkv's DURATION tag is an end timestamp: the length is not cut by the lead
+    assert not found.variable_rate and found.frames == found.packets == 25 * SECONDS
 
 
 def test_parse_banner_is_pure():
     found = parse_banner(
         "Duration: 00:01:02.50, start: 0\n"
-        "Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 23.98 fps\n"
+        "Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 23.98 fps, 23.98 tbr\n"
         "Side data:\n Display Matrix: rotation of -90.00 degrees\n"
         "Stream #0:1: Audio: aac, 48000 Hz, 5.1(side), fltp"
     )
@@ -211,6 +250,21 @@ def test_parse_banner_is_pure():
     assert found.duration == 62.5 and found.frames == round(Fraction(62.5) * found.fps)
     assert not parse_banner("Stream #0:0: Audio: aac, 8000 Hz, mono").has_video
     assert parse_banner("nothing here") == MediaProbe(method=BANNER_METHOD)
+    assert not found.variable_rate and found.avg_fps == found.fps
+
+
+def test_parse_banner_rates():
+    def video(rates):
+        return parse_banner(f"Stream #0:0: Video: h264, yuv420p, 64x48, {rates}")
+
+    vfr = video("15.52 fps, 30 tbr, 15360 tbn")
+    assert (vfr.fps, vfr.avg_fps, vfr.variable_rate) == (30, Fraction(388, 25), True)
+    fast = video("90k tbr, 90k tbn")  # no fps figure: tbr alone, k-suffixed
+    assert (fast.fps, fast.avg_fps, fast.variable_rate) == (90000, None, False)
+    only_fps = video("25 fps")  # what parse_media_info's callers pass
+    assert (only_fps.fps, only_fps.avg_fps) == (25, 25)
+    near = video("29.97 fps, 30 tbr")  # 0.1 % apart: within VFR_TOLERANCE
+    assert near.variable_rate is False
 
 
 def test_snap_rate():
@@ -218,6 +272,28 @@ def test_snap_rate():
     assert snap_rate(59.94) == Fraction(60000, 1001)
     assert snap_rate(24.0) == 24
     assert snap_rate(12.5) == Fraction(25, 2)
+
+
+def test_find_ffprobe_takes_ffmpegs_suffix(tmp_path, monkeypatch):
+    """Beside ``ffmpeg.exe`` the sibling is ``ffprobe.exe`` (Windows)."""
+    import mixing.probe
+
+    (tmp_path / "ffmpeg.exe").touch()
+    (tmp_path / "ffprobe.exe").touch()
+    monkeypatch.setattr(mixing.probe, "ffmpeg_exe", lambda: str(tmp_path / "ffmpeg.exe"))
+    assert find_ffprobe() == str(tmp_path / "ffprobe.exe")
+
+
+def test_a_bad_ffprobe_path_names_the_binary(media, tmp_path):
+    bogus = tmp_path / "no-such-ffprobe"
+    with pytest.raises(ProbeError, match="cannot run ffprobe .*no-such-ffprobe") as caught:
+        probe(media["ntsc"], ffprobe=str(bogus))
+    assert not isinstance(caught.value, FileNotFoundError)  # the media is there
+
+
+def test_an_empty_ffprobe_is_refused(media):
+    with pytest.raises(ValueError, match="names no binary"):
+        probe(media["ntsc"], ffprobe="")
 
 
 def test_banner_fallback_when_no_ffprobe_beside_ffmpeg(media, monkeypatch):

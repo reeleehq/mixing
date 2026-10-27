@@ -24,9 +24,10 @@ whose ``method`` says how it was read:
 - ``"banner"`` (approximate): when no ``ffprobe`` sits beside
   :func:`mixing.util.ffmpeg_exe` or on ``PATH`` (imageio-ffmpeg's build ships
   none), the text ``ffmpeg -i`` prints is parsed by :func:`parse_banner`. The
-  rate is the printed decimal snapped by :func:`snap_rate`, the frame count is
-  estimated from the **container** duration, both streams are taken to start
-  with the file, and a variable rate cannot be detected.
+  rates are the printed decimals (``tbr`` as ``fps``, ``fps`` as ``avg_fps``)
+  snapped by :func:`snap_rate`, the frame count is estimated from the
+  **container** duration, both streams are assumed to start with the file, and
+  a variable rate is seen only when the two printed rates disagree.
 
 ``ffprobe=`` is the seam: the default finds one (:func:`find_ffprobe`), a path
 uses that binary, ``None`` forces the banner. A file that does not exist raises
@@ -84,6 +85,8 @@ NTSC_NUMERATOR_UNIT = 1000
 RATE_SNAP_TOLERANCE = 0.01
 #: Largest denominator a float rate that is neither is approximated with.
 MAX_RATE_DENOMINATOR = 1001
+#: The banner abbreviates large rates with a ``k`` suffix (``90k tbr``).
+KILO = 1000
 #: Channel counts of the layouts ffmpeg's banner names.
 CHANNEL_LAYOUTS = {"mono": 1, "stereo": 2, "2.1": 3, "quad": 4, "5.0": 5, "5.1": 6}
 #: Channels assumed for a banner layout not in :data:`CHANNEL_LAYOUTS`.
@@ -114,13 +117,15 @@ class MediaProbe:
         method: ``"ffprobe"`` (exact) or ``"banner"`` (approximate, see the
             module docstring).
         duration: the container's duration (s), ``None`` when not stated.
-        width, height: the **displayed** size of the first video stream (a
-            90/270-degree display rotation swaps the coded size; ffmpeg
-            rotates on decode).
+        width, height: the size of the first video stream's decoded frames
+            after the display rotation (a 90/270-degree rotation swaps the
+            coded size, as ffmpeg's decode does). The sample aspect ratio is
+            not applied: an anamorphic stream reports its storage size.
         rotation: the display rotation in degrees, as ffmpeg reports it.
         fps: the nominal rate (``r_frame_rate``, else ``avg_frame_rate``); from
-            the banner, its printed rate snapped by :func:`snap_rate`.
-        avg_fps: ``avg_frame_rate`` (``None`` from the banner, or when unset).
+            the banner, its ``tbr`` (else its ``fps``) snapped by :func:`snap_rate`.
+        avg_fps: ``avg_frame_rate``; from the banner, its ``fps``. ``None``
+            when unset.
         frames: the frame count at ``fps``: the video packets when the rate is
             constant and they are known, else the video duration times ``fps``.
         packets: the video packet count, counted (``count_packets=True``) or
@@ -128,10 +133,12 @@ class MediaProbe:
         video_start: where the first video frame sits after the file's start
             (what an input seek counts from).
         video_duration: the video stream's own length (s).
-        audio_start: where the sound starts after the file's start.
+        audio_start: where the sound starts after the file's start (from the
+            banner, assumed ``0.0``: it states no stream start times).
         sample_rate, channels: of the first audio stream.
-        variable_rate: the picture is not at a constant rate (rates disagree,
-            or the packets disagree with the duration).
+        variable_rate: the picture is not at a constant rate (the nominal and
+            average rates disagree by more than :data:`VFR_TOLERANCE`, or, from
+            ffprobe, the packets disagree with the duration).
         has_audio: the file has an audio stream.
     """
 
@@ -245,6 +252,18 @@ def _rotation(stream: dict) -> float:
     return float(stream.get("tags", {}).get("rotate", 0))
 
 
+def _start(stream: dict, origin: float) -> float:
+    """``stream``'s ``start_time`` after the file's (``origin`` when unset; a
+    stated ``0.0`` is a start, not a missing value)."""
+    start = _seconds(stream.get("start_time"))
+    return (origin if start is None else start) - origin
+
+
+def _rates_disagree(nominal: Optional[Fraction], average: Optional[Fraction]) -> bool:
+    """Whether a nominal and an average rate are far enough apart to mean VFR."""
+    return bool(nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
+
+
 def _unreadable(media, detail: str) -> ProbeError:
     """The error for a file ffmpeg/ffprobe could not open: missing, or unreadable."""
     text = str(media)
@@ -259,7 +278,8 @@ def _unreadable(media, detail: str) -> ProbeError:
 
 def find_ffprobe() -> Optional[str]:
     """The ffprobe beside :func:`mixing.util.ffmpeg_exe`, else on ``PATH``, else ``None``."""
-    sibling = Path(ffmpeg_exe()).with_name(FFPROBE_NAME)
+    ffmpeg = Path(ffmpeg_exe())
+    sibling = ffmpeg.with_name(FFPROBE_NAME + ffmpeg.suffix)  # ffprobe.exe on Windows
     return str(sibling) if sibling.is_file() else shutil.which(FFPROBE_NAME)
 
 
@@ -267,7 +287,10 @@ def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProb
     argv = [binary, "-v", "error", "-show_streams", "-show_format", "-of", "json"]
     if count_packets:
         argv.append("-count_packets")
-    proc = subprocess.run([*argv, str(media)], capture_output=True, text=True)
+    try:
+        proc = subprocess.run([*argv, str(media)], capture_output=True, text=True)
+    except OSError as e:  # not MediaNotFoundError: it is the binary that is missing
+        raise ProbeError(f"cannot run ffprobe {binary!r}: {e}") from e
     if proc.returncode != 0:
         raise _unreadable(media, proc.stderr)
     probed = json.loads(proc.stdout or "{}")
@@ -278,7 +301,7 @@ def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProb
     audio_fields = {}
     if audio is not None:
         audio_fields = dict(
-            audio_start=(_seconds(audio.get("start_time")) or origin) - origin,
+            audio_start=_start(audio, origin),
             sample_rate=_count(audio.get("sample_rate")),
             channels=_count(audio.get("channels")),
         )
@@ -298,17 +321,19 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
     average = _ratio(video.get("avg_frame_rate"))
     fps = nominal or average
     packets = _count(video.get("nb_read_packets" if count_packets else "nb_frames"))
-    video_start = (_seconds(video.get("start_time")) or origin) - origin
-    # a stream's own duration is its length; mkv's DURATION tag and the
-    # format's duration run from the file's start, so the video's start is
-    # not part of the video
-    end = _clock(video.get("tags", {}).get("DURATION")) or _seconds(fmt.get("duration"))
+    video_start = _start(video, origin)
+    # a stream's own duration is its length. Otherwise: mkv's DURATION tag is
+    # the stream's end timestamp (on the same clock as start_time), and the
+    # format's duration runs from the file's start (origin): either way the
+    # video's own start is not part of the video
+    tag_end = _clock(video.get("tags", {}).get("DURATION"))
+    end = tag_end - origin if tag_end else _seconds(fmt.get("duration"))
     duration = _seconds(video.get("duration")) or (end and end - video_start)
     timed = _frames_in(duration, fps) if duration and fps else None
     # avg_frame_rate is barely filled by mkv: the packet count against the
     # duration is the other witness of a variable rate
     variable = bool(
-        (nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
+        _rates_disagree(nominal, average)
         or (packets and timed and abs(packets - timed) > VFR_FRAME_SLACK)
     )
     rotation = _rotation(video)
@@ -334,21 +359,35 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
 _BANNER_INPUT = re.compile(r"^Input #\d+", re.MULTILINE)
 _BANNER_VIDEO = re.compile(r"Stream #.*Video:.*")
 _BANNER_SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})")
-_BANNER_FPS = re.compile(r"([\d.]+)\s*fps")
+_BANNER_FPS = re.compile(r"([\d.]+)(k?)\s*fps")
+_BANNER_TBR = re.compile(r"([\d.]+)(k?)\s*tbr")
 _BANNER_AUDIO = re.compile(r"Stream #.*Audio:.*")
 _BANNER_SOUND = re.compile(r"(\d+) Hz, ([\w.]+)")
 _BANNER_DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 _BANNER_ROTATION = re.compile(r"rotation of (-?[\d.]+) degrees")
 
 
+def _banner_rate(pattern: re.Pattern, line: str) -> Optional[Fraction]:
+    """A rate the banner prints (``29.97 fps``, ``30 tbr``, ``90k tbr``), snapped."""
+    found = pattern.search(line)
+    if not found:
+        return None
+    value = float(found.group(1)) * (KILO if found.group(2) else 1)
+    return snap_rate(value) if value > 0 else None
+
+
 def parse_banner(text: str) -> MediaProbe:
     """A :class:`MediaProbe` from the text ``ffmpeg -i FILE`` prints (approximate).
 
     The banner states the container duration, the first video stream's coded
-    size and printed rate, the display rotation and the first audio stream's
-    rate and layout. It has no per-stream start times (both streams are taken
-    to start with the file), no packet count (``frames`` is the container
-    duration times the rate) and no second rate to detect a variable one.
+    size, its two rates (``N tbr`` is ffmpeg's guess at ``r_frame_rate`` and
+    becomes ``fps``; ``N fps`` is ``avg_frame_rate`` and becomes ``avg_fps``;
+    both snapped by :func:`snap_rate`), the display rotation and the first
+    audio stream's rate and layout. It has no per-stream start times (both
+    streams are **assumed** to start with the file: ``video_start`` and
+    ``audio_start`` are ``0.0``) and no packet count (``frames`` is the
+    container duration times ``fps``), so a variable rate is detected only
+    when the two printed rates disagree.
 
     >>> found = parse_banner('''Duration: 00:00:10.50, start: 0.0
     ...   Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 29.97 fps
@@ -379,15 +418,17 @@ def parse_banner(text: str) -> MediaProbe:
         degrees = float(rotation.group(1)) if rotation else 0.0
         if _is_quarter_turn(degrees):
             width, height = height, width
-        rate = _BANNER_FPS.search(line.group(0))
-        fps = snap_rate(float(rate.group(1))) if rate else None
+        average = _banner_rate(_BANNER_FPS, line.group(0))
+        fps = _banner_rate(_BANNER_TBR, line.group(0)) or average
         fields.update(
             width=width,
             height=height,
             rotation=degrees,
             fps=fps,
+            avg_fps=average,
             frames=_frames_in(seconds, fps) if seconds and fps else None,
             video_duration=seconds,
+            variable_rate=_rates_disagree(fps, average),
         )
     return MediaProbe(**fields)
 
@@ -423,9 +464,16 @@ def probe(
 
     Raises:
         MediaNotFoundError: ``media`` does not exist.
-        ProbeError: ffmpeg/ffprobe cannot read it.
+        ProbeError: ffmpeg/ffprobe cannot read it, or the named ``ffprobe``
+            cannot be run.
+        ValueError: ``ffprobe=""``.
     """
+    if ffprobe == "":
+        raise ValueError(
+            "ffprobe='' names no binary: pass a path, AUTO_FFPROBE to find one, "
+            "or None for the banner fallback"
+        )
     binary = find_ffprobe() if ffprobe == AUTO_FFPROBE else ffprobe
-    if binary:
+    if binary is not None:
         return _probe_with_ffprobe(binary, media, count_packets=count_packets)
     return _probe_with_banner(media)

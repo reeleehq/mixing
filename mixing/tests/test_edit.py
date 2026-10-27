@@ -866,3 +866,35 @@ def test_transparent_still_is_flattened_onto_the_bars_colour(media):
     )[-1]
     assert held[2, 2].max() < 30  # transparent: the bars colour, not the hidden white
     assert held[H // 2, W // 2, 0] > 200 and held[H // 2, W // 2, 1] < 60
+
+
+def test_sound_starting_before_the_picture_stays_in_sync(media):
+    """Regression (#122 review): video at exactly 0.0, sound from -0.27 s. A
+    stated 0.0 start was read as unset, losing the 270 ms lead: the sound's
+    loud half would land at 1.0 s instead of 0.73 s."""
+    import numpy as np
+
+    lead, loud_from = 0.27, 1.0  # the sound is silent for its first second
+    source = media["dir"] / "early_sound.mkv"
+    tone = f"sine=f=440:r={SR}:d=3,volume=0:enable='lt(t,{loud_from})'"
+    subprocess.run(
+        [_ffmpeg(), "-v", "error", "-y", "-f", "lavfi",
+         "-i", f"color=black:s={W}x{H}:r=25:d=3",
+         "-itsoffset", str(-lead), "-f", "lavfi", "-i", tone,
+         "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-c:a", "pcm_s16le", "-avoid_negative_ts", "disabled", str(source)],
+        check=True,
+    )  # fmt: skip
+    info = probe_source(source)
+    assert info.video_start == pytest.approx(lead, abs=2e-3)
+    assert info.audio_offset == pytest.approx(-lead, abs=2e-3)
+    out = render(
+        [Span(0.0, 1.5, "a")], {"a": Cam()}, source=source,
+        output=media["dir"] / "early_sound_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    samples = _samples(out).astype(float)
+    onset = loud_from - lead  # 0.73 s into the picture
+    quiet = samples[: int((onset - 0.03) * SR)]
+    loud = samples[int((onset + 0.03) * SR) : int((onset + 0.3) * SR)]
+    assert not quiet.any()
+    assert np.sqrt(np.mean(loud**2)) > 1000

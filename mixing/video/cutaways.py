@@ -149,8 +149,9 @@ def parse_media_info(ffmpeg_stderr: str) -> MediaInfo:
 
     The size is the **displayed** one: ffmpeg rotates a 90/270-degree display
     matrix on decode, so width and height are swapped for it. The parsing is
-    :func:`mixing.probe.parse_banner`'s (its printed rate is snapped to the
-    exact rate it stands for: ``29.97`` reads as ``30000/1001``).
+    :func:`mixing.probe.parse_banner`'s: ``fps`` is the banner's ``tbr`` (the
+    nominal rate; its ``fps`` figure when there is no ``tbr``), snapped to the
+    exact rate it stands for (``29.97`` reads as ``30000/1001``).
 
     >>> parse_media_info('''Duration: 00:00:10.50, start: 0.0
     ...   Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 25 fps
@@ -166,6 +167,12 @@ def probe_media(path: str | Path) -> MediaInfo:
 
     ffprobe when there is one (exact rate), else ``ffmpeg -i``'s banner; the
     packets are not counted (the plan only needs the container duration).
+
+    ``fps`` is the **nominal** rate (ffprobe's ``r_frame_rate``, the banner's
+    ``tbr``), not the average one the banner's ``fps`` figure states (and
+    that this probe returned before :mod:`mixing.probe`): for a
+    variable-rate file they differ (an mp4 with frames dropped reads 30, not
+    its average 15.52).
     """
     found = probe(path, count_packets=False)  # MediaNotFoundError / ProbeError
     return _media_info(found, no_video=f"cannot probe {path}: no video stream found")
