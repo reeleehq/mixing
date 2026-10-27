@@ -31,6 +31,7 @@ import numbers
 import re
 import subprocess
 import warnings
+from contextlib import closing
 from functools import lru_cache
 from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
 
@@ -164,7 +165,8 @@ def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.n
 
 class _Blocks:
     """Mean square of every ``block``-long window at ``hop`` spacing, over
-    energy fed in pieces; holds at most a block plus one piece. A signal
+    energy fed in pieces; holds at most a block (plus the hop, if it is longer)
+    plus one piece. A signal
     shorter than one block is one block over all of it."""
 
     def __init__(self, block: int, hop: int):
@@ -307,7 +309,8 @@ def file_loudness(
     :func:`numpy_lufs`).
     """
     rate, chunks = decode_float_chunks(path, chunk_s=chunk_s, ffmpeg=ffmpeg)
-    return stream_loudness(chunks, rate)
+    with closing(chunks):  # stops ffmpeg even if metering raises partway
+        return stream_loudness(chunks, rate)
 
 
 # --- other meters ----------------------------------------------------------------

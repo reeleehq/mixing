@@ -15,9 +15,14 @@ import subprocess
 import tempfile
 from typing import Iterator, Optional
 
-import numpy as np
+from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint
 
-from mixing.util import ffmpeg_exe
+try:
+    import numpy as np
+except ImportError as e:
+    raise ImportError(
+        f"mixing.decode needs numpy: {install_hint(LOUDNESS_EXTRA)}", name=e.name
+    ) from e
 
 #: Seconds of audio per chunk by default.
 DECODE_CHUNK_S = 5.0
