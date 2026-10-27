@@ -16,6 +16,7 @@ from typing import Callable, Sequence
 
 # Canonical SRT primitives (re-exported for backward compatibility).
 from mixing.srt import Cue, dump_srt, parse_srt, srt_time_to_seconds
+from mixing.util import require_llm_chat
 
 __all__ = [
     "Cue",
@@ -84,13 +85,9 @@ def default_translate_fn(
     one-to-one mapping with the input cues is preserved. Falls back to a clear
     error if ``aix`` is not importable — pass your own ``translate_fn`` then.
     """
-    try:
-        from aix import chat  # provider-agnostic LLM interface
-    except ImportError as e:  # pragma: no cover - depends on environment
-        raise ImportError(
-            "default_translate_fn needs the 'aix' package for LLM translation. "
-            "Install aix, or pass a custom translate_fn to translate_srt()."
-        ) from e
+    chat = require_llm_chat(
+        "default_translate_fn", alternative="translate_fn to translate_srt()"
+    )
 
     import json as _json
 

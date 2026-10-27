@@ -22,16 +22,17 @@ import pytest
 
 from mixing.util import MEDIA_IMPORT_NAMES, MEDIA_INSTALL_HINT
 
-_PROLOGUE = f"""
+_PROLOGUE = """
 import sys
-for _name in {list(MEDIA_IMPORT_NAMES)!r}:
+for _name in {hidden!r}:
     sys.modules[_name] = None
 """
 
 
-def _run_hidden(body: str) -> dict:
-    """Run ``body`` in a fresh interpreter with the media libs hidden; return its JSON."""
-    code = _PROLOGUE + textwrap.dedent(body)
+def _run_hidden(body: str, *, hidden=MEDIA_IMPORT_NAMES) -> dict:
+    """Run ``body`` in a fresh interpreter with ``hidden`` modules (default: the
+    media libs) made unimportable; return its JSON."""
+    code = _PROLOGUE.format(hidden=list(hidden)) + textwrap.dedent(body)
     proc = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, timeout=120
     )
@@ -166,28 +167,48 @@ def test_loudness_without_numpy_names_the_missing_module():
     assert "mixing[loudness]" in out["message"]
 
 
-#: Import name -> distribution name, where they differ.
-_DISTRIBUTIONS = {"cv2": "opencv-contrib-python", "PIL": "pillow"}
+#: Import name -> distribution name, where they differ. IPython's own
+#: distribution is ``ipython``; the ``widget`` extra gets it from the ``jupyter``
+#: metapackage it declares (which has no import name), so IPython stands for it.
+_DISTRIBUTIONS = {
+    "cv2": "opencv-contrib-python",
+    "PIL": "pillow",
+    "ffmpeg": "ffmpeg-python",
+    "google.genai": "google-genai",
+    "IPython": "jupyter",
+}
+#: Extras that install tools and other extras, not modules mixing imports.
+_NOT_IN_TABLE = {"dev", "testing"}
 
 
-def test_every_extra_in_the_table_is_declared_in_pyproject():
+def _declared_extras() -> dict:
+    """``{extra: {distribution name}}`` from pyproject's optional-dependencies."""
     tomllib = pytest.importorskip("tomllib" if sys.version_info >= (3, 11) else "tomli")
     from pathlib import Path
-
-    from mixing.util import EXTRAS
 
     path = Path(__file__).resolve().parents[2] / "pyproject.toml"
     if not path.exists():
         pytest.skip("pyproject.toml not available (installed distribution)")
     declared = tomllib.loads(path.read_text())["project"]["optional-dependencies"]
+    return {
+        extra: {re.split(r"[<>=!~\[ ;]", r, maxsplit=1)[0].lower() for r in reqs}
+        for extra, reqs in declared.items()
+    }
+
+
+def test_the_table_and_pyproject_declare_the_same_extras():
+    """``EXTRAS`` is pyproject's extras read as import names: the same extras,
+    each with the same packages (both directions, so neither can drift)."""
+    from mixing.util import EXTRAS
+
+    declared = _declared_extras()
+    assert set(EXTRAS) == set(declared) - _NOT_IN_TABLE
     for extra, modules in EXTRAS.items():
-        requirements = {
-            re.split(r"[<>=!~\[ ;]", r, maxsplit=1)[0].lower() for r in declared[extra]
-        }
-        for module in modules:
-            assert _DISTRIBUTIONS.get(module, module).lower() in requirements, (
-                f"{module!r} is in EXTRAS[{extra!r}] but not in pyproject's {extra!r}"
-            )
+        supplied = {_DISTRIBUTIONS.get(m, m).lower() for m in modules}
+        assert supplied == declared[extra], (
+            f"EXTRAS[{extra!r}] supplies {sorted(supplied)}, "
+            f"pyproject's {extra!r} declares {sorted(declared[extra])}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -197,17 +218,15 @@ def test_every_extra_in_the_table_is_declared_in_pyproject():
         ("torch", "pip install 'mixing[ml]'"),
         ("librosa", "pip install 'mixing[beats]'"),
         ("numpy", "pip install 'mixing[media]'"),
+        ("aix", "pip install 'mixing[llm]'"),
+        ("google.genai.types", "pip install 'mixing[gen]'"),
+        ("pyclip", "pip install 'mixing[clipboard]'"),
     ],
 )
 def test_require_package_hints_the_extra_from_the_table(monkeypatch, module, hint):
-    import importlib
-
     from mixing.util import require_package
 
-    def deny(name, *a, **k):
-        raise ImportError(name)
-
-    monkeypatch.setattr(importlib, "import_module", deny)
+    _deny_imports(monkeypatch)
     with pytest.raises(ImportError, match=re.escape(hint)):
         require_package(module)
 
@@ -218,3 +237,123 @@ def test_unknown_extra_and_empty_module_list():
     with pytest.raises(ValueError, match="unknown extra"):
         install_hint("nope")
     require_extra("demo", "ml", modules=())  # nothing to check: no error
+
+
+def _deny_imports(monkeypatch):
+    import importlib
+
+    def deny(name, *a, **k):
+        raise ImportError(name)
+
+    monkeypatch.setattr(importlib, "import_module", deny)
+
+
+def test_require_package_names_the_callers_extra(monkeypatch):
+    from mixing.util import require_package
+
+    _deny_imports(monkeypatch)
+    with pytest.raises(ImportError, match=re.escape("mixing[loudness]")) as info:
+        require_package("scipy.signal", extra="loudness")
+    assert info.value.name == "scipy.signal"
+
+
+def test_require_package_rejects_an_unknown_extra_even_when_installed():
+    from mixing.util import require_package
+
+    with pytest.raises(ValueError, match="unknown extra"):
+        require_package("math", extra="nope")
+
+
+def test_loudness_without_scipy_names_the_loudness_extra():
+    """numpy installed, scipy not: the meter names ``mixing[loudness]`` (the
+    extra the user is on), not ``media``, and the ffmpeg meter's module loads."""
+    out = _run_hidden(
+        """
+        import json
+        import numpy as np
+        import mixing.loudness as L
+        x = np.sin(np.arange(8000) / 10.0)[:, None] * 0.1
+        ffmpeg = L.integrated_lufs(x, 8000, meter="ffmpeg_ebur128")
+        try:
+            L.integrated_lufs(x, 8000)
+        except ImportError as e:
+            print(json.dumps({"name": e.name, "message": str(e), "ffmpeg": ffmpeg}))
+        """,
+        hidden=("scipy",),
+    )
+    assert out["name"] == "scipy.signal"
+    assert "pip install 'mixing[loudness]'" in out["message"]
+    assert isinstance(out["ffmpeg"], float)
+
+
+def test_llm_defaults_name_the_llm_extra_and_the_alternative():
+    out = _run_hidden(
+        """
+        import json
+        from mixing.chapters import default_segment_fn
+        from mixing.dubbing.srt import default_translate_fn
+        msgs = []
+        for call in (lambda: default_segment_fn([], 1),
+                     lambda: default_translate_fn(["hi"], "fr")):
+            try:
+                call()
+            except ImportError as e:
+                msgs.append({"name": e.name, "message": str(e)})
+        print(json.dumps(msgs))
+        """,
+        hidden=("aix",),
+    )
+    assert [m["name"] for m in out] == ["aix", "aix"]
+    assert all("pip install 'mixing[llm]'" in m["message"] for m in out)
+    assert "segment_fn to detect_chapters()" in out[0]["message"]
+    assert "translate_fn to translate_srt()" in out[1]["message"]
+
+
+def test_audio_widget_without_soundfile_names_the_widget_extra():
+    out = _run_hidden(
+        """
+        import json, sys, types
+        for _stub in ("IPython", "IPython.display"):  # Jupyter is not installed in CI
+            sys.modules.setdefault(_stub, types.ModuleType(_stub))
+        sys.modules["IPython.display"].display = sys.modules["IPython.display"].HTML = None
+        from mixing.audio.audio_widget import ensure_wfsr
+        try:
+            ensure_wfsr("x.wav")
+        except ImportError as e:
+            print(json.dumps({"name": e.name, "message": str(e)}))
+        """,
+        hidden=("soundfile",),
+    )
+    assert out["name"] == "soundfile"
+    assert "pip install 'mixing[widget]'" in out["message"]
+
+
+def test_audio_widget_without_jupyter_names_the_widget_extra():
+    out = _run_hidden(
+        """
+        import json
+        try:
+            import mixing.audio.audio_widget
+        except ImportError as e:
+            print(json.dumps({"name": e.name, "message": str(e)}))
+        """,
+        hidden=("IPython",),
+    )
+    assert out["name"].split(".")[0] == "IPython"
+    assert "pip install 'mixing[widget]'" in out["message"]
+
+
+def test_require_package_does_not_blame_an_installed_package(monkeypatch):
+    """A package that is there but whose own import fails re-raises that error."""
+    import importlib
+
+    from mixing.util import require_package
+
+    def broken(name, *a, **k):
+        raise ModuleNotFoundError("No module named 'numba'", name="numba")
+
+    monkeypatch.setattr(importlib, "import_module", broken)
+    with pytest.raises(ModuleNotFoundError) as info:
+        require_package("librosa")
+    assert info.value.name == "numba"
+    assert "mixing[" not in str(info.value)

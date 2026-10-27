@@ -74,6 +74,7 @@ from collections.abc import Callable
 
 from dol import non_colliding_key
 
+from ..util import require_package
 from ._helpers import _is_video_file
 
 logger = logging.getLogger(__name__)
@@ -140,7 +141,7 @@ def _setup_genai_client(
     service_account_file=None, project_id=None, location="us-central1"
 ):
     """Set up Google GenAI client with proper error handling."""
-    from google import genai
+    genai = require_package("google.genai")
 
     try:
         if service_account_file:
@@ -661,8 +662,8 @@ def generate_video(
         Authentication errors with helpful setup instructions
     """
     # TODO: manage models better (when aix offers model routing tools)
-    from google import genai
-    from google.genai.types import GenerateVideosConfig, Image
+    types = require_package("google.genai.types")
+    GenerateVideosConfig, Image = types.GenerateVideosConfig, types.Image
     from mixing.egress import is_path_output, is_sink
 
     # Resolve ``output`` into an egress sink (a callable applied to the
