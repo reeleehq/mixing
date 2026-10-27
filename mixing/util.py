@@ -74,8 +74,10 @@ ML_IMPORT_NAMES = ("torch", "transformers")
 BEATS_IMPORT_NAMES = ("librosa",)
 LOUDNESS_IMPORT_NAMES = ("numpy", "scipy")
 
-#: The one table of extras: ``{extra: import names it supplies}``. A module in
-#: several extras (numpy) maps to the first, so the broadest install wins.
+#: The one table of the extras mixing checks for: ``{extra: import names it
+#: supplies}``. A module in several extras (numpy) maps to the first, so the
+#: broadest install wins. ``extra_for`` / ``install_hint`` are public so a
+#: caller can map a missing module (``ImportError.name``) to its install line.
 EXTRAS: dict[str, tuple[str, ...]] = {
     MEDIA_EXTRA: MEDIA_IMPORT_NAMES,
     ML_EXTRA: ML_IMPORT_NAMES,
@@ -134,7 +136,8 @@ def require_extra(
     ImportError: demo requires the 'ml' extra ...
     """
     hint = install_hint(extra)
-    missing = [name for name in modules or EXTRAS[extra] if not _is_importable(name)]
+    modules = EXTRAS[extra] if modules is None else modules
+    missing = [name for name in modules if not _is_importable(name)]
     if missing:
         raise ImportError(
             f"{feature} requires the {extra!r} extra "
