@@ -80,6 +80,13 @@ TRUE_PEAK_MIN_RATE = 192_000
 #: also the context neighbouring chunks share, so chunk joins are exact.
 TRUE_PEAK_FILTER_HALF_SAMPLES = 32
 TRUE_PEAK_FILTER_KAISER_BETA = 8.0
+#: ``method="fft"``'s filter: the same windowed sinc, long enough to be exact to
+#: within ~0.003 fs of Nyquist, convolved by FFT so the length costs no more
+#: than the short one. Hard-clipped full-band noise reads within 0.01 dB of a
+#: 16000-sample sinc (the short filter: ~0.5 dB low). A lower beta trades image
+#: rejection (still > 50 dB) for a narrower transition at Nyquist.
+TRUE_PEAK_FFT_HALF_SAMPLES = 2048
+TRUE_PEAK_FFT_KAISER_BETA = 5.0
 
 
 #: Group leveling defaults.
@@ -374,41 +381,99 @@ def integrated_lufs(data: np.ndarray, fs: int, *, meter: Meter = "numpy") -> flo
 
 
 @lru_cache(maxsize=None)
-def _interpolation_filter(factor: int) -> np.ndarray:
-    """The windowed-sinc FIR that upsamples by ``factor``, scaled for
-    ``resample_poly`` (which multiplies by ``factor``). Its every ``factor``-th
+def _interpolation_filter(factor: int, half_samples: int, beta: float) -> np.ndarray:
+    """The Kaiser-windowed sinc that upsamples by ``factor``, ``half_samples``
+    input samples long on each side, its centre tap 1. Its every ``factor``-th
     tap is zero but the centre one, so the original samples pass unchanged and
     a true peak never reads below the sample peak. Read-only: it is cached."""
     kaiser = require_package("scipy.signal.windows", extra=LOUDNESS_EXTRA).kaiser
 
-    half = TRUE_PEAK_FILTER_HALF_SAMPLES * factor
+    half = half_samples * factor
     n = np.arange(-half, half + 1)
-    taps = np.sinc(n / factor) * kaiser(len(n), TRUE_PEAK_FILTER_KAISER_BETA)
+    taps = np.sinc(n / factor) * kaiser(len(n), beta)
     taps[n % factor == 0] = 0.0  # exactly, not sinc's ~1e-17
     taps[half] = 1.0
-    taps /= factor
     taps.flags.writeable = False
     return taps
 
 
+def _upsample_fir(x: np.ndarray, factor: int) -> np.ndarray:
+    """``x`` ``(n, channels)`` upsampled by ``factor`` with the short filter,
+    as a polyphase FIR (``resample_poly``, which multiplies by ``factor``)."""
+    resample_poly = require_package("scipy.signal", extra=LOUDNESS_EXTRA).resample_poly
+    taps = _interpolation_filter(
+        factor, TRUE_PEAK_FILTER_HALF_SAMPLES, TRUE_PEAK_FILTER_KAISER_BETA
+    )
+    return resample_poly(x, factor, 1, axis=0, window=taps / factor)
+
+
+def _upsample_fft(x: np.ndarray, factor: int) -> np.ndarray:
+    """``x`` ``(n, channels)`` upsampled by ``factor`` with the long filter: each
+    in-between phase is ``x`` convolved (by FFT) with every ``factor``-th tap;
+    the on-grid phase is ``x`` itself."""
+    oaconvolve = require_package("scipy.signal", extra=LOUDNESS_EXTRA).oaconvolve
+    half = TRUE_PEAK_FFT_HALF_SAMPLES
+    taps = _interpolation_filter(factor, half, TRUE_PEAK_FFT_KAISER_BETA)
+    x = np.asarray(x, dtype=np.float64)
+    up = np.empty((len(x) * factor, x.shape[1]))
+    up[::factor] = x
+    for phase in range(1, factor):
+        full = oaconvolve(x, taps[phase::factor, None], axes=0)
+        up[phase::factor] = full[half : half + len(x)]
+    return up
+
+
+class _Upsampler(NamedTuple):
+    """A true-peak interpolation: the upsampling, and the input samples of
+    context it reads on each side (what neighbouring chunks must share)."""
+
+    upsample: Callable[[np.ndarray, int], np.ndarray]
+    context: int
+
+
+#: The true-peak interpolations by name (``method=``): ``"fir"``, the short
+#: windowed sinc, exact to ~0.47 fs; ``"fft"``, the long one, exact to Nyquist.
+TRUE_PEAK_METHODS: dict[str, _Upsampler] = {
+    "fir": _Upsampler(_upsample_fir, TRUE_PEAK_FILTER_HALF_SAMPLES),
+    "fft": _Upsampler(_upsample_fft, TRUE_PEAK_FFT_HALF_SAMPLES),
+}
+DEFAULT_TRUE_PEAK_METHOD = "fir"
+
+
+def _upsampler(method: str) -> _Upsampler:
+    """The :data:`TRUE_PEAK_METHODS` entry named ``method``."""
+    try:
+        return TRUE_PEAK_METHODS[method]
+    except (KeyError, TypeError):
+        raise ValueError(
+            f"unknown true-peak method {method!r}; one of {sorted(TRUE_PEAK_METHODS)}"
+        ) from None
+
+
 def true_peak_envelope(
-    data: np.ndarray, fs: int, *, oversampling: Optional[int] = None
+    data: np.ndarray,
+    fs: int,
+    *,
+    oversampling: Optional[int] = None,
+    method: str = DEFAULT_TRUE_PEAK_METHOD,
 ) -> np.ndarray:
     """Per-sample true peak ``(n,)``: the largest ``|x|`` over all channels of the
     oversampled signal in ``[n, n+1)``.
 
     ``oversampling`` defaults to 4x, raised for rates under 48 kHz so the
-    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. The interpolation is a
-    long windowed sinc (``TRUE_PEAK_FILTER_*``): content up to about 0.47 fs
+    oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. ``method`` picks the
+    interpolation (:data:`TRUE_PEAK_METHODS`). ``"fir"`` (default) is a windowed
+    sinc 32 samples a side (``TRUE_PEAK_FILTER_*``): content up to about 0.47 fs
     reads as an ideal sinc reconstruction would (on the same oversampled grid),
     content between there and Nyquist reads low: ~0.35 dB for noise up to
-    Nyquist, ~1 dB for hard-clipped full-band material. The signal is
-    taken as silent outside its span (as when played from silence), not
-    looped. Chunked, with the filter's length of context shared between chunks,
-    so the joins are exact.
+    Nyquist, ~1 dB for hard-clipped full-band material. ``"fft"`` is the same
+    sinc 2048 samples a side (``TRUE_PEAK_FFT_*``), convolved by FFT: within
+    0.01 dB of an ideal reconstruction up to Nyquist, at about the cost of
+    ``"fir"`` (less at 8x). The signal is taken as silent outside its span (as
+    when played from silence), not looped. Chunked, with the filter's length of
+    context shared between chunks, so the joins are exact.
     """
-    resample_poly = require_package("scipy.signal", extra=LOUDNESS_EXTRA).resample_poly
-
+    upsampler = _upsampler(method)
     data = _as_2d(data)
     if oversampling is None:
         factor = max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
@@ -416,27 +481,32 @@ def true_peak_envelope(
         factor = int(oversampling)
     else:
         raise ValueError(f"oversampling must be an integer >= 1, got {oversampling!r}")
-    taps = _interpolation_filter(factor)
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
-    margin = TRUE_PEAK_FILTER_HALF_SAMPLES
+    margin = upsampler.context
     envelope = np.empty(len(data))
     for start in range(0, len(data), step):
         stop = min(start + step, len(data))
         lo, hi = max(0, start - margin), min(len(data), stop + margin)
-        up = resample_poly(data[lo:hi], factor, 1, axis=0, window=taps)
+        up = upsampler.upsample(data[lo:hi], factor)
         inner = np.abs(up[(start - lo) * factor : (stop - lo) * factor]).max(axis=1)
         envelope[start:stop] = inner.reshape(-1, factor).max(axis=1)
     return envelope
 
 
 def true_peak_db(
-    data: np.ndarray, fs: int, *, oversampling: Optional[int] = None
+    data: np.ndarray,
+    fs: int,
+    *,
+    oversampling: Optional[int] = None,
+    method: str = DEFAULT_TRUE_PEAK_METHOD,
 ) -> float:
-    """True peak of float samples in dBTP (``-inf`` for silence)."""
+    """True peak of float samples in dBTP (``-inf`` for silence); ``oversampling``
+    and ``method`` as for :func:`true_peak_envelope`."""
     data = _as_2d(data)
     if len(data) == 0:
         return -np.inf
-    peak = float(true_peak_envelope(data, fs, oversampling=oversampling).max())
+    envelope = true_peak_envelope(data, fs, oversampling=oversampling, method=method)
+    peak = float(envelope.max())
     return float(20.0 * np.log10(peak)) if peak > 0 else -np.inf
 
 
@@ -518,6 +588,7 @@ def limit_peaks(
     true_peak: bool = False,
     fs: Optional[int] = None,
     oversampling: Optional[int] = None,
+    method: Optional[str] = None,
 ) -> np.ndarray:
     """``data`` ``(n, channels)`` with no peak above ``ceiling`` (linear, full scale 1.0).
 
@@ -549,15 +620,22 @@ def limit_peaks(
     at 8x, -0.99 at 16x, at roughly 1x / 2x / 4x the cost. Content between
     0.47 fs and Nyquist reads low whatever the factor (see
     :func:`true_peak_envelope`): ~0.35 dB for noise up to Nyquist, ~1 dB for
-    hard-clipped full-band material. For a hard ceiling on such material use
-    ``oversampling=8`` and a ceiling ~1 dB under the target.
+    hard-clipped full-band material, unless ``method="fft"`` (with
+    ``true_peak=True`` only; the meter's interpolation, see
+    :func:`true_peak_envelope`), which reads it as an ideal sinc would; then
+    only the grid is left, so ``method="fft"`` holds the ceiling to a few
+    hundredths of a dB at ``oversampling=8`` and to under 0.001 dB at 16. With
+    the default ``"fir"``, set the ceiling ~1 dB under the target.
     """
     if not 0 < ceiling <= 1:
         raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
-    if oversampling is not None and not true_peak:
-        raise ValueError("oversampling applies to true_peak=True only")
+    for name, value in (("oversampling", oversampling), ("method", method)):
+        if value is not None and not true_peak:
+            raise ValueError(f"{name} applies to true_peak=True only")
     if true_peak and fs is None:
         raise ValueError("true_peak=True needs fs")
+    method = method or DEFAULT_TRUE_PEAK_METHOD
+    upsampler = _upsampler(method)
     data = _as_2d(data)
     if window is None:
         window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
@@ -565,7 +643,7 @@ def limit_peaks(
     # a gain sees the need up to ~1.5w samples away on each side (sliding
     # minimum, then moving average); a true peak, the interpolation filter's
     # length of samples and the one before
-    margin = 2 * w + 1 + (TRUE_PEAK_FILTER_HALF_SAMPLES + 1 if true_peak else 0)
+    margin = 2 * w + 1 + (upsampler.context + 1 if true_peak else 0)
     n, out = len(data), None
     for start in range(0, n, LIMITER_CHUNK_FRAMES):
         stop = min(n, start + LIMITER_CHUNK_FRAMES)
@@ -576,6 +654,7 @@ def limit_peaks(
             true_peak=true_peak,
             fs=fs,
             oversampling=oversampling,
+            method=method,
         )
         gain = _smoothed_gain(need, w)[start - lo : stop - lo]
         if out is None:
@@ -587,12 +666,12 @@ def limit_peaks(
 
 
 def _peak_need(
-    data: np.ndarray, *, ceiling: float, true_peak: bool, fs, oversampling
+    data: np.ndarray, *, ceiling: float, true_peak: bool, fs, oversampling, method
 ) -> np.ndarray:
     """The gain each sample needs, ``ceiling / peak`` at most 1 ``(n,)``: by its
     sample peak, or by the true peak of it and the gap before it."""
     if true_peak:
-        peak = true_peak_envelope(data, fs, oversampling=oversampling)
+        peak = true_peak_envelope(data, fs, oversampling=oversampling, method=method)
         peak = np.maximum(peak, np.concatenate([[0.0], peak[:-1]]))  # the gap before
     else:
         peak = np.abs(data).max(axis=1)

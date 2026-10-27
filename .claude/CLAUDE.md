@@ -33,7 +33,7 @@ Focused subpackages, each with a clear dependency footprint:
 
 | Module | Purpose | Heavy deps |
 |---|---|---|
-| `mixing.loudness` | array-only loudness: `integrated_lufs(meter=)` (numpy / ffmpeg_ebur128 / pyloudnorm / callable), `stream_loudness`/`file_loudness` (I + LRA in bounded memory), `level_group`, `limit_peaks` (sample or true peak), `true_peak_db`; `mixing.audio.leveling` builds its `Audio` layer on it | `numpy`, `scipy` (extra `loudness`; no media stack) |
+| `mixing.loudness` | array-only loudness: `integrated_lufs(meter=)` (numpy / ffmpeg_ebur128 / pyloudnorm / callable), `stream_loudness`/`file_loudness` (I + LRA in bounded memory), `level_group`, `limit_peaks` (sample or true peak), `true_peak_db` (true-peak interpolation `method="fir"|"fft"`); `mixing.audio.leveling` builds its `Audio` layer on it | `numpy`, `scipy` (extra `loudness`; no media stack) |
 | `mixing.decode` | `decode_float_chunks`: a file's audio as float chunks at its own rate/channels, through ffmpeg (feeds `mixing.loudness.file_loudness`, bounded memory) | `numpy` + an ffmpeg |
 | `mixing.audio` | `Audio`/`AudioSamples`, fades, crop, concat, overlay, `loop_audio`, `duck_audio`, `find_audio_offset`, segmentation | `pydub`, `numpy`, `scipy` |
 | `mixing.audio.beats` | `beat_grid`/`BeatGrid` — beat/downbeat/onset analysis | `librosa` (extra `beats`, lazy-imported) |
