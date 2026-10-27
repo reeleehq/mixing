@@ -465,8 +465,12 @@ for song in songs:  # Segments from find_segments(..., strategy="audioset")
 from mixing.audio import find_talk_edges, remove_talk, separate_speech
 
 edges = find_talk_edges(audio, song, words=words)
-clean = remove_talk(audio, edges)  # TalkEdges, Segments, (start, end) pairs or (k, 2) arrays, in seconds
-remove_talk("song.wav", [(0.0, 12.4)], output="out/")  # writes out/song_talk_removed.wav
+clean = remove_talk(
+    audio, edges
+)  # TalkEdges, Segments, (start, end) pairs or (k, 2) arrays, in seconds
+remove_talk(
+    "song.wav", [(0.0, 12.4)], output="out/"
+)  # writes out/song_talk_removed.wav
 speech, music = separate_speech("clip.wav")  # the seam on its own
 ```
 
