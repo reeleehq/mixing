@@ -258,6 +258,7 @@ def test_in_place_refuses_a_file_with_a_picture(tmp_path):
 
 
 @needs_ffmpeg
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX modes and symlinks")
 def test_in_place_keeps_permissions_and_symlinks(tmp_path):
     import os
     import stat
