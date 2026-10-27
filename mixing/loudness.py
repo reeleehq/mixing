@@ -34,7 +34,8 @@ try:
     import numpy as np
 except ImportError as e:  # numpy is the extra's own requirement
     raise ImportError(
-        "mixing.loudness needs numpy and scipy: pip install 'mixing[loudness]'"
+        "mixing.loudness needs numpy and scipy: pip install 'mixing[loudness]'",
+        name=e.name,
     ) from e
 
 from mixing.util import ffmpeg_exe

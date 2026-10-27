@@ -123,7 +123,8 @@ def _require_extra(feature: str, *, extra: str, hint: str, modules: tuple[str, .
         raise ImportError(
             f"{feature} requires the {extra!r} extra "
             f"(missing: {', '.join(missing)}). Install it with "
-            f"{hint}."
+            f"{hint}.",
+            name=missing[0],
         )
 
 

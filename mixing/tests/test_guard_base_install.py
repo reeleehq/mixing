@@ -122,6 +122,14 @@ def test_require_package_error_names_the_requested_package():
     assert info.value.name == "nonexistent_package_xyz123.sub"
 
 
+def test_require_extra_error_names_the_first_missing_module():
+    from mixing.util import require_ml_extra
+
+    with pytest.raises(ImportError) as info:
+        require_ml_extra("demo", modules=("math", "no_such_module_xyz"))
+    assert info.value.name == "no_such_module_xyz"
+
+
 def test_pyproject_declares_the_media_extra():
     tomllib = pytest.importorskip("tomllib" if sys.version_info >= (3, 11) else "tomli")
     from pathlib import Path
@@ -139,3 +147,17 @@ def test_pyproject_declares_the_media_extra():
     heavy = {"moviepy", "opencv-contrib-python", "scipy", "pydub", "burns", "numpy"}
     assert not heavy & names(project["dependencies"])
     assert heavy <= names(project["optional-dependencies"]["media"])
+
+
+def test_loudness_without_numpy_names_the_missing_module():
+    out = _run_hidden(
+        """
+        import json
+        try:
+            import mixing.loudness
+        except ImportError as e:
+            print(json.dumps({"name": e.name, "message": str(e)}))
+        """
+    )
+    assert out["name"] == "numpy"
+    assert "mixing[loudness]" in out["message"]
