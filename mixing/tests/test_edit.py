@@ -21,6 +21,7 @@ from mixing.edit import (
     Overlay,
     PicturePiece,
     Span,
+    SourceInfo,
     Still,
     as_rate,
     probe_source,
@@ -136,14 +137,38 @@ def test_dissolve_renders_half_early_half_late_and_keeps_total():
 
 def test_dissolve_handles_hold_where_the_source_runs_out():
     plan = timeline(
-        [Span(0, 1, "a"), Span(2, 3, "b")],
+        [Span(1, 2, "a"), Span(0, 1, "b")],
         {"a": Cam(dissolve_in=0), "b": Cam(dissolve_in=0.2)},
         fps=30,
         sample_rate=SR,
-        source_frames=31,
+        source_frames=61,
     )
-    a, _ = plan.picture
-    assert a.pieces == (PicturePiece(0, 31), PicturePiece(30, 2, hold=True))
+    a, b = plan.picture
+    # 3 frames of handle wanted past frame 60, one exists: the last is held
+    assert a.pieces == (PicturePiece(30, 31), PicturePiece(60, 2, hold=True))
+    # 3 frames wanted before frame 0, none exist: frame 0 is held
+    assert b.pieces == (PicturePiece(0, 3, hold=True), PicturePiece(0, 30))
+
+
+def test_parts_tile_the_film_exactly():
+    from mixing.edit import _parts
+
+    plan = timeline(
+        [Span(0, 1, "a"), Span(2, 3, "b"), Span(3, 4, "c"), Gap(1, "d")],
+        {
+            "a": Cam(),
+            "b": Cam(dissolve_in=0.3),
+            "c": Cam(),
+            "d": Still("x.png", dissolve_in=0.5),
+        },
+        fps=NTSC,
+        sample_rate=SR,
+    )
+    lengths = [p[3] - p[2] if p[0] == "solo" else p[2] for p in _parts(plan)]
+    assert sum(lengths) == plan.total_frames
+    assert [p[0] for p in _parts(plan)] == [
+        "solo", "dissolve", "solo", "solo", "dissolve", "solo",
+    ]  # fmt: skip
 
 
 @pytest.mark.parametrize(
@@ -151,23 +176,30 @@ def test_dissolve_handles_hold_where_the_source_runs_out():
     [
         ([Gap(1, "a")], {"a": Cam()}, "only gaps"),
         ([Span(0, 1, "a")], {"a": Cam(dissolve_in=0.5)}, "cannot dissolve in"),
-        ([Span(0, 1, "x"), Span(1, 1.1, "b"), Span(2, 3, "a")],
+        ([Span(0, 1, "x"), Span(1, 1.1, "b"), Span(1.2, 1.9, "a")],
          {"x": Cam(), "a": Cam(dissolve_in=0.4), "b": Cam(dissolve_in=0.4)}, "too short"),
         ([Span(0, 1, "zz")], {"a": Cam()}, "not in `clips`"),
         ([Span(0, 0.01, "a")], {"a": Cam()}, "shorter than one frame"),
         ([], {"a": Cam()}, "at least one segment"),
+        ([Span(0, 2.5, "a")], {"a": Cam()}, "past the end of the source"),
     ],
 )  # fmt: skip
 def test_impossible_edits_are_refused(segments, clips, match):
     with pytest.raises(ValueError, match=match):
-        timeline(segments, clips, fps=30, sample_rate=SR)
+        timeline(segments, clips, fps=30, sample_rate=SR, source_frames=60)
 
 
-def test_tuple_segment_forms():
-    plan = timeline(
-        [(0, 1, "a"), ("gap", 0.5, "a")], {"a": Cam()}, fps=30, sample_rate=SR
-    )
-    assert plan.frame_bounds == (0, 30, 45)
+def test_segments_are_spans_and_gaps_only():
+    with pytest.raises(TypeError, match="a Span or a Gap"):
+        timeline([(0, 1, "a")], {"a": Cam()}, fps=30, sample_rate=SR)
+
+
+def test_slide_into_keeps_windows_inside_the_content_box():
+    from mixing.edit import slide_into
+
+    box = (0.25, 0.0, 0.5, 1.0)
+    assert slide_into((0.6, 0.2, 0.5, 0.5), box) == (0.25, 0.2, 0.5, 0.5)
+    assert slide_into((0.3, 0.0, 0.25, 1.0), box) == (0.3, 0.0, 0.25, 1.0)
 
 
 def test_as_rate_and_punch_in_box():
@@ -245,9 +277,10 @@ def media(tmp_path_factory):
     return {"dir": d, "source": source, "still": still, "overlay": overlay_path}
 
 
-def _frames(path):
+def _frames(path, size=(W, H)):
     import numpy as np
 
+    w, h = size
     raw = subprocess.run(
         [
             _ffmpeg(),
@@ -264,7 +297,7 @@ def _frames(path):
         capture_output=True,
         check=True,
     ).stdout
-    return np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3).astype(int)
+    return np.frombuffer(raw, np.uint8).reshape(-1, h, w, 3).astype(int)
 
 
 def _samples(path):
@@ -334,7 +367,7 @@ def edit(media):
     )
     clips = {
         "a": Cam(),
-        "s": Still(media["still"], pan, dissolve_in=0.2),
+        "s": Still(media["still"], pan, fit="fill", dissolve_in=0.2),
         "p": Cam(zoom=2, cx=0.25, cy=0.25, dissolve_in=0.2),
     }
     info = probe_source(media["source"])
@@ -405,7 +438,9 @@ def test_punch_in_crops_to_the_top_left_quadrant(edit):
     for k in range(60, 72):
         corners = [frames[k][tr], frames[k][bl], frames[k][4, 4]]
         assert all(abs(c - corners[2]).max() <= 4 for c in corners)  # all top-left grey
-        expected = (k + 15) % GREY_PERIOD  # output 60 is source 75 (2.4 s - 3 frames)
+        # p's render starts at output 54 with source frame 69 (2.4 s is frame 72,
+        # less the 3-frame dissolve head), so output k shows source k + 15
+        expected = (k + 15) % GREY_PERIOD
         assert _source_frame(frames[k][4, 4, 0]) == pytest.approx(expected, abs=0.3)
 
 
@@ -482,19 +517,261 @@ def test_fps_override_resamples_to_the_requested_rate(media):
     assert len(_samples(out)) == plan.total_samples == 36 * SR // 25
 
 
-def test_static_still_cropped_to_its_content_box_shows_no_bars(media):
+# --- review round: sources the composite edit does not cover ------------------------
+
+
+def _make_source(path, *, rate="30000/1001", select=None, audio_offset=None, mp4=False):
+    """The frame-indexed quadrant source, as mp4/AAC or mkv/PCM, optionally
+    variable-rate (``select`` drops frames) or with the sound starting late."""
+    top, left = f"lt(Y,{H // 2})", f"lt(X,{W // 2})"
+    grey = f"mod(N*{GREY_STEP},256)"
+    geq = (
+        f"r='if({top}*{left},{grey},if({top},255,0))':"
+        f"g='if({top}*{left},{grey},if({top},0,if({left},255,0)))':"
+        f"b='if({top}*{left},{grey},if({top},0,if({left},0,255)))'"
+    )
+    picture = f"color=black:s={W}x{H}:r={rate}:d=3,format=rgb24,geq={geq}"
+    if select:
+        picture += f",select='{select}'"
+    argv = [_ffmpeg(), "-v", "error", "-y", "-f", "lavfi", "-i", picture]
+    if audio_offset:
+        argv += ["-itsoffset", str(audio_offset)]
+    argv += ["-f", "lavfi", "-i", f"sine=f=440:r={SR}:d=3"]
+    if select:
+        argv += ["-fps_mode", "vfr"]
+    if mp4:
+        argv += ["-c:v", "libx264", "-crf", "0", "-pix_fmt", "yuv420p", "-c:a", "aac"]
+    else:
+        argv += ["-c:v", "libx264", "-crf", "0", "-pix_fmt", "yuv444p"]
+        argv += ["-c:a", "pcm_s16le"]
+    subprocess.run([*argv, str(path)], check=True)
+    return path
+
+
+@pytest.fixture(scope="module")
+def mp4_source(media):
+    return _make_source(media["dir"] / "src.mp4", mp4=True)
+
+
+def _top_left_frames(path, size=(W, H)):
+    return [_source_frame(f[4, 4, 0]) for f in _frames(path, size)]
+
+
+def test_mp4_source_renders_exact_frames_picture_and_samples(media, mp4_source):
+    info = probe_source(mp4_source)
+    assert (info.fps, info.frames, info.channels) == (NTSC, 90, 1)
+    segments = [Span(0.5, 1.0, "a"), Gap(0.2, "a"), Span(1.5, 2.0, "b")]
+    clips = {"a": Cam(), "b": Cam(dissolve_in=0.2)}
+    out = render(
+        segments, clips, source=mp4_source,
+        output=media["dir"] / "from_mp4.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    plan = timeline(
+        segments, clips, fps=NTSC, sample_rate=SR, source_frames=info.frames
+    )
+    assert _ffprobe_frame_count(out) == plan.total_frames
+    assert len(_samples(out)) == plan.total_samples
+    seen = _top_left_frames(out)
+    for k in range(15):  # source frames 15..29 (0.5 s is frame 15)
+        assert seen[k] == pytest.approx(15 + k, abs=0.3)
+
+
+def test_banner_probe_without_ffprobe(monkeypatch, media, mp4_source):
+    import mixing.edit
+
+    monkeypatch.setattr(mixing.edit, "_ffprobe_exe", lambda: None)
+    info = probe_source(mp4_source)
+    assert (info.fps, info.width, info.height, info.frames) == (NTSC, W, H, 90)
+    assert (info.sample_rate, info.channels) == (SR, 1)
+    segments = [Span(0.2, 0.8, "a"), Span(1.0, 1.4, "a")]
+    out = render(
+        segments, {"a": Cam()}, source=mp4_source,
+        output=media["dir"] / "banner.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    plan = timeline(segments, {"a": Cam()}, fps=NTSC, sample_rate=SR)
+    assert _ffprobe_frame_count(out) == plan.total_frames
+    assert len(_samples(out)) == plan.total_samples
+
+
+def test_render_refuses_a_span_past_the_source_end(media):
+    # an mkv has no frame count: the duration gives it
+    with pytest.raises(ValueError, match="past the end of the source"):
+        render([Span(2.5, 3.5, "a")], {"a": Cam()}, source=media["source"])
+    with pytest.raises(ValueError, match="past the end of the source"):
+        render(
+            [Span(0.0, 0.5, "a"), Span(4.0, 4.5, "b")],
+            {"a": Cam(), "b": Cam()},
+            source=media["source"],
+        )
+
+
+def test_sound_starting_late_stays_in_sync(media):
+    import numpy as np
+
+    source = _make_source(media["dir"] / "late_sound.mkv", audio_offset=0.5)
+    assert probe_source(source).audio_offset == pytest.approx(0.5)
+    out = render(
+        [Span(0.0, 1.0, "a")], {"a": Cam()}, source=source,
+        output=media["dir"] / "late_sound_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    samples = _samples(out).astype(float)
+    quiet, loud = samples[: int(0.45 * SR)], samples[int(0.55 * SR) :]
+    assert not quiet.any()  # the source is silent before 0.5 s
+    assert np.sqrt(np.mean(loud**2)) > 1000
+
+
+def test_variable_rate_source_plays_at_its_speed(media):
+    # every 4th frame dropped: decoded-frame counting would play 4/3 too fast
+    source = _make_source(
+        media["dir"] / "vfr.mp4", select="not(eq(mod(n\\,4)\\,3))", mp4=True
+    )
+    with pytest.warns(UserWarning, match="variable-rate"):
+        info = probe_source(source)
+    assert info.fps == NTSC
+    with pytest.warns(UserWarning, match="variable-rate"):
+        out = render(
+            [Span(1.0, 2.0, "a")], {"a": Cam()}, source=source,
+            output=media["dir"] / "vfr_out.mkv", encode_args=PCM_MKV,
+        )  # fmt: skip
+    seen = _top_left_frames(out)
+    assert len(seen) == 30
+    # a dropped frame is filled by its neighbour: never more than one frame off
+    assert all(abs(f - (30 + k)) <= 1.3 for k, f in enumerate(seen))
+
+
+def test_rotated_source_keeps_its_displayed_shape(media, mp4_source):
+    rotated = media["dir"] / "rotated.mp4"
+    subprocess.run(
+        [_ffmpeg(), "-v", "error", "-y", "-display_rotation", "90",
+         "-i", str(mp4_source), "-c", "copy", str(rotated)],
+        check=True,
+    )  # fmt: skip
+    info = probe_source(rotated)
+    assert (info.width, info.height) == (H, W)
+    out = render(
+        [Span(0.0, 0.5, "a")], {"a": Cam()}, source=rotated,
+        output=media["dir"] / "rotated_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    produced = probe_source(out)
+    assert (produced.width, produced.height) == (H, W)
+    upright = _frames(rotated, (H, W))[:15]
+    assert abs(_frames(out, (H, W)) - upright).max() <= 12  # same picture, not squashed
+
+
+def test_overlay_from_a_pil_image_fades_and_is_clipped_to_the_film(media):
+    Image = pytest.importorskip("PIL.Image")
+    green = Image.new("RGBA", (W, H), (0, 255, 0, 255))
+    out = render(
+        [Span(0.0, 1.0, "a")], {"a": Cam()}, source=media["source"],
+        overlays=[Overlay(green, 0.2, 9.0, fade=0.2)],  # runs far past the film
+        output=media["dir"] / "overlay_fade.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    g = _frames(out)[:, H - 4, W - 4, 1]  # the blue quadrant: no green of its own
+    assert len(g) == 30
+    assert all(v < 10 for v in g[:7])  # before 0.2 s (frame 6, alpha 0)
+    assert all(g[k] < g[k + 1] for k in range(6, 11))  # fading in
+    assert all(v > 245 for v in g[12:24])
+    assert all(g[k] > g[k + 1] for k in range(24, 29)) and g[29] < 245  # fading out
+    with pytest.raises(ValueError, match="after the end of the film"):
+        render(
+            [Span(0.0, 1.0, "a")], {"a": Cam()}, source=media["source"],
+            overlays=[Overlay(green, 5.0, 6.0)],
+        )  # fmt: skip
+
+
+def test_gap_opening_a_cam_clip_holds_the_next_frame(media):
+    out = render(
+        [Gap(0.3, "a"), Span(1.0, 1.5, "a")], {"a": Cam()}, source=media["source"],
+        output=media["dir"] / "leading_gap.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    seen = _top_left_frames(out)
+    assert len(seen) == 9 + 15
+    assert all(f == pytest.approx(30, abs=0.3) for f in seen[:9])
+    assert all(f == pytest.approx(30 + k, abs=0.3) for k, f in enumerate(seen[9:]))
+
+
+def test_output_directory_and_callable(media, tmp_path):
+    segments, clips = [Span(0.0, 0.3, "a")], {"a": Cam()}
+    out = render(segments, clips, source=media["source"], output=tmp_path)
+    assert out == tmp_path / "src_edit.mp4" and out.stat().st_size
+    got = render(segments, clips, source=media["source"], output=lambda p: ("sunk", p))
+    try:
+        assert got == ("sunk", media["source"].with_name("src_edit.mp4"))
+        assert got[1].exists()
+    finally:
+        got[1].unlink(missing_ok=True)
+
+
+def test_many_spans_never_open_more_than_two_decoders(monkeypatch, media):
+    import mixing.edit
+
+    calls = []
+    real_run = mixing.edit._run
+
+    def counting_run(argv):
+        calls.append(argv.count("-i"))
+        real_run(argv)
+
+    monkeypatch.setattr(mixing.edit, "_run", counting_run)
+    segments = [Span(0.1 * k, 0.1 * k + 0.05, "a") for k in range(16)]
+    segments += [Span(2.0, 2.5, "b")]
+    clips = {"a": Cam(zoom=1.5), "b": Cam(dissolve_in=0.2)}
+    out = render(
+        segments, clips, source=media["source"],
+        output=media["dir"] / "many.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    assert max(calls) == 2  # parts: one input; a dissolve and the final pass: two
+    assert len(calls) > 16  # one bounded run per piece
+    plan = timeline(segments, clips, fps=NTSC, sample_rate=SR)
+    assert _ffprobe_frame_count(out) == plan.total_frames
+
+
+def test_square_still_is_pillarboxed_not_cropped(media):
     pytest.importorskip("burns")
     Image = pytest.importorskip("PIL.Image")
+    square = Image.new("RGB", (H, H), (0, 0, 255))
+    square.paste((255, 0, 0), (0, 0, H, H // 4))  # the top quarter is red
+    segments = [Span(0.0, 0.3, "a"), Gap(0.3, "s")]
+    held = _frames(
+        render(
+            segments,
+            {"a": Cam(), "s": Still(square)},
+            source=media["source"],
+            output=media["dir"] / "square.mkv",
+            encode_args=PCM_MKV,
+        )  # fmt: skip
+    )[-1]
+    red_rows = [y for y in range(H) if held[y, W // 2, 0] > 128]
+    assert red_rows == list(range(H // 4))  # the whole picture: nothing cropped
+    assert held[:, 2].max() < 30 and held[:, W - 3].max() < 30  # pillarbox bars
+    filled = _frames(
+        render(
+            segments,
+            {"a": Cam(), "s": Still(square, fit="fill")},
+            source=media["source"],
+            output=media["dir"] / "square_fill.mkv",
+            encode_args=PCM_MKV,
+        )  # fmt: skip
+    )[-1]
+    assert filled[:, 2].max(axis=1).min() > 100  # cover-cropped, as asked: no bars
+
+
+def test_a_move_is_kept_inside_the_content_box(media):
+    pytest.importorskip("burns")
+    Image = pytest.importorskip("PIL.Image")
+    from burns import BurnsPath, Rect
+
     card = Image.new("RGB", (W, H), (0, 0, 0))
     card.paste((255, 0, 0), (16, 0, 48, H))  # a pillarboxed card: bars left and right
-    segments = [Span(0.0, 0.5, "a"), Gap(0.5, "card")]
-    out = render(
-        segments,
-        {"a": Cam(), "card": Still(card, content_box=(0.25, 0, 0.5, 1))},
-        source=media["source"],
-        output=media["dir"] / "card.mkv",
-        encode_args=PCM_MKV,
+    # a pan from the left bar to the right one, were it not kept inside the box
+    pan = BurnsPath.from_start_end(
+        Rect.from_center_zoom(0.2, 0.5, 2.0), Rect.from_center_zoom(0.8, 0.5, 2.0)
     )
+    out = render(
+        [Span(0.0, 0.5, "a"), Gap(0.5, "card")],
+        {"a": Cam(), "card": Still(card, pan, content_box=(0.25, 0, 0.5, 1))},
+        source=media["source"], output=media["dir"] / "card.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
     frames = _frames(out)
     first_card = round(0.5 * NTSC)
     assert len(frames) == first_card + round(0.5 * NTSC)
@@ -502,3 +779,37 @@ def test_static_still_cropped_to_its_content_box_shows_no_bars(media):
         assert (
             frame[:, :, 0].min() > 200 and frame[:, :, 1].max() < 60
         )  # red edge to edge
+
+
+def test_named_move_and_aspect_mismatch_refusal(media):
+    pytest.importorskip("burns")
+    from burns import BurnsPath, Rect
+
+    segments = [Span(0.0, 0.3, "a"), Gap(0.5, "s")]
+    out = render(
+        segments, {"a": Cam(), "s": Still(media["still"], "push_in")},
+        source=media["source"], output=media["dir"] / "push.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    frames = _frames(out)
+    assert len(frames) == round(0.3 * NTSC) + round(0.5 * NTSC)
+    assert abs(frames[-1] - frames[round(0.3 * NTSC)]).max() > 20  # it moved
+    vertical = BurnsPath.from_start_end(
+        Rect(0, 0, 1, 1), Rect(0.1, 0.1, 0.5, 0.5), output_aspect=9 / 16
+    )
+    with pytest.raises(ValueError, match="output_aspect"):
+        render(
+            segments, {"a": Cam(), "s": Still(media["still"], vertical)},
+            source=media["source"],
+        )  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "info, match",
+    [
+        (SourceInfo(65, 37, NTSC, 90, SR, 1), "even dimensions"),
+        (SourceInfo(64, 36, NTSC, 90), "no sound stream"),
+    ],
+)
+def test_unsupported_sources_are_refused_before_any_work(info, match):
+    with pytest.raises(ValueError, match=match):
+        render([Span(0, 1, "a")], {"a": Cam()}, source="x.mp4", probe=lambda _: info)
