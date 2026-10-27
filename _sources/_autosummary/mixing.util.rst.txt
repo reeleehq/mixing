@@ -21,6 +21,7 @@ mixing.util
       has_ffmpeg
       install_hint
       require_extra
+      require_llm_chat
       require_media_extra
       require_ml_extra
       require_package

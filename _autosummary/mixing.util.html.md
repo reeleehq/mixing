@@ -4,39 +4,38 @@ General utilities for mixing video, audio, etc.
 
 ### Module Attributes
 
-| [`EXTRAS`](#mixing.util.EXTRAS)   | import names it supplies}\`\`.   |
-|-----------------------------------------------------------|----------------------------------|
+| [`EXTRAS`](#mixing.util.EXTRAS)   | `{extra: import names it supplies}`, each declared by the same-named extra in `pyproject.toml` (a test holds the two equal).   |
+|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 
 ### Functions
 
 | [`copy_to_clipboard`](#mixing.util.copy_to_clipboard)(data)                      | Copy data to system clipboard.                                                                                                                                                            |
 |-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`extra_for`](#mixing.util.extra_for)(module)                            | The extra that supplies `module` (dotted names by their top level), or `None`.                                                                                                            |
+| [`extra_for`](#mixing.util.extra_for)(module)                            | The extra that supplies `module` (or a parent package of it), or `None`.                                                                                                                  |
 | [`ffmpeg_exe`](#mixing.util.ffmpeg_exe)()                                 | Resolve an ffmpeg executable, preferring the pip-bundled binary.                                                                                                                          |
 | [`get_path_from_clipboard`](#mixing.util.get_path_from_clipboard)()                    | Get file path from clipboard and validate it.                                                                                                                                             |
 | [`has_ffmpeg`](#mixing.util.has_ffmpeg)()                                 | Return True if the `ffmpeg` binary is available on `PATH`.                                                                                                                                |
 | [`install_hint`](#mixing.util.install_hint)(extra)                          | The pip line that installs `extra`.                                                                                                                                                       |
 | [`require_extra`](#mixing.util.require_extra)(feature, extra, \*[, modules]) | Raise an informative `ImportError` if `extra` is not installed.                                                                                                                           |
+| [`require_llm_chat`](#mixing.util.require_llm_chat)(feature, \*, alternative)   | `aix.chat`, the LLM call behind `feature`, or an `ImportError` naming the `llm` extra and the `alternative` that needs no LLM.                                                            |
 | [`require_media_extra`](#mixing.util.require_media_extra)(feature, \*[, modules])  | [`require_extra()`](#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub backends that the base `pip install mixing` (pure modules only) lacks. |
 | [`require_ml_extra`](#mixing.util.require_ml_extra)(feature, \*[, modules])     | [`require_extra()`](#mixing.util.require_extra) for `ml` (`torch` / `transformers`).                                                                                     |
-| [`require_package`](#mixing.util.require_package)(package_name)                | Import a package, raising an informative error if not installed.                                                                                                                          |
+| [`require_package`](#mixing.util.require_package)(package_name, \*[, extra])   | Import a package, raising an informative error if not installed.                                                                                                                          |
 | [`to_seconds`](#mixing.util.to_seconds)(value, \*, unit, rate)            | Convert time value to seconds based on unit.                                                                                                                                              |
 
-### mixing.util.EXTRAS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]]* *= {'beats': ('librosa',), 'loudness': ('numpy', 'scipy'), 'media': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'), 'ml': ('torch', 'transformers')}*
+### mixing.util.EXTRAS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]]* *= {'audio': ('pydub', 'ffmpeg', 'soundfile'), 'beats': ('librosa',), 'clipboard': ('pyclip',), 'gen': ('google.genai',), 'llm': ('aix',), 'loudness': ('numpy', 'scipy'), 'media': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'), 'ml': ('torch', 'transformers'), 'widget': ('ipywidgets', 'soundfile', 'IPython')}*
 
-import names it
-supplies}\`\`. A module in several extras (numpy) maps to the first, so the
-broadest install wins. `extra_for` / `install_hint` are public so a
-caller can map a missing module (`ImportError.name`) to its install line.
+`{extra: import names it supplies}`,
+each declared by the same-named extra in `pyproject.toml` (a test holds the
+two equal). A name may be dotted (`google.genai`: `google` is a shared
+namespace). A module in several extras (numpy) maps to the first, so the
+broadest install wins; a caller that knows better names its extra
+(`require_package("scipy.signal", extra=LOUDNESS_EXTRA)`). `extra_for` /
+`install_hint` are public so a caller can map a missing module
+(`ImportError.name`) to its install line.
 
 * **Type:**
-  The one table of the extras mixing checks for
-* **Type:**
-  ```
-  ``
-  ```
-
-  {extra
+  The one table of mixing’s extras
 
 ### mixing.util.copy_to_clipboard(data)
 
@@ -49,11 +48,13 @@ Copy data to system clipboard.
 
 ### mixing.util.extra_for(module)
 
-The extra that supplies `module` (dotted names by their top level), or `None`.
+The extra that supplies `module` (or a parent package of it), or `None`.
 
 ```pycon
->>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("requests")
-('media', 'beats', None)
+>>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("google.genai.types")
+('media', 'beats', 'gen')
+>>> extra_for("requests"), extra_for("google.protobuf")
+(None, None)
 ```
 
 * **Return type:**
@@ -143,6 +144,15 @@ ImportError: demo requires the 'ml' extra ...
 * **Return type:**
   [`None`](https://docs.python.org/3/builtins/constants.html#None)
 
+### mixing.util.require_llm_chat(feature, , alternative)
+
+`aix.chat`, the LLM call behind `feature`, or an `ImportError` naming
+the `llm` extra and the `alternative` that needs no LLM.
+
+```pycon
+>>> require_llm_chat("demo", alternative="segment_fn")
+```
+
 ### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
 
 [`require_extra()`](#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub
@@ -159,13 +169,16 @@ ImportError: demo requires the 'media' extra ...
 
 [`require_extra()`](#mixing.util.require_extra) for `ml` (`torch` / `transformers`).
 
-### mixing.util.require_package(package_name)
+### mixing.util.require_package(package_name, , extra=None)
 
 Import a package, raising an informative error if not installed.
 
-A package an extra supplies (see `EXTRAS`) gets a hint naming that extra.
+The hint names `extra` when given (the extra the caller belongs to: in
+`mixing.loudness`, scipy comes from `loudness`, not `media`), else the
+extra `EXTRAS` maps `package_name` to, else `pip install <package>`.
 The error’s `name` is `package_name`, so a caller can map it to its own
-install hint.
+install hint. An installed package whose own imports fail re-raises that
+error unchanged, rather than claiming the package is missing.
 
 ```pycon
 >>> math = require_package('math')
