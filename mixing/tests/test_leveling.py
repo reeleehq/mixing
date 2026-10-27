@@ -631,3 +631,19 @@ def test_a_turn_may_end_at_the_reported_duration():
     audio = Audio(seg)
     out = process_turns(audio, [("a", 0.0, audio.duration)], lambda s, a, c: a)
     assert out._get_segment().frame_count() == 147016
+
+
+def test_audio_true_peak_passes_the_method_through():
+    # the Audio-level true_peak_db is the array one, method and all: on clipped
+    # full-band noise "long" reads ~0.7 dB above "short"
+    from mixing.audio import true_peak_db
+    from mixing.audio.samples import audio_samples
+    from mixing.loudness import true_peak_db as array_true_peak_db
+
+    noise = np.clip(np.random.default_rng(3).standard_normal(RATE // 2) * 2, -1, 1)
+    pcm = (noise * 32767).astype(np.int16).tobytes()
+    audio = Audio(AudioSegment(pcm, frame_rate=RATE, sample_width=2, channels=1))
+    samples, fs = audio_samples(audio)
+    long = true_peak_db(audio, method="long")
+    assert long == array_true_peak_db(samples, fs, method="long")
+    assert long > true_peak_db(audio, method="short") + 0.2
