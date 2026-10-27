@@ -113,6 +113,15 @@ def test_require_package_hint_unchanged_for_other_packages():
         require_package("nonexistent_package_xyz123")
 
 
+def test_require_package_error_names_the_requested_package():
+    # callers (foley's CLI) map ``exc.name`` to their own install hint
+    from mixing.util import require_package
+
+    with pytest.raises(ImportError) as info:
+        require_package("nonexistent_package_xyz123.sub")
+    assert info.value.name == "nonexistent_package_xyz123.sub"
+
+
 def test_pyproject_declares_the_media_extra():
     tomllib = pytest.importorskip("tomllib" if sys.version_info >= (3, 11) else "tomli")
     from pathlib import Path
