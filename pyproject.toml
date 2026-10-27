@@ -59,9 +59,11 @@ testing = [
 clipboard = [
     "pyclip",
 ]
+# An alias, kept because downstream projects install mixing[audio] (paces does,
+# for mixing.audio and soundfile): the media backends plus soundfile. mixing
+# imports nothing from it that media does not supply (soundfile is the widget's).
 audio = [
-    "pydub",
-    "ffmpeg-python",
+    "mixing[media]",
     "soundfile",
 ]
 # Array-only loudness (mixing.loudness): meters, level_group, limit_peaks. numpy +

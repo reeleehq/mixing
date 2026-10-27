@@ -144,7 +144,7 @@ directions). A module in several extras hints the first; a caller in a narrower
 extra names it: `require_package("scipy.signal", extra=LOUDNESS_EXTRA)`. Never
 hand-write a `pip install` hint for an optional dependency.
 
-`pip install mixing[<extra>]`: `media` (see above), `audio` (ffmpeg-python/soundfile, on top of `media`),
+`pip install mixing[<extra>]`: `media` (see above), `audio` (an alias, `media` + `soundfile`, kept because downstream installs name it),
 `loudness` (numpy + scipy, for `mixing.loudness`), `widget` (Jupyter audio widget), `gen` (Veo/`google-genai`), `llm` (`aix`, for
 chapter titling + SRT translation), `clipboard` (`pyclip`), `beats` (`librosa`,
 for `mixing.audio.beats.beat_grid`), `ml` (`torch` + `transformers`, for the `"audioset"` segmentation strategy), `separation` (the default `remove_talk` separator's runtime deps; clearvoice itself goes on with `pip install --no-deps 'clearvoice==0.1.2'`, never with its own `numpy<2` / `opencv-python` pins, and no extra may declare it), `demucs` (the `htdemucs` separator, instrumental beds only), `dev`/`testing`.

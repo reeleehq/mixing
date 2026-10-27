@@ -127,7 +127,7 @@ logging.basicConfig(level=logging.INFO)  # or level=logging.ERROR for errors onl
 
 ```bash
 pip install mixing[media]      # moviepy / opencv / scipy / pydub: mixing.audio + mixing.video
-pip install mixing[audio]      # ffmpeg-python / soundfile (on top of media)
+pip install mixing[audio]      # an alias: media + soundfile (kept for existing installs)
 pip install mixing[widget]     # interactive Jupyter audio widget
 pip install mixing[gen]        # Google Vertex AI Veo generation
 pip install mixing[llm]        # aix — chapter titling + SRT translation

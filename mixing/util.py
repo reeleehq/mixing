@@ -117,7 +117,7 @@ EXTRAS: dict[str, tuple[str, ...]] = {
     ML_EXTRA: ML_IMPORT_NAMES,
     BEATS_EXTRA: BEATS_IMPORT_NAMES,
     LOUDNESS_EXTRA: LOUDNESS_IMPORT_NAMES,
-    AUDIO_EXTRA: ("pydub", "ffmpeg", "soundfile"),
+    AUDIO_EXTRA: (*MEDIA_IMPORT_NAMES, "soundfile"),  # an alias: media + soundfile
     WIDGET_EXTRA: ("ipywidgets", "soundfile", "IPython"),
     GEN_EXTRA: ("google.genai",),
     LLM_EXTRA: ("aix",),
