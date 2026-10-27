@@ -8,6 +8,8 @@ these run in CI (no importorskip).
 
 from __future__ import annotations
 
+import zlib
+
 import numpy as np
 import pytest
 from scipy.io import wavfile
@@ -43,7 +45,7 @@ def song(tmp_path):
 
 def _clip(tmp_path, ref, name, *, start_s, dur_s, gain=1.0, snr_db=15.0, pre_s=0.0):
     """A degraded 'phone recording' of ref[start_s:start_s+dur_s] written to a wav file."""
-    rng = np.random.default_rng(abs(hash(name)) % (2**32))
+    rng = np.random.default_rng(zlib.crc32(name.encode()))  # hash() varies per process
     seg = ref[int(start_s * SR) : int((start_s + dur_s) * SR)].copy()
     p_sig = np.mean(seg**2)
     seg = seg + rng.normal(0, np.sqrt(p_sig / (10 ** (snr_db / 10))), len(seg))
