@@ -194,13 +194,13 @@ def _db(x):
     return 20 * np.log10(x)
 
 
-def _sinc_envelope(x, up=TP_UP):
+def _sinc_envelope(x, up=TP_UP, *, half=REF_HALF_SAMPLES):
     """``|y|`` on the ``up``-times grid of a near-ideal sinc reconstruction of
     ``x`` (taken as zero outside its span)."""
     from scipy.signal import resample_poly
     from scipy.signal.windows import kaiser
 
-    n = np.arange(-REF_HALF_SAMPLES * up, REF_HALF_SAMPLES * up + 1)
+    n = np.arange(-half * up, half * up + 1)
     taps = np.sinc(n / up) * kaiser(len(n), REF_KAISER_BETA) / up
     return np.abs(resample_poly(x, up, 1, window=taps))
 
@@ -285,7 +285,16 @@ def test_a_finer_grid_brings_the_limiter_to_its_true_ceiling():
         out = limit_peaks(
             x, ceiling=ceiling, true_peak=True, fs=TP_FS, oversampling=oversampling
         )
-        return _db(_sinc_envelope(out[:, 0], up=16)[inner].max())
+        return _db(_sinc_envelope(out[:, 0], up=16, half=1000)[inner].max())
 
     assert fine_peak_db(None) > -1.0 + 0.1
     assert fine_peak_db(8) <= -1.0 + 0.06
+
+
+def test_oversampling_is_validated():
+    x = np.zeros((100, 1))
+    for bad in (0, -2, 2.5):
+        with pytest.raises(ValueError, match="integer >= 1"):
+            true_peak_envelope(x, FS, oversampling=bad)
+    with pytest.raises(ValueError, match="true_peak=True only"):
+        limit_peaks(x, ceiling=0.5, oversampling=8)

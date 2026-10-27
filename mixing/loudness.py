@@ -24,6 +24,7 @@ plus a sample rate, and needs only numpy and scipy (extra ``loudness``,
 
 from __future__ import annotations
 
+import numbers
 import re
 import subprocess
 import warnings
@@ -295,7 +296,8 @@ def true_peak_envelope(
     oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. The interpolation is a
     long windowed sinc (``TRUE_PEAK_FILTER_*``): content up to about 0.47 fs
     reads as an ideal sinc reconstruction would (on the same oversampled grid),
-    content between there and Nyquist reads up to ~0.5 dB low. The signal is
+    content between there and Nyquist reads low: ~0.35 dB for noise up to
+    Nyquist, ~1 dB for hard-clipped full-band material. The signal is
     taken as silent outside its span (as when played from silence), not
     looped. Chunked, with the filter's length of context shared between chunks,
     so the joins are exact.
@@ -303,7 +305,12 @@ def true_peak_envelope(
     from scipy.signal import resample_poly
 
     data = _as_2d(data)
-    factor = oversampling or max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
+    if oversampling is None:
+        factor = max(TRUE_PEAK_OVERSAMPLING, -(-TRUE_PEAK_MIN_RATE // fs))
+    elif isinstance(oversampling, numbers.Integral) and oversampling >= 1:
+        factor = int(oversampling)
+    else:
+        raise ValueError(f"oversampling must be an integer >= 1, got {oversampling!r}")
     taps = _interpolation_filter(factor)
     step = max(1, int(round(FILTER_CHUNK_S * fs)))
     margin = TRUE_PEAK_FILTER_HALF_SAMPLES
@@ -425,14 +432,17 @@ def limit_peaks(
     can overshoot by ~1 dB because the gain then changes faster than the
     interpolation assumes.
 
-    ``oversampling`` is the true-peak meter's factor (default: the meter's,
-    4x at 48 kHz). The peak *between* grid points is not seen, so the true
+    ``oversampling`` (with ``true_peak=True`` only) is the true-peak meter's
+    factor (default: the meter's, 4x at 48 kHz, raised below 48 kHz; an
+    explicit factor is used as given). The peak *between* grid points is not
+    seen, so the true
     ceiling holds to the grid: limited to -1 dBTP, bright material (noise up
     to 0.45 fs) measures about -0.8 dBTP on a fine (32x) grid at 4x, -0.96
     at 8x, -0.99 at 16x, at roughly 1x / 2x / 4x the cost. Content between
-    0.47 fs and Nyquist reads up to ~0.5 dB low whatever the factor (see
-    :func:`true_peak_envelope`), so for a hard ceiling on full-band
-    material use ``oversampling=8`` and a ceiling ~0.5 dB under the target.
+    0.47 fs and Nyquist reads low whatever the factor (see
+    :func:`true_peak_envelope`): ~0.35 dB for noise up to Nyquist, ~1 dB for
+    hard-clipped full-band material. For a hard ceiling on such material use
+    ``oversampling=8`` and a ceiling ~1 dB under the target.
     """
     if not 0 < ceiling <= 1:
         raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
@@ -441,6 +451,8 @@ def limit_peaks(
         return data
     if window is None:
         window = round(DEFAULT_LIMITER_WINDOW_S * fs) if fs else 1
+    if oversampling is not None and not true_peak:
+        raise ValueError("oversampling applies to true_peak=True only")
     if true_peak:
         if fs is None:
             raise ValueError("true_peak=True needs fs")
