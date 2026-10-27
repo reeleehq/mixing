@@ -166,14 +166,15 @@ def test_an_infinite_timeout_is_no_bound(tmp_path):
 
 @needs_ffmpeg
 def test_an_ffmpeg_that_finished_in_time_is_not_reported_as_timed_out(tmp_path):
-    # the whole file fits the pipe: ffmpeg exits at once, the consumer is slow
-    src = _tone(tmp_path / "short.wav", seconds=0.2, channels=1)
-    rate, chunks = decode_float_chunks(src, chunk_s=0.05, timeout=0.5)
+    # the whole file (~2 KB) fits any pipe, Windows' 4 KB one included: ffmpeg
+    # exits at once, while the consumer takes longer than the timeout
+    src = _tone(tmp_path / "short.wav", seconds=0.01, channels=1)
+    rate, chunks = decode_float_chunks(src, chunk_s=0.002, timeout=2.0)
     got = []
     for chunk in chunks:
         got.append(chunk)
-        time.sleep(0.2)
-    assert sum(len(c) for c in got) == int(0.2 * FS)
+        time.sleep(0.6)
+    assert sum(len(c) for c in got) == int(0.01 * FS)
 
 
 def _script(path, body):
@@ -203,4 +204,22 @@ def test_a_wrapper_that_does_not_exec_is_killed_with_its_ffmpeg(tmp_path):
     with pytest.raises(FfmpegTimeout):
         file_loudness(fifo, ffmpeg=wrapper, timeout=1.0)
     assert time.monotonic() - started < 10
+    assert _ffmpegs_reading(fifo) == []
+
+
+@needs_ffmpeg
+@posix_only
+def test_ctrl_c_while_waiting_on_ffmpeg_still_kills_it(tmp_path):
+    # ffmpeg runs in its own session (so a wrapper's children can be killed
+    # together): the terminal's SIGINT no longer reaches it, so Python must
+    import signal
+    import threading
+
+    from mixing.decode import stream_kinds
+
+    fifo = tmp_path / "stalled.wav"
+    os.mkfifo(fifo)
+    threading.Timer(1.0, os.kill, (os.getpid(), signal.SIGINT)).start()
+    with pytest.raises(KeyboardInterrupt):
+        stream_kinds(fifo, timeout=30)  # blocks in the final wait, not the block
     assert _ffmpegs_reading(fifo) == []

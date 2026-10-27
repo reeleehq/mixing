@@ -19,6 +19,7 @@ included; a watchdog kills it, and what it started, then, and
 
 from __future__ import annotations
 
+import errno
 import itertools
 import math
 import numbers
@@ -108,6 +109,8 @@ def _kill(proc: subprocess.Popen) -> None:
     """Kill ``proc`` and what it started: an ``ffmpeg=`` wrapper that does not
     exec (a shell script, a Windows shim) would otherwise leave the real
     ffmpeg running, holding the pipes open."""
+    if proc.poll() is not None:
+        return  # reaped: its pid (and group id) may already be someone else's
     if os.name == "posix":  # it leads its own process group (start_new_session)
         with suppress(ProcessLookupError, PermissionError):
             os.killpg(proc.pid, signal.SIGKILL)
@@ -117,6 +120,17 @@ def _kill(proc: subprocess.Popen) -> None:
         )
     with suppress(ProcessLookupError):
         proc.kill()
+
+
+@contextmanager
+def _ffmpeg_gone():
+    """Ignore writing to (or closing) the stdin of an ffmpeg that stopped
+    reading: a broken pipe, or ``EINVAL`` on Windows; its exit code says why."""
+    try:
+        yield
+    except OSError as e:
+        if not isinstance(e, BrokenPipeError) and e.errno != errno.EINVAL:
+            raise
 
 
 @contextmanager
@@ -166,9 +180,14 @@ def _ffmpeg(
             finally:
                 for pipe in (proc.stdin, proc.stdout):
                     if pipe is not None:
-                        with suppress(BrokenPipeError):
+                        with _ffmpeg_gone():
                             pipe.close()
-                proc.wait()  # still bounded: the watchdog runs until it returns
+                try:
+                    proc.wait()  # still bounded: the watchdog runs until it returns
+                except BaseException:  # Ctrl-C no longer reaches its own session
+                    _kill(proc)
+                    proc.wait()
+                    raise
         finally:
             watchdog.cancel()
         errors.seek(0)
@@ -294,7 +313,7 @@ def encode_float_chunks(
         with _ffmpeg(
             cmd, what=f"write {path.name}", stdin=subprocess.PIPE, timeout=timeout
         ) as proc:
-            with suppress(BrokenPipeError):  # ffmpeg stopped reading: see its exit
+            with _ffmpeg_gone():
                 for chunk in itertools.chain([first], chunks):
                     if chunk.shape[1] != channels:
                         raise ValueError(
