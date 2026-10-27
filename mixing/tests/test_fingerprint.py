@@ -3,8 +3,9 @@
 Every case is synthetic and in memory: a non-repetitive "song" (random chords of
 harmonic notes plus noise hits, never the same bar twice) and clips cut from it
 under the degradations a phone at a concert adds (noise, a gain change, a
-low-pass "muffling", an off-grid start), an unrelated song, a looped bar (the
-alias case), and clips too short or too quiet to say anything.
+low-pass "muffling", an off-grid start, a speed change), unrelated songs (the
+hard ones share a scale and a beat grid), a looped bar (the alias case), and
+clips too short or too quiet to say anything.
 """
 
 from __future__ import annotations
@@ -23,8 +24,11 @@ from mixing.audio import (  # noqa: E402
     UNDECIDED,
     LandmarkParams,
     Landmarks,
+    MatchParams,
     SongMatch,
+    SongThresholds,
     contains_song,
+    find_audio_offset,
     landmarks,
     song_verdict,
 )
@@ -35,20 +39,24 @@ SONG_S = 24.0
 CLIP_S = 6.0
 CLIP_START_S = 7.3  # off the song's hop grid on purpose
 HOP_S = fp.DEFAULT_HOP_LENGTH / fp.DEFAULT_ANALYSIS_SAMPLE_RATE
+CONCERT = {"snr_db": 5.0, "gain_db": -12.0, "lowpass_hz": 1000.0}
 
 
-def _synth_song(seconds: float, seed: int, *, sr: int = SR) -> np.ndarray:
-    """A non-repetitive tone sequence: 1-3 harmonic notes every 0.15-0.45 s, plus
-    a noise hit on ~40 % of the onsets. Peak-normalised to 0.5."""
+def _synth_song(
+    seconds: float, seed: int, *, sr: int = SR, vocab: int = 36, grid=None
+) -> np.ndarray:
+    """A non-repetitive tone sequence: 1-3 harmonic notes per onset, plus a noise
+    hit on ~40 % of the onsets. Onsets every 0.15-0.45 s, or on a fixed ``grid``
+    (s); notes from ``vocab`` semitones above 110 Hz. Peak-normalised to 0.5."""
     rng = np.random.default_rng(seed)
     n = int(seconds * sr)
     y = np.zeros(n)
     t0 = 0.0
     while t0 < seconds:
-        dur = rng.uniform(0.15, 0.45)
+        dur = grid if grid else rng.uniform(0.15, 0.45)
         i0 = int(t0 * sr)
         for _ in range(rng.integers(1, 4)):
-            f0 = 110 * 2 ** (rng.integers(0, 36) / 12)
+            f0 = 110 * 2 ** (rng.integers(0, vocab) / 12)
             m = min(int((dur + 0.3) * sr), n - i0)
             tt = np.arange(m) / sr
             env = np.exp(-tt / (dur * 0.6)) * np.minimum(1, tt / 0.005)
@@ -65,6 +73,19 @@ def _synth_song(seconds: float, seed: int, *, sr: int = SR) -> np.ndarray:
             )
         t0 += dur
     return 0.5 * y / np.abs(y).max()
+
+
+def _speed(x, change):
+    """``x`` played ``1 + change`` times faster (pitch and tempo: a resample)."""
+    return scipy_signal.resample_poly(x, 1000, round(1000 * (1 + change)))
+
+
+def _segment(y, *, sr=SR):
+    """``y`` as a 16-bit pydub segment at ``sr`` (find_audio_offset's arrays are 44.1 kHz)."""
+    from pydub import AudioSegment
+
+    pcm = (np.clip(y, -1, 1) * 32767).astype(np.int16).tobytes()
+    return AudioSegment(pcm, frame_rate=sr, sample_width=2, channels=1)
 
 
 def _degrade(x, *, seed=0, snr_db=None, gain_db=0.0, lowpass_hz=None, sr=SR):
@@ -102,31 +123,41 @@ def clip(song):
 # --- contains, at the right offset -----------------------------------------
 
 
+@pytest.fixture(scope="module")
+def xcorr_offset(song, clip):
+    """The clip's offset by an independent instrument: waveform cross-correlation."""
+    return find_audio_offset(_segment(song), _segment(clip))
+
+
 @pytest.mark.parametrize(
     "degradation",
-    [
-        {},
-        {"snr_db": 0.0},
-        {"gain_db": -20.0},
-        {"lowpass_hz": 1000.0},
-        # the concert-video case: all of it at once
-        {"snr_db": 5.0, "gain_db": -12.0, "lowpass_hz": 1000.0},
-    ],
+    [{}, {"snr_db": 0.0}, {"gain_db": -20.0}, {"lowpass_hz": 1000.0}, CONCERT],
     ids=["clean", "noise_0dB", "gain_-20dB", "lowpass_1k", "concert"],
 )
-def test_degraded_cut_contains_song_at_its_offset(clip, index, degradation):
+def test_degraded_cut_contains_song_at_its_offset(
+    clip, index, xcorr_offset, degradation
+):
     m = contains_song(_degrade(clip, **degradation), index, sr=SR)
     assert m.verdict == CONTAINS, m.reason
     assert m.offset_s == pytest.approx(CLIP_START_S, abs=HOP_S)
-    assert m.votes >= fp.DEFAULT_MIN_VOTES
-    assert m.ratio >= fp.DEFAULT_MIN_RATIO
-    assert m.rho >= fp.DEFAULT_MIN_RHO
+    # the cross-correlation aligner, a different method, agrees within one hop
+    assert m.offset_s == pytest.approx(xcorr_offset, abs=HOP_S)
 
 
-@pytest.mark.parametrize("start_s", [0.0, 3.21, 13.01, 17.77])
-def test_offset_found_wherever_the_clip_was_cut(song, index, start_s):
+@pytest.mark.parametrize(
+    ("start_s", "expected"),
+    [
+        (0.0, CONTAINS),
+        (3.21, CONTAINS),
+        # R = 4.83: the price of R >= 5, which keeps same-key songs out of
+        # "contains" -- a real cut the bar leaves undecided, never absent
+        (13.01, UNDECIDED),
+        (17.77, CONTAINS),
+    ],
+)
+def test_offset_found_wherever_the_clip_was_cut(song, index, start_s, expected):
     m = contains_song(_degrade(_cut(song, start_s, CLIP_S), snr_db=10.0), index, sr=SR)
-    assert m.verdict == CONTAINS, m.reason
+    assert m.verdict == expected, m.reason
     assert m.offset_s == pytest.approx(start_s, abs=HOP_S)
 
 
@@ -136,6 +167,25 @@ def test_clip_that_starts_before_the_song_has_a_negative_offset(song, index):
     m = contains_song(clip, index, sr=SR)
     assert m.verdict == CONTAINS, m.reason
     assert m.offset_s == pytest.approx(-lead_s, abs=HOP_S)
+
+
+@pytest.mark.parametrize("change", [-0.005, 0.005])
+def test_half_a_percent_off_speed_still_contains(clip, index, change):
+    m = contains_song(_speed(clip, change), index, sr=SR)
+    assert m.verdict == CONTAINS, m.reason
+    assert m.offset_s == pytest.approx(CLIP_START_S, abs=2 * HOP_S)
+
+
+@pytest.mark.parametrize("change", [-0.02, 0.02])
+def test_two_percent_off_speed_is_undecided_not_absent(clip, index, change):
+    m = contains_song(_speed(clip, change), index, sr=SR)
+    assert m.verdict == UNDECIDED, m.reason
+    assert m.off_speed == pytest.approx(change)  # a probe found it
+    no_probes = MatchParams(speed_probes=())
+    assert (
+        contains_song(_speed(clip, change), index, sr=SR, match=no_probes).verdict
+        == ABSENT
+    )
 
 
 # --- absent, undecided ------------------------------------------------------
@@ -152,8 +202,29 @@ def test_clip_that_starts_before_the_song_has_a_negative_offset(song, index):
 def test_unrelated_clip_is_absent(index, make):
     m = contains_song(make(), index, sr=SR)
     assert m.verdict == ABSENT, m.reason
-    assert m.votes <= fp.DEFAULT_MAX_ABSENT_VOTES
-    assert m.query_hashes >= fp.DEFAULT_MIN_QUERY_HASHES
+    assert m.off_speed is None
+
+
+#: Unrelated songs in one key on one beat grid: the hard negatives (seeds fixed).
+HARD_NEGATIVE_FAMILIES = [(7, 0.25), (5, 0.25), (7, 0.5)]
+HARD_NEGATIVE_SEEDS = range(5000, 5015)
+
+
+@pytest.mark.parametrize(("vocab", "grid"), HARD_NEGATIVE_FAMILIES)
+def test_same_key_same_tempo_songs_are_never_contains(vocab, grid):
+    song = _synth_song(SONG_S, seed=1000 + vocab, vocab=vocab, grid=grid)
+    index = landmarks(song, sr=SR)
+    matches = [
+        contains_song(_synth_song(CLIP_S, seed=s, vocab=vocab, grid=grid), index, sr=SR)
+        for s in HARD_NEGATIVE_SEEDS
+    ]
+    assert [m.verdict for m in matches].count(CONTAINS) == 0, [
+        m.reason for m in matches if m.verdict == CONTAINS
+    ]
+    # ...while a real cut of that same grid song is found
+    real = contains_song(_cut(song, CLIP_START_S, CLIP_S), index, sr=SR)
+    assert real.verdict == CONTAINS, real.reason
+    assert real.offset_s == pytest.approx(CLIP_START_S, abs=HOP_S)
 
 
 @pytest.mark.parametrize(
@@ -164,8 +235,19 @@ def test_unrelated_clip_is_absent(index, make):
         lambda song: 1e-5 * np.random.default_rng(4).standard_normal(int(CLIP_S * SR)),
         lambda song: _cut(song, CLIP_START_S, CLIP_S) * 10 ** (-90 / 20),  # -90 dB
         lambda song: np.zeros(100),  # shorter than one STFT frame
+        # integer PCM is scaled: +-1 LSB of int16 is -90 dBFS, not full-scale hiss
+        lambda song: (
+            np.random.default_rng(5).integers(-1, 2, int(CLIP_S * SR)).astype(np.int16)
+        ),
     ],
-    ids=["short_song", "short_other", "hiss_-100dB", "song_at_-90dB", "tiny"],
+    ids=[
+        "short_song",
+        "short_other",
+        "hiss_-100dB",
+        "song_at_-90dB",
+        "tiny",
+        "int16_lsb",
+    ],
 )
 def test_too_little_evidence_is_undecided_never_absent(song, index, make):
     m = contains_song(make(song), index, sr=SR)
@@ -189,47 +271,60 @@ def test_looped_bar_shows_alias_ambiguity_not_a_wrong_contains(bar_s, start_s):
 # --- the verdict -----------------------------------------------------------
 
 
-def test_thresholds_are_overridable(clip, index):
-    concert = _degrade(clip, snr_db=5.0, gain_db=-12.0, lowpass_hz=1000.0)
+def test_thresholds_are_overridable_and_recorded(clip, index):
+    concert = _degrade(clip, **CONCERT)
     default = contains_song(concert, index, sr=SR)
     assert default.verdict == CONTAINS
-    stricter = contains_song(concert, index, sr=SR, min_votes=default.votes + 1)
-    assert stricter.verdict == UNDECIDED
-    assert stricter.votes == default.votes  # the measurement is unchanged
+    assert default.thresholds == SongThresholds()
+    stricter = SongThresholds(min_votes=default.votes + 1)
+    m = contains_song(concert, index, sr=SR, thresholds=stricter)
+    assert m.verdict == UNDECIDED and m.thresholds == stricter
+    assert m.votes == default.votes  # the measurement is unchanged
     unrelated = _synth_song(CLIP_S, seed=7)
     assert contains_song(unrelated, index, sr=SR).verdict == ABSENT
-    assert (
-        contains_song(unrelated, index, sr=SR, min_query_hashes=10**6).verdict
-        == UNDECIDED
-    )
-    assert (
-        contains_song(unrelated, index, sr=SR, max_absent_votes=-1).verdict == UNDECIDED
-    )
+    for t in (
+        SongThresholds(min_query_hashes=10**6),
+        SongThresholds(max_absent_votes=-1),
+    ):
+        assert contains_song(unrelated, index, sr=SR, thresholds=t).verdict == UNDECIDED
+
+
+def test_a_stored_record_is_rejudged_in_one_call(clip, index):
+    m = contains_song(_degrade(clip, **CONCERT), index, sr=SR)
+    record = m.to_dict()
+    assert song_verdict(record)[0] == song_verdict(m)[0] == m.verdict == CONTAINS
+    calibrated = SongThresholds(min_coverage=m.coverage + 0.01)
+    assert song_verdict(record, thresholds=calibrated)[0] == UNDECIDED
+    assert record["thresholds"] == dataclasses.asdict(SongThresholds())
+    assert record["match_params"]["query_shifts"] == fp.DEFAULT_QUERY_SHIFTS
+
+
+def _stats(votes, coverage, ratio, query_hashes):
+    return dict(votes=votes, coverage=coverage, ratio=ratio, query_hashes=query_hashes)
 
 
 @pytest.mark.parametrize(
     ("stats", "expected"),
     [
-        (dict(votes=12, rho=0.05, ratio=2.0, query_hashes=500), CONTAINS),
-        (dict(votes=11, rho=0.9, ratio=9.0, query_hashes=500), UNDECIDED),
-        (dict(votes=50, rho=0.04, ratio=9.0, query_hashes=500), UNDECIDED),
-        (dict(votes=50, rho=0.9, ratio=1.9, query_hashes=500), UNDECIDED),
-        (dict(votes=5, rho=0.0, ratio=0.0, query_hashes=240), ABSENT),
-        (dict(votes=5, rho=0.0, ratio=0.0, query_hashes=239), UNDECIDED),
-        (dict(votes=6, rho=0.5, ratio=1.0, query_hashes=10**4), UNDECIDED),
+        (_stats(12, 0.0, 5.0, 500), CONTAINS),
+        (_stats(11, 0.9, 9.0, 500), UNDECIDED),
+        (_stats(50, 0.9, 4.9, 500), UNDECIDED),
+        (_stats(5, 0.0, 0.0, 240), ABSENT),
+        (_stats(5, 0.0, 0.0, 239), UNDECIDED),
+        (_stats(6, 0.5, 1.0, 10**4), UNDECIDED),
     ],
 )
 def test_song_verdict_boundaries(stats, expected):
-    verdict, reason = song_verdict(**stats)
+    verdict, reason = song_verdict(stats)
     assert verdict == expected
     assert reason
 
 
-def test_song_verdict_rejects_overlapping_bands():
+def test_overlapping_bands_and_bad_params_are_rejected():
     with pytest.raises(ValueError, match="max_absent_votes"):
-        song_verdict(
-            votes=0, rho=0, ratio=0, query_hashes=0, min_votes=5, max_absent_votes=5
-        )
+        SongThresholds(min_votes=5, max_absent_votes=5)
+    with pytest.raises(ValueError, match="query_shifts"):
+        MatchParams(query_shifts=0)
 
 
 def test_match_has_no_truth_value(clip, index):
@@ -320,6 +415,25 @@ def test_input_errors_are_immediate(clip, index, tmp_path):
         landmarks(tmp_path / "x.wav", sr=SR)
     with pytest.raises(TypeError, match="unsupported audio"):
         landmarks(object())
-    with pytest.raises(ValueError, match="query_shifts"):
-        contains_song(clip, index, sr=SR, query_shifts=0)
-    assert isinstance(contains_song(clip, index, sr=SR, query_shifts=1), SongMatch)
+    # an index's params and rate are its own: a different one is an error, not ignored
+    with pytest.raises(ValueError, match="params differ"):
+        contains_song(clip, index, sr=SR, params=LandmarkParams(fan_out=3))
+    with pytest.raises(ValueError, match="song_sr"):
+        contains_song(clip, index, sr=SR, song_sr=SR)
+    same = contains_song(clip, index, sr=SR, params=index.params)
+    assert isinstance(same, SongMatch) and same.verdict == CONTAINS
+    one_phase = contains_song(clip, index, sr=SR, match=MatchParams(query_shifts=1))
+    assert one_phase.match_params.query_shifts == 1
+
+
+def test_integer_pcm_is_scaled_like_float(clip, index):
+    as_float = contains_song(clip, index, sr=SR)
+    as_int16 = contains_song((clip * 32767).astype(np.int16), index, sr=SR)
+    assert as_int16.verdict == CONTAINS
+    assert as_int16.offset_s == pytest.approx(as_float.offset_s, abs=HOP_S)
+    assert np.allclose(
+        fp._as_float(np.array([-32768, 0, 16384], np.int16)), [-1, 0, 0.5]
+    )
+    assert np.allclose(
+        fp._as_float(np.array([0, 128, 255], np.uint8)), [-1, 0, 127 / 128]
+    )

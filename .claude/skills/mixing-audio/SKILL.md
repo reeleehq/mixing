@@ -373,20 +373,22 @@ so there `feature=` still changes only the confidence.
 The aligner answers *where* a clip sits; `contains_song` answers *whether* the song is in it, independently (Shazam / audfprint landmark hashes, numpy + scipy only). Use it as a second opinion beside the aligner's `support`/`margin`, never instead of it.
 
 ```python
-from mixing.audio import contains_song, landmarks, CONTAINS
+from mixing.audio import contains_song, landmarks, song_verdict, SongThresholds, CONTAINS
 
 index = landmarks("song.wav")                 # hash the song ONCE (a Landmarks index)
-for clip in clips:                            # path, Audio, AudioSegment, or array + sr=
+for clip in clips:                            # path, Audio, AudioSegment, or array + sr= (float or int PCM)
     m = contains_song(clip, index)            # SongMatch
     if m.verdict == CONTAINS:                 # "contains" | "absent" | "undecided"
         print(clip, m.offset_s)               # song time at the clip's t=0 (within one hop)
-    print(m.votes, m.rho, m.ratio, m.reason)  # K, K/shared, K/best-rival; why
+    print(m.votes, m.ratio, m.coverage, m.reason)  # K, R = K/best rival, K/overlapping hashes; why
+
+song_verdict(record, thresholds=SongThresholds(min_ratio=6))  # re-judge a stored m.to_dict()
 ```
 
-- **Three outcomes; `"undecided"` is never a pass.** `SongMatch` has no truth value (`if m:` raises `TypeError`), so compare `m.verdict`. "absent" needs `K <= 5` *and* a clip with enough landmarks (`min_query_hashes`, 240) to have shown the song; a near-silent or sub-second clip is "undecided".
-- **Repetitive music shows up as low `ratio`** (R ~ 1: every repetition of the bar is an equally good offset), so a looped bar is "undecided", not "contains" at an alias.
-- **Thresholds are uncalibrated starting values** (K >= 12, rho >= 0.05, R >= 2; K <= 5). All are keywords of `contains_song` and of the pure `song_verdict(votes=, rho=, ratio=, query_hashes=, ...)`, which re-judges stored measurements without rehashing. Calibrate on known non-matching clips, aliases included, before letting it vote.
-- Hashing knobs live in `LandmarkParams` (defaults = the `DEFAULT_*` constants in `mixing.audio.fingerprint`); an index carries its params and the clip is hashed with them.
+- **Rule:** "contains" = K >= 12 and R >= 5; "absent" = K <= 5 on >= 240 clip hashes and no speed probe (+-1-3 %) finds the song; else **"undecided", never a pass**. `SongMatch` has no truth value (`if m:` raises), so compare `m.verdict`.
+- **Measured on synthetic media:** 0 of 115 hard negatives (same-key, same-beat-grid songs) "contains"; 87 of 98 degraded true cuts "contains", the rest "undecided". `rho` and `coverage` are reported but do not separate, so they are not judged by default.
+- **"absent" means "not this recording within +-3 % of its speed".** A transposition of a semitone or more, or heavy clipping, can read absent. A looped bar reads "undecided" (R ~ 1: every repetition is an equally good offset).
+- **Thresholds are uncalibrated.** They live in `SongThresholds`; matching knobs (`query_shifts`, `speed_probes`, tolerances) in `MatchParams`; hashing in `LandmarkParams`. Every `SongMatch` records all three. Calibrate on known non-matching clips, aliases and same-key songs included, with `query_shifts` as shipped.
 
 ## Segmentation — split a long recording into pieces
 

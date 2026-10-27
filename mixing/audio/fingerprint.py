@@ -11,34 +11,59 @@ It measures, from the histogram of ``t_song - t_clip`` over every shared hash:
 
 - ``votes`` (**K**): the hashes agreeing on the best offset (within
   ``offset_tolerance_s``);
-- ``rho`` (**rho**): ``K / shared``, the temporally consistent fraction of the
-  shared hashes (chance stays under ~1 % [2]);
 - ``ratio`` (**R**): ``K / K2``, ``K2`` the best rival offset more than
   ``rival_exclusion_s`` away (a rival of zero counts as one, so R is finite). A
-  looped bar shares the clip's hashes with every repetition: K is high, R is ~1.
+  looped bar shares the clip's hashes with every repetition: K is high, R is ~1;
+- ``coverage``: ``K`` over the clip hashes that, at that offset, overlap the song;
+- ``rho``: ``K / shared``. Reported, not judged: audfprint's "chance makes < 1 %
+  of common hashes consistent" [2] holds when a query is searched against a large
+  database, where chance hashes are many. Against one song the shared hashes are
+  few, and rho is often 0.3-1.0 for an unrelated clip too.
 
-and calls one of THREE verdicts (:func:`song_verdict`): ``"contains"`` (K >= 12,
-rho >= 0.05, R >= 2), ``"absent"`` (K <= 5, on a clip with enough landmarks to have
-shown the song), else ``"undecided"`` -- a third outcome, never a pass.
-:class:`SongMatch` has no truth value, so "undecided" cannot slip through an ``if``.
+and calls one of THREE verdicts (:func:`song_verdict`, :class:`SongThresholds`):
 
-**The thresholds are uncalibrated.** They are the starting values of the
-research behind mixing#55 (audfprint's "more than 5 or 6 consistently-timed
-hashes" [2], tightened). Wang's procedure is to collect the score distribution
-on *known non-matching* clips (bar-periodic aliases included) and pick the
-threshold that meets a target false-positive rate; do that before letting this
-vote. Every threshold is a keyword of :func:`contains_song` and of
-:func:`song_verdict`, so stored measurements can be re-judged without rehashing.
+- ``"contains"``: K >= 12 and R >= 5 (and coverage >= ``min_coverage``, off by
+  default);
+- ``"absent"``: K <= 5 on a clip with at least 240 hashes (enough to have shown
+  the song), and no speed probe (:class:`MatchParams`, +-1-3 %) finds it;
+- ``"undecided"`` otherwise -- a third outcome, never a pass. :class:`SongMatch`
+  has no truth value, so "undecided" cannot slip through an ``if``.
+
+**Measured, on synthetic media only** (the tests' generator and the review's):
+
+- 115 hard negatives -- 90 unrelated songs sharing one 5- or 7-note scale and one
+  0.25/0.5 s beat grid, 20 unrelated songs over a 3-octave range, 5 noise clips:
+  **0 "contains"**, 63 "absent", 52 "undecided". These negatives reach K = 26
+  and R = 4.67, so the research's starting R >= 2 called 7 of them "contains".
+  That is why the bar is 5.
+- 98 true cuts (noise to 0 dB SNR, -20 dB gain, a 1 kHz low-pass, all three at
+  once, on off-grid starts, the grid songs included, 60 s clips, a song inside
+  a longer recording): 87 "contains" at the right offset, 11 "undecided" (R
+  1.9-4.9), none "absent". Coverage went as low as 0.010 on these and as high
+  as 0.067 on the negatives, so it does not separate them and is not judged.
+- Speed: +-0.5 % (resampled) is "contains" (32 of 32). At +-2-3 %, and at a
+  +0.5 semitone transposition, a probe finds the song and the verdict is
+  "undecided". Outside the probes (a transposition of a semitone or more) and
+  under heavy clipping (x100), a real copy can read **"absent"**: "absent" means
+  "not this recording within +-3 % of its speed", not "not this song".
+
+**The thresholds are uncalibrated.** Wang's procedure [1] is to collect the score
+distribution on *known non-matching* clips (bar-periodic aliases and same-key
+songs included), and to pick the threshold that meets a target false-positive
+rate. Do that on real recordings before letting this vote, and do it with
+``query_shifts`` as shipped: the best of 4 phases is 4 tries at the null. Every
+threshold is a field of :class:`SongThresholds`, and :func:`song_verdict`
+re-judges a stored :meth:`SongMatch.to_dict` without rehashing.
 
 Two choices beyond the textbook recipe, both measured on synthetic cuts (see
 :func:`_peaks` and :func:`contains_song`): the constellation's density cap is
 *local*, so a clip keeps the peaks its song had at the same place (a global or
-block cap lost most of them under a low-pass), and the clip is tried at
-``query_shifts`` sub-hop phases, the best one reported.
+block cap lost most of them under a low-pass); and the clip is tried at
+``query_shifts`` sub-hop phases, with the best one reported.
 
 Hash a song once and reuse it: :func:`landmarks` returns a :class:`Landmarks`
-index, which :func:`contains_song` accepts in place of the song's audio (the clip is
-then hashed with the index's own :class:`LandmarkParams`, so the two always agree).
+index, which :func:`contains_song` accepts in place of the song's audio. The clip
+is then hashed with the index's own :class:`LandmarkParams`, so the two always agree.
 
 >>> import numpy as np
 >>> rng = np.random.default_rng(0)
@@ -60,17 +85,23 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Mapping, Optional, Union
 
 import numpy as np
 
 from ._pcm import resample, segment_samples
+from .audio_util import AudioSource
+
+if TYPE_CHECKING:
+    from .audio_ops import Audio
 
 __all__ = [
     "Landmarks",
     "LandmarkParams",
     "SongMatch",
     "SongVerdict",
+    "SongThresholds",
+    "MatchParams",
     "landmarks",
     "contains_song",
     "song_verdict",
@@ -134,6 +165,13 @@ _MIN_PAIR_DT_FRAMES = 1
 
 #: Sub-hop phases a clip is hashed at, each scored alone (audfprint's ``--shifts``).
 DEFAULT_QUERY_SHIFTS = 4
+#: Speed changes (fractions) a clip about to be called "absent" is re-tried at,
+#: undone by resampling: a copy 1-3 % off speed (a camera's clock, a sped-up
+#: upload) loses every hash at its true speed, and reads as absent without this.
+#: Finding the song at one of them makes the verdict "undecided", never "contains".
+DEFAULT_SPEED_PROBES = (-0.03, -0.02, -0.01, 0.01, 0.02, 0.03)
+#: Resampling ratios are expressed over this denominator (0.1 % resolution).
+_SPEED_PROBE_RESOLUTION = 1000
 
 #: Hashes within this of the best offset agree with it (s): +- one hop, the jitter
 #: of a peak's frame when the clip does not start on the song's hop grid.
@@ -142,10 +180,15 @@ DEFAULT_OFFSET_TOLERANCE_S = 0.025
 DEFAULT_RIVAL_EXCLUSION_S = 0.5
 #: K at or above which the song may be called present (research: start at 12).
 DEFAULT_MIN_VOTES = 12
-#: rho at or above which the song may be called present (chance is < 1 %).
-DEFAULT_MIN_RHO = 0.05
-#: R at or above which the winning offset clearly beats every rival.
-DEFAULT_MIN_RATIO = 2.0
+#: coverage (K / the clip hashes that overlap the song at the best offset) at or
+#: above which the song may be called present. Off by default: degraded true cuts
+#: went as low as 0.010 while hard negatives reached 0.067, so no bar separates
+#: them; it is reported, and a calibration on real clips may switch it on.
+DEFAULT_MIN_COVERAGE = 0.0  # off: measured not to separate (module docstring)
+#: R at or above which the winning offset clearly beats every rival. The research
+#: started at 2; synthetic hard negatives (unrelated songs in one key on one beat
+#: grid) reached R = 4.67 with K >= 12, so 2 called 7 of 115 of them "contains".
+DEFAULT_MIN_RATIO = 5.0
 #: K at or below which the song may be called absent (audfprint: > 5-6 is a match).
 DEFAULT_MAX_ABSENT_VOTES = 5
 #: Clip hashes needed before "absent" may be called: a present song keeping only
@@ -229,6 +272,61 @@ class Landmarks:
 
 
 @dataclass(frozen=True)
+class MatchParams:
+    """How a clip's hashes are matched against a song's (defaults: ``DEFAULT_*``).
+
+    Attributes:
+        query_shifts: sub-hop phases the clip is hashed at, best one reported.
+        offset_tolerance_s: hashes this close to the best offset agree with it.
+        rival_exclusion_s: the rival offset is the best one farther than this.
+        speed_probes: speed changes re-tried before calling "absent" (``()`` = none).
+    """
+
+    query_shifts: int = DEFAULT_QUERY_SHIFTS
+    offset_tolerance_s: float = DEFAULT_OFFSET_TOLERANCE_S
+    rival_exclusion_s: float = DEFAULT_RIVAL_EXCLUSION_S
+    speed_probes: tuple[float, ...] = DEFAULT_SPEED_PROBES
+
+    def __post_init__(self):
+        if self.query_shifts < 1:
+            raise ValueError(
+                f"query_shifts must be at least 1, got {self.query_shifts}"
+            )
+
+
+DEFAULT_MATCH_PARAMS = MatchParams()
+
+
+@dataclass(frozen=True)
+class SongThresholds:
+    """The bars :func:`song_verdict` applies (defaults: ``DEFAULT_*``). **Uncalibrated.**
+
+    Attributes:
+        min_votes: K at or above which "contains" is possible.
+        min_coverage: coverage at or above which "contains" is possible.
+        min_ratio: R at or above which "contains" is possible.
+        max_absent_votes: K at or below which "absent" is possible.
+        min_query_hashes: clip hashes needed before "absent" may be called.
+    """
+
+    min_votes: int = DEFAULT_MIN_VOTES
+    min_coverage: float = DEFAULT_MIN_COVERAGE
+    min_ratio: float = DEFAULT_MIN_RATIO
+    max_absent_votes: int = DEFAULT_MAX_ABSENT_VOTES
+    min_query_hashes: int = DEFAULT_MIN_QUERY_HASHES
+
+    def __post_init__(self):
+        if self.max_absent_votes >= self.min_votes:
+            raise ValueError(
+                f"max_absent_votes ({self.max_absent_votes}) must be below "
+                f"min_votes ({self.min_votes})"
+            )
+
+
+DEFAULT_SONG_THRESHOLDS = SongThresholds()
+
+
+@dataclass(frozen=True)
 class SongMatch:
     """Whether a clip contains a song, with the evidence the verdict rests on.
 
@@ -240,25 +338,38 @@ class SongMatch:
         votes: K, the shared hashes agreeing on ``offset_s``.
         rival_votes: K2, the best count more than ``rival_exclusion_s`` from it.
         shared: every (clip hash, song hash) match, consistent or not.
-        rho: ``votes / shared`` (0 when nothing is shared).
+        overlap_hashes: the clip hashes that, at ``offset_s``, fall inside the song.
+        coverage: ``votes / overlap_hashes``: how much of the clip, where it
+            overlaps the song, the song accounts for (0 when nothing overlaps).
+        rho: ``votes / shared`` (reported, not judged: in a one-to-one match the
+            shared hashes are few, so rho is high for noise too).
         ratio: R, ``votes / max(rival_votes, 1)``.
         offset_s: song time at the clip's t=0 (``t_song - t_clip``) for the best
             offset; ``None`` when nothing is shared. Only meaningful with
             ``"contains"``.
         query_hashes: the clip's own hash count, at the reported phase (the
             evidence it could offer).
+        off_speed: the speed change (fraction) at which a speed probe found the
+            song, turning "absent" into "undecided"; ``None`` otherwise.
         reason: one line on why this verdict.
+        landmark_params, match_params, thresholds: what produced it.
     """
 
     verdict: SongVerdict
     votes: int
     rival_votes: int
     shared: int
+    overlap_hashes: int
+    coverage: float
     rho: float
     ratio: float
     offset_s: Optional[float]
     query_hashes: int
+    off_speed: Optional[float] = None
     reason: str = field(default="", compare=False)
+    landmark_params: LandmarkParams = DEFAULT_LANDMARK_PARAMS
+    match_params: MatchParams = DEFAULT_MATCH_PARAMS
+    thresholds: SongThresholds = DEFAULT_SONG_THRESHOLDS
 
     def __bool__(self) -> bool:
         raise TypeError(
@@ -273,9 +384,23 @@ class SongMatch:
 
 # --- input -------------------------------------------------------------------
 
-AudioInput = Union[
-    str, Path, np.ndarray, object
-]  # path, array (+ sr), Audio, AudioSegment
+#: What a clip or a song may be: a path, a pydub ``AudioSegment``, an array with
+#: ``sr=`` (float in [-1, 1], or integer PCM, scaled by its full scale), or a
+#: :class:`~mixing.audio.Audio` (incl. a slice of one).
+AudioInput = Union[AudioSource, "Audio"]
+
+
+def _as_float(data: np.ndarray) -> np.ndarray:
+    """Samples as float64 in [-1, 1]: integer PCM is divided by its full scale
+    (unsigned PCM is offset-binary, so it is centred first); floats pass through."""
+    if np.issubdtype(data.dtype, np.integer):
+        bits = np.iinfo(data.dtype).bits
+        full_scale = float(1 << (bits - 1))
+        centred = data.astype(np.float64)
+        if np.issubdtype(data.dtype, np.unsignedinteger):
+            centred -= full_scale
+        return centred / full_scale
+    return np.asarray(data, dtype=np.float64)
 
 
 def _mono_at(audio: AudioInput, *, sr: Optional[int], target: int) -> np.ndarray:
@@ -283,7 +408,7 @@ def _mono_at(audio: AudioInput, *, sr: Optional[int], target: int) -> np.ndarray
     if isinstance(audio, np.ndarray):
         if sr is None:
             raise ValueError("an array needs its sample rate: pass sr=")
-        data = np.asarray(audio, dtype=np.float64)
+        data = _as_float(audio)
         if data.ndim > 2:
             raise ValueError(
                 f"expected (n,) or (n, channels) samples, got {data.shape}"
@@ -466,83 +591,96 @@ def _offset_histogram(clip: Landmarks, song: Landmarks) -> tuple[np.ndarray, int
     return np.bincount(offsets - first), first
 
 
-def _measure(
-    clip: Landmarks,
-    song: Landmarks,
-    *,
-    offset_tolerance_s: float,
-    rival_exclusion_s: float,
-) -> dict:
-    """K, K2, shared and the best offset (s) of ``clip`` against ``song``."""
+def _measure(clip: Landmarks, song: Landmarks, match: MatchParams) -> dict:
+    """K, K2, shared, overlap and the best offset of ``clip`` against ``song``."""
     counts, first = _offset_histogram(clip, song)
     shared = int(counts.sum())
     if shared == 0:
-        return dict(votes=0, rival_votes=0, shared=0, offset_s=None)
+        return dict(votes=0, rival_votes=0, shared=0, overlap_hashes=0, offset_s=None)
     p = song.params
-    half = round(offset_tolerance_s / p.hop_s)
+    half = round(match.offset_tolerance_s / p.hop_s)
     padded = np.pad(counts, half)
     window = np.convolve(padded, np.ones(2 * half + 1, np.int64), mode="valid")
     best = int(np.argmax(window))
-    rivals = np.abs(np.arange(len(window)) - best) > p.frames(rival_exclusion_s)
+    rivals = np.abs(np.arange(len(window)) - best) > p.frames(match.rival_exclusion_s)
     rival_votes = int(window[rivals].max()) if rivals.any() else 0
     lo, hi = max(0, best - half), min(len(counts), best + half + 1)
     span = np.arange(lo, hi)
     centroid = float((span * counts[lo:hi]).sum() / max(counts[lo:hi].sum(), 1))
+    # the clip hashes that, placed at this offset, fall inside the song
+    in_song = clip.frames + (best + first)
+    overlap = int(((in_song >= 0) & (in_song * p.hop_s <= song.duration_s)).sum())
     return dict(
         votes=int(window[best]),
         rival_votes=rival_votes,
         shared=shared,
+        overlap_hashes=overlap,
         offset_s=(centroid + first) * p.hop_s,
     )
 
 
-def song_verdict(
+def _found_off_speed(
+    y: np.ndarray,
+    song: Landmarks,
     *,
-    votes: int,
-    rho: float,
-    ratio: float,
-    query_hashes: int,
-    min_votes: int = DEFAULT_MIN_VOTES,
-    min_rho: float = DEFAULT_MIN_RHO,
-    min_ratio: float = DEFAULT_MIN_RATIO,
-    max_absent_votes: int = DEFAULT_MAX_ABSENT_VOTES,
-    min_query_hashes: int = DEFAULT_MIN_QUERY_HASHES,
+    match: MatchParams,
+    thresholds: SongThresholds,
+) -> Optional[float]:
+    """The first of ``match.speed_probes`` at which ``y``, its speed change undone,
+    clears the "contains" bars on K and R (one phase each: a probe looks for a
+    cluster, it does not place the clip); ``None`` if none does."""
+    p = song.params
+    for change in match.speed_probes:
+        stretched = resample(
+            y, _SPEED_PROBE_RESOLUTION, round(_SPEED_PROBE_RESOLUTION * (1 + change))
+        )
+        m = _measure(landmarks(stretched, sr=p.sample_rate, params=p), song, match)
+        ratio = m["votes"] / max(m["rival_votes"], 1)
+        if m["votes"] >= thresholds.min_votes and ratio >= thresholds.min_ratio:
+            return change
+    return None
+
+
+def song_verdict(
+    measurement: Union[SongMatch, Mapping],
+    *,
+    thresholds: SongThresholds = DEFAULT_SONG_THRESHOLDS,
 ) -> tuple[SongVerdict, str]:
-    """``(verdict, reason)`` from measured K, rho, R -- the ONE place it is decided.
+    """``(verdict, reason)`` from a measurement -- the ONE place it is decided.
 
-    Pure, so stored measurements can be re-judged under calibrated thresholds:
+    ``measurement`` is a :class:`SongMatch` or its :meth:`~SongMatch.to_dict`
+    (only ``votes``, ``coverage``, ``ratio`` and ``query_hashes`` are read), so a
+    stored record is re-judged under new thresholds in one call, without rehashing:
 
-    - ``"contains"`` iff ``votes >= min_votes and rho >= min_rho and ratio >= min_ratio``;
+    - ``"contains"`` iff ``votes >= min_votes``, ``coverage >= min_coverage`` and
+      ``ratio >= min_ratio``;
     - ``"absent"`` iff ``votes <= max_absent_votes`` and the clip offered at least
       ``min_query_hashes`` hashes (too few landmarks is no evidence of absence);
     - ``"undecided"`` otherwise.
 
-    The defaults are the research's starting values, **not calibrated**.
+    The defaults (:class:`SongThresholds`) are **not calibrated**.
     """
-    if max_absent_votes >= min_votes:
-        raise ValueError(
-            f"max_absent_votes ({max_absent_votes}) must be below min_votes ({min_votes})"
-        )
-    stats = f"K={votes}, rho={rho:.3f}, R={ratio:.2f}"
-    if votes >= min_votes and rho >= min_rho and ratio >= min_ratio:
-        return CONTAINS, f"{stats} clear K>={min_votes}, rho>={min_rho}, R>={min_ratio}"
-    if votes <= max_absent_votes and query_hashes >= min_query_hashes:
-        return ABSENT, f"{stats}: K<={max_absent_votes} on {query_hashes} clip hashes"
-    if votes <= max_absent_votes:
+    m = measurement.to_dict() if isinstance(measurement, SongMatch) else measurement
+    t = thresholds
+    votes, coverage, ratio = m["votes"], m["coverage"], m["ratio"]
+    query_hashes = m["query_hashes"]
+    stats = f"K={votes}, coverage={coverage:.3f}, R={ratio:.2f}"
+    passes = {
+        f"K>={t.min_votes}": votes >= t.min_votes,
+        f"coverage>={t.min_coverage}": coverage >= t.min_coverage,
+        f"R>={t.min_ratio}": ratio >= t.min_ratio,
+    }
+    if all(passes.values()):
+        return CONTAINS, f"{stats}: clears {', '.join(passes)}"
+    if votes <= t.max_absent_votes and query_hashes >= t.min_query_hashes:
+        return ABSENT, f"{stats}: K<={t.max_absent_votes} on {query_hashes} clip hashes"
+    if votes <= t.max_absent_votes:
         return UNDECIDED, (
-            f"{stats}, but only {query_hashes} clip hashes (< {min_query_hashes}): "
+            f"{stats}, but only {query_hashes} clip hashes (< {t.min_query_hashes}): "
             "too little to show the song either way"
         )
-    failed = [
-        name
-        for name, ok in (
-            (f"K>={min_votes}", votes >= min_votes),
-            (f"rho>={min_rho}", rho >= min_rho),
-            (f"R>={min_ratio}", ratio >= min_ratio),
-        )
-        if not ok
-    ]
-    return UNDECIDED, f"{stats}: between the bars (fails {', '.join(failed)})"
+    failed = ", ".join(name for name, ok in passes.items() if not ok)
+    return UNDECIDED, f"{stats}: between the bars (fails {failed})"
 
 
 def contains_song(
@@ -551,86 +689,91 @@ def contains_song(
     *,
     sr: Optional[int] = None,
     song_sr: Optional[int] = None,
-    params: LandmarkParams = DEFAULT_LANDMARK_PARAMS,
-    query_shifts: int = DEFAULT_QUERY_SHIFTS,
-    offset_tolerance_s: float = DEFAULT_OFFSET_TOLERANCE_S,
-    rival_exclusion_s: float = DEFAULT_RIVAL_EXCLUSION_S,
-    min_votes: int = DEFAULT_MIN_VOTES,
-    min_rho: float = DEFAULT_MIN_RHO,
-    min_ratio: float = DEFAULT_MIN_RATIO,
-    max_absent_votes: int = DEFAULT_MAX_ABSENT_VOTES,
-    min_query_hashes: int = DEFAULT_MIN_QUERY_HASHES,
+    params: Optional[LandmarkParams] = None,
+    match: MatchParams = DEFAULT_MATCH_PARAMS,
+    thresholds: SongThresholds = DEFAULT_SONG_THRESHOLDS,
 ) -> SongMatch:
     """Does ``clip`` contain ``song``, and where? A landmark-fingerprint verdict.
 
-    The clip is hashed at ``query_shifts`` sub-hop phases (audfprint's
+    The clip is hashed at ``match.query_shifts`` sub-hop phases (audfprint's
     ``--shifts``), each scored as its own query against the song; the phase with
     the most votes is reported. A clip rarely starts on the song's hop grid, and
     off-grid a peak's frame jitters by one, which changes the ``dt`` of its
     hashes; one of the phases lands close to the grid. Best-of-phases (rather
-    than pooling them) keeps K the count of ONE query's consistent hashes.
+    than pooling them) keeps K the count of ONE query's consistent hashes --
+    but it is ``query_shifts`` tries at the null, so calibrate with the shifts
+    you will ship.
 
     Args:
-        clip: the recording to test: a path, an ``Audio``, an ``AudioSegment``,
-            or an array with ``sr``.
+        clip: the recording to test (see :data:`AudioInput`).
         song: the song, the same way -- or, better, its :class:`Landmarks` from
             :func:`landmarks`, computed once for every clip.
         sr: ``clip``'s sample rate when it is an array.
-        song_sr: ``song``'s sample rate when it is an array (defaults to ``sr``).
-        params: hashing recipe when ``song`` is audio; a song given as
-            :class:`Landmarks` hashes the clip with its own params instead.
-        query_shifts: sub-hop phases the clip is tried at (1 = no shifting).
-        offset_tolerance_s: hashes this close to the best offset agree with it.
-        rival_exclusion_s: the rival offset is the best one farther than this.
-        min_votes, min_rho, min_ratio, max_absent_votes, min_query_hashes: the
-            verdict's thresholds (see :func:`song_verdict`); **uncalibrated**
-            starting values from the research.
+        song_sr: ``song``'s sample rate when it is an array (defaults to ``sr``);
+            an error with a :class:`Landmarks` song.
+        params: hashing recipe when ``song`` is audio (default
+            :data:`DEFAULT_LANDMARK_PARAMS`). With a :class:`Landmarks` song the
+            clip is hashed with the index's own params; passing different ones
+            is an error.
+        match: how hashes are matched (:class:`MatchParams`).
+        thresholds: the verdict's bars (:class:`SongThresholds`; **uncalibrated**).
 
     Returns:
         A :class:`SongMatch`; ``offset_s`` is the song time at the clip's t=0.
     """
-    if query_shifts < 1:
-        raise ValueError(f"query_shifts must be at least 1, got {query_shifts}")
-    if not isinstance(song, Landmarks):
-        song = landmarks(song, sr=song_sr if song_sr is not None else sr, params=params)
+    if isinstance(song, Landmarks):
+        if song_sr is not None:
+            raise ValueError("song_sr= is for a song given as an array, not Landmarks")
+        if params is not None and params != song.params:
+            raise ValueError(
+                "params differ from the Landmarks index's own; the clip must be "
+                "hashed like the song (omit params=, or re-index the song)"
+            )
+    else:
+        song = landmarks(
+            song,
+            sr=song_sr if song_sr is not None else sr,
+            params=params if params is not None else DEFAULT_LANDMARK_PARAMS,
+        )
     p = song.params
     y = _mono_at(clip, sr=sr, target=p.sample_rate)
 
     def phase(k: int) -> dict:
-        lead = round(k * p.hop_length / query_shifts)
+        lead = round(k * p.hop_length / match.query_shifts)
         query = landmarks(y[lead:], sr=p.sample_rate, params=p)
-        m = _measure(
-            query,
-            song,
-            offset_tolerance_s=offset_tolerance_s,
-            rival_exclusion_s=rival_exclusion_s,
-        )
+        m = _measure(query, song, match)
         if m["offset_s"] is not None:  # the phase's t=0 is the clip's t=lead
             m["offset_s"] -= lead / p.sample_rate
         return dict(m, query_hashes=len(query))
 
-    m = max((phase(k) for k in range(query_shifts)), key=lambda m: m["votes"])
-    rho = m["votes"] / m["shared"] if m["shared"] else 0.0
-    ratio = m["votes"] / max(m["rival_votes"], 1)
-    verdict, reason = song_verdict(
-        votes=m["votes"],
-        rho=rho,
-        ratio=ratio,
-        query_hashes=m["query_hashes"],
-        min_votes=min_votes,
-        min_rho=min_rho,
-        min_ratio=min_ratio,
-        max_absent_votes=max_absent_votes,
-        min_query_hashes=min_query_hashes,
-    )
-    return SongMatch(
-        verdict=verdict,
+    m = max((phase(k) for k in range(match.query_shifts)), key=lambda m: m["votes"])
+    measured = dict(
         votes=m["votes"],
         rival_votes=m["rival_votes"],
         shared=m["shared"],
-        rho=rho,
-        ratio=ratio,
+        overlap_hashes=m["overlap_hashes"],
+        coverage=m["votes"] / m["overlap_hashes"] if m["overlap_hashes"] else 0.0,
+        rho=m["votes"] / m["shared"] if m["shared"] else 0.0,
+        ratio=m["votes"] / max(m["rival_votes"], 1),
         offset_s=m["offset_s"],
         query_hashes=m["query_hashes"],
+    )
+    verdict, reason = song_verdict(measured, thresholds=thresholds)
+    off_speed = None
+    if verdict == ABSENT:
+        off_speed = _found_off_speed(y, song, match=match, thresholds=thresholds)
+        if off_speed is not None:
+            verdict = UNDECIDED
+            reason = (
+                f"{reason}, but the song shows at {off_speed:+.1%} speed: an "
+                "off-speed copy is not evidence of absence"
+            )
+    return SongMatch(
+        verdict=verdict,
+        **measured,
+        off_speed=off_speed,
         reason=reason,
+        landmark_params=p,
+        match_params=match,
+        thresholds=thresholds,
     )
