@@ -15,6 +15,8 @@ footprint so you only pay for what you import:
 - [`mixing.dubbing`](mixing.dubbing.html.md#module-mixing.dubbing) — text-to-speech re-voicing / translation from SRT.
 - [`mixing.srt`](mixing.srt.html.md#module-mixing.srt) — canonical SRT/timeline parsing & formatting (pure).
 - [`mixing.chapters`](mixing.chapters.html.md#module-mixing.chapters) — transcript → chapter markers (pure; LLM optional).
+- [`mixing.edit`](mixing.edit.html.md#module-mixing.edit) — render a re-edit from sound and picture edit lists,
+  frame-exact (stdlib + ffmpeg; stills via `burns`).
 
 **Lazy by design.** Importing `mixing` (or a light submodule such as
 `mixing.chapters` / `mixing.srt`) does **not** import `moviepy` or
@@ -451,6 +453,7 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 | [`chapters`](mixing.chapters.html.md#module-mixing.chapters)       | Detect chapter markers from a transcript — platform-agnostic.                      |
 |----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
 | [`dubbing`](mixing.dubbing.html.md#module-mixing.dubbing)         | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
+| [`edit`](mixing.edit.html.md#module-mixing.edit)               | Render a re-edit of a finished video from a sound edit list and its picture clips. |
 | [`egress`](mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
 | [`errors`](mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
 | [`srt`](mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |

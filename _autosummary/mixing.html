@@ -86,6 +86,7 @@
 <li class="toctree-l2 current" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="current reference internal expandable" href="#">mixing<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul x-cloak="" x-show="expanded">
 <li class="toctree-l3"><a class="reference internal" href="mixing.chapters.html">mixing.chapters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.dubbing.html">mixing.dubbing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.edit.html">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.errors.html">mixing.errors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
@@ -136,6 +137,8 @@ filler removal, transcript formats (no heavy deps).</p></li>
 <li><p><a class="reference internal" href="mixing.dubbing.html#module-mixing.dubbing" title="mixing.dubbing"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.dubbing</span></code></a> — text-to-speech re-voicing / translation from SRT.</p></li>
 <li><p><a class="reference internal" href="mixing.srt.html#module-mixing.srt" title="mixing.srt"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.srt</span></code></a> — canonical SRT/timeline parsing &amp; formatting (pure).</p></li>
 <li><p><a class="reference internal" href="mixing.chapters.html#module-mixing.chapters" title="mixing.chapters"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.chapters</span></code></a> — transcript → chapter markers (pure; LLM optional).</p></li>
+<li><p><a class="reference internal" href="mixing.edit.html#module-mixing.edit" title="mixing.edit"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.edit</span></code></a> — render a re-edit from sound and picture edit lists,
+frame-exact (stdlib + ffmpeg; stills via <code class="docutils literal notranslate"><span class="pre">burns</span></code>).</p></li>
 </ul>
 <p><strong>Lazy by design.</strong> Importing <code class="docutils literal notranslate"><span class="pre">mixing</span></code> (or a light submodule such as
 <code class="docutils literal notranslate"><span class="pre">mixing.chapters</span></code> / <code class="docutils literal notranslate"><span class="pre">mixing.srt</span></code>) does <strong>not</strong> import <code class="docutils literal notranslate"><span class="pre">moviepy</span></code> or
@@ -695,22 +698,25 @@ Defaults to <code class="xref py py-func docutils literal notranslate"><span cla
 <tr class="row-even"><td><p><a class="reference internal" href="mixing.dubbing.html#module-mixing.dubbing" title="mixing.dubbing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dubbing</span></code></a></p></td>
 <td><p>Text-to-speech dubbing: re-voice or translate a video from its SRT.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.egress.html#module-mixing.egress" title="mixing.egress"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egress</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.edit.html#module-mixing.edit" title="mixing.edit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">edit</span></code></a></p></td>
+<td><p>Render a re-edit of a finished video from a sound edit list and its picture clips.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.egress.html#module-mixing.egress" title="mixing.egress"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egress</span></code></a></p></td>
 <td><p>Canonical <em>egress</em>: route a produced result to its destination.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.errors.html#module-mixing.errors" title="mixing.errors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">errors</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.errors.html#module-mixing.errors" title="mixing.errors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">errors</span></code></a></p></td>
 <td><p>Typed errors <code class="code docutils literal notranslate"><span class="pre">mixing</span></code> raises — the home for exceptions a caller may want to catch.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.srt.html#module-mixing.srt" title="mixing.srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.srt.html#module-mixing.srt" title="mixing.srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt</span></code></a></p></td>
 <td><p>Canonical SRT / timeline parsing and formatting (pure, dependency-free).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.html#module-mixing.transcript" title="mixing.transcript"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transcript</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.html#module-mixing.transcript" title="mixing.transcript"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transcript</span></code></a></p></td>
 <td><p>Transcript-driven media editing.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.util.html#module-mixing.util" title="mixing.util"><code class="xref py py-obj docutils literal notranslate"><span class="pre">util</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.util.html#module-mixing.util" title="mixing.util"><code class="xref py py-obj docutils literal notranslate"><span class="pre">util</span></code></a></p></td>
 <td><p>General utilities for mixing video, audio, etc.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.filtergraph.html#module-mixing.filtergraph" title="mixing.filtergraph"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filtergraph</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.filtergraph.html#module-mixing.filtergraph" title="mixing.filtergraph"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filtergraph</span></code></a></p></td>
 <td><p>Pure ffmpeg filter-string builders: no media dependency, no I/O.</p></td>
 </tr>
 </tbody>
@@ -764,7 +770,7 @@ Defaults to <code class="xref py py-func docutils literal notranslate"><span cla
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=ae06b2e5"></script>
+<script src="../_static/documentation_options.js?v=f81738d5"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

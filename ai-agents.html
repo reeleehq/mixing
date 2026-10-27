@@ -85,6 +85,7 @@
 <li class="toctree-l2" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="reference internal expandable" href="_autosummary/mixing.html">mixing<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul x-cloak="" x-show="expanded">
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.chapters.html">mixing.chapters</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.dubbing.html">mixing.dubbing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.edit.html">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.errors.html">mixing.errors</a></li>
 <li class="toctree-l3"><a class="reference internal" href="_autosummary/mixing.srt.html">mixing.srt</a></li>
@@ -149,7 +150,7 @@ machine-readable copies of this documentation.</p>
 </section>
 <section id="mixing-video">
 <h3><code class="docutils literal notranslate"><span class="pre">mixing-video</span></code><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing-video" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing-video'">¶</a></h3>
-<p>Use for VIDEO editing with the <code class="docutils literal notranslate"><span class="pre">mixing</span></code> Python package: trim/crop a clip, loop it, speed it up or down, replace or mix in a new audio track, normalize audio levels, pan/zoom a still image (Ken Burns), build a film from panels, concatenate clips, grab/extract frames, make a YouTube-style thumbnail, burn in subtitles, or resize for shorts/tiktok/square. Trigger on phrasings like “trim this video”, “loop the intro”, “speed up / slow down this clip”, “replace the audio with this music”, “lay room tone / ambience under the cut”, “add a pan-zoom over this photo”, “make a thumbnail”, “burn the subtitles in”, “resize for YouTube Shorts”, or “stitch these clips together”. For audio-only work use mixing-audio; for transcription / filler removal use mixing-transcript; for TTS re-voicing use mixing-dubbing.</p>
+<p>Use for VIDEO editing with the <code class="docutils literal notranslate"><span class="pre">mixing</span></code> Python package: trim/crop a clip, loop it, speed it up or down, replace or mix in a new audio track, normalize audio levels, pan/zoom a still image (Ken Burns), build a film from panels, concatenate clips, re-edit a finished video from a sound edit list (punch-ins, held stills with moves, dissolves, overlays, frame-exact), grab/extract frames, make a YouTube-style thumbnail, burn in subtitles, or resize for shorts/tiktok/square. Trigger on phrasings like “trim this video”, “loop the intro”, “speed up / slow down this clip”, “replace the audio with this music”, “lay room tone / ambience under the cut”, “add a pan-zoom over this photo”, “make a thumbnail”, “burn the subtitles in”, “resize for YouTube Shorts”, or “stitch these clips together”. For audio-only work use mixing-audio; for transcription / filler removal use mixing-transcript; for TTS re-voicing use mixing-dubbing.</p>
 <p>Source: <a class="reference external" href="https://github.com/thorwhalen/mixing/tree/HEAD/.claude/skills/mixing-video" rel="nofollow noopener"><code class="docutils literal notranslate"><span class="pre">.claude/skills/mixing-video</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>.</p>
 </section>
 </section>
@@ -216,7 +217,7 @@ machine-readable copies of this documentation.</p>
 </div>
 </footer>
 </div>
-<script src="_static/documentation_options.js?v=ae06b2e5"></script>
+<script src="_static/documentation_options.js?v=f81738d5"></script>
 <script src="_static/doctools.js?v=fd6eb6e6"></script>
 <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="_static/clipboard.min.js?v=a7894cd8"></script>

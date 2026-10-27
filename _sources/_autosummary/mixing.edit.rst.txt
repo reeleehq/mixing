@@ -1,0 +1,36 @@
+mixing.edit
+===========
+
+.. automodule:: mixing.edit
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      JOIN_FADE_S
+      DEFAULT_ENCODE_ARGS
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      as_rate
+      punch_in_box
+      timeline
+      probe_source
+      burns_still_renderer
+      render
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Span
+      Gap
+      Cam
+      Still
+      Overlay
+      SourceInfo
+      Timeline
+   

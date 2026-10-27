@@ -10,6 +10,7 @@
 - [mixing.dubbing](mixing.dubbing.html.md): Text-to-speech dubbing: re-voice or translate a video from its SRT.
 - [mixing.dubbing.srt](mixing.dubbing.srt.html.md): SRT translation for dubbing — built on the canonical &#96;mixing.srt&#96;.
 - [mixing.dubbing.tts](mixing.dubbing.tts.html.md): ElevenLabs text-to-speech (TTS) HTTP client.
+- [mixing.edit](mixing.edit.html.md): Render a re-edit of a finished video from a sound edit list and its picture clips.
 - [mixing.egress](mixing.egress.html.md): Canonical &#42;egress&#42;: route a produced result to its destination.
 - [mixing.errors](mixing.errors.html.md): Typed errors &#96;mixing&#96; raises — the home for exceptions a caller may want to catch.
 - [mixing.srt](mixing.srt.html.md): Canonical SRT / timeline parsing and formatting (pure, dependency-free).

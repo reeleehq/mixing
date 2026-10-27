@@ -45,6 +45,7 @@
 
    chapters
    dubbing
+   edit
    egress
    errors
    srt
