@@ -331,3 +331,77 @@ def test_limiter_memory_stays_near_the_output(monkeypatch):
     tracemalloc.stop()
     # the output (one input's worth) plus one chunk's temporaries; whole it was ~5x
     assert peak < 2 * data.nbytes
+
+
+# --- streaming and file meters ------------------------------------------------
+
+
+def test_stream_matches_the_array_meters_for_any_chunking():
+    from mixing.loudness import numpy_lufs, stream_loudness
+
+    data = _voice(12, 0.3, channels=2)
+    data[FS * 4 : FS * 7] *= 0.1  # some loudness range
+    whole_i, whole_lra = numpy_lufs(data, FS), loudness_range_lu(data, FS)
+    for size in (1, 977, FS, len(data)):
+        chunks = (data[k : k + size] for k in range(0, len(data), size))
+        reading = stream_loudness(chunks, FS)
+        assert reading.integrated_lufs == pytest.approx(whole_i, abs=1e-9)
+        assert reading.loudness_range_lu == pytest.approx(whole_lra, abs=1e-9)
+    assert stream_loudness(iter([]), FS) == (-np.inf, 0.0)
+    short = _voice(0.2, 0.3)  # under one 400 ms block: measured as one block
+    assert stream_loudness([short], FS).integrated_lufs == numpy_lufs(short, FS)
+
+
+def test_stream_memory_does_not_grow_with_the_track():
+    import tracemalloc
+
+    from mixing.loudness import stream_loudness
+
+    def peak_bytes(minutes):
+        rng = np.random.default_rng(0)
+        chunks = (rng.standard_normal((FS, 2)) * 0.1 for _ in range(60 * minutes))
+        tracemalloc.start()
+        stream_loudness(chunks, FS)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        return peak
+
+    short, long = peak_bytes(1), peak_bytes(10)
+    assert long < short + 2_000_000  # block energies only: ~10 floats/s
+    assert long < 20 * FS * 2 * 8  # a few one-second chunks, not the track
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg not on PATH")
+@pytest.mark.parametrize("channels", [1, 2])
+def test_file_meter_matches_the_array_meter(tmp_path, channels):
+    from scipy.io import wavfile
+
+    from mixing.loudness import file_loudness, numpy_lufs
+
+    data = _voice(8, 0.3, channels=channels).astype(np.float32)
+    path = tmp_path / "voice.wav"
+    wavfile.write(path, FS, data if channels > 1 else data[:, 0])
+    reading = file_loudness(path, chunk_s=0.7)
+    assert reading.integrated_lufs == pytest.approx(numpy_lufs(data, FS), abs=0.01)
+    assert reading.loudness_range_lu == pytest.approx(
+        loudness_range_lu(data, FS), abs=0.01
+    )
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg not on PATH")
+def test_file_meter_reads_a_videos_audio_and_raises_on_garbage(tmp_path):
+    from mixing.loudness import file_loudness
+    from mixing.util import ffmpeg_exe
+
+    video = tmp_path / "clip.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-f", "lavfi", "-i", "color=red:s=64x36:d=3:r=10",
+         "-f", "lavfi", "-i", "sine=frequency=440:duration=3:sample_rate=48000",
+         "-shortest", "-c:a", "aac", str(video)],
+        check=True,
+    )  # fmt: skip
+    assert -40 < file_loudness(video).integrated_lufs < 0
+    garbage = tmp_path / "garbage.wav"
+    garbage.write_bytes(b"not audio at all")
+    with pytest.raises(RuntimeError, match="could not decode"):
+        file_loudness(garbage)

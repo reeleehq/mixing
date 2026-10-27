@@ -14,6 +14,9 @@ plus a sample rate, and needs only numpy and scipy (extra ``loudness``,
 - :func:`limit_peaks`: a lookahead peak limiter; sample peak by default,
   ``true_peak=True`` holds inter-sample peaks too.
 - :func:`true_peak_db`, :func:`loudness_range_lu`: the dBTP and LRA meters.
+- :func:`stream_loudness`, :func:`file_loudness`: integrated loudness and LRA
+  in one pass over chunks (or a file decoded in chunks), in memory bounded by
+  the chunk, not the track.
 
 >>> import numpy as np
 >>> integrated_lufs(np.zeros((100, 1)), 8000)
@@ -26,10 +29,13 @@ from __future__ import annotations
 
 import numbers
 import re
+import struct
 import subprocess
+import tempfile
 import warnings
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Callable, Optional, Sequence, Union
+from typing import Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
 
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint
 
@@ -130,37 +136,111 @@ def _lufs(mean_square: float) -> float:
     return _LUFS_OFFSET + 10.0 * np.log10(mean_square) if mean_square > 0 else -np.inf
 
 
-def _k_weighted_energy(data: np.ndarray, fs: int, *, chunk_s: float) -> np.ndarray:
-    """Channel-summed squared K-weighted samples, ``(n,)``.
+def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.ndarray]:
+    """Channel-summed squared K-weighted samples, one ``(k,)`` array per chunk.
 
-    Filters ``chunk_s`` seconds at a time, carrying the filter state across
-    chunks, so peak memory is a few chunks of float64 rather than several
-    copies of the whole (possibly hours-long, stereo) signal.
+    The filter state is carried across chunks, so the result is the same as
+    filtering the whole signal while holding only a chunk at a time.
     """
     from scipy.signal import lfilter
 
-    sections = _k_weighting_coefficients(fs)
-    states = [np.zeros((2, data.shape[1])) for _ in sections]  # biquads: order 2
-    energy = np.empty(len(data))
-    step = max(1, int(round(chunk_s * fs)))
-    for start in range(0, len(data), step):
-        x = data[start : start + step]
+    sections, states = _k_weighting_coefficients(fs), None
+    for x in chunks:
+        x = _as_2d(np.asarray(x, dtype=np.float64))
+        if states is None:  # biquads: order 2
+            states = [np.zeros((2, x.shape[1])) for _ in sections]
         for k, (b, a) in enumerate(sections):
             x, states[k] = lfilter(b, a, x, axis=0, zi=states[k])
-        energy[start : start + step] = (x**2).sum(axis=1)
-    return energy
+        yield (x**2).sum(axis=1)
 
 
-def _block_mean_squares(
-    energy: np.ndarray, fs: int, *, block_s: float, hop_s: float
-) -> np.ndarray:
-    """Mean square of every ``block_s`` window at ``hop_s`` spacing (one block if short)."""
-    block, hop = int(round(block_s * fs)), int(round(hop_s * fs))
-    if len(energy) < block:
-        block, hop = len(energy), len(energy)
-    cumulative = np.concatenate([[0.0], np.cumsum(energy)])
-    starts = np.arange(0, len(energy) - block + 1, hop)
-    return (cumulative[starts + block] - cumulative[starts]) / block
+@dataclass
+class _Blocks:
+    """Mean square of every ``block``-long window at ``hop`` spacing, over
+    energy fed in pieces; holds at most a block plus one piece. A signal
+    shorter than one block is one block over all of it."""
+
+    block: int
+    hop: int
+
+    def __post_init__(self):
+        self._buffer, self._offset, self._next, self._out = np.zeros(0), 0, 0, []
+        self.length = 0
+
+    def feed(self, energy: np.ndarray) -> None:
+        self.length += len(energy)
+        self._buffer = np.concatenate([self._buffer, energy])
+        end = self._offset + len(self._buffer)
+        starts = np.arange(self._next, end - self.block + 1, self.hop)
+        if len(starts):
+            cumulative = np.concatenate([[0.0], np.cumsum(self._buffer)])
+            at = starts - self._offset
+            self._out.append(
+                (cumulative[at + self.block] - cumulative[at]) / self.block
+            )
+            self._next = int(starts[-1]) + self.hop
+            drop = min(self._next - self._offset, len(self._buffer))
+            self._buffer, self._offset = self._buffer[drop:], self._offset + drop
+
+    def result(self) -> np.ndarray:
+        if self._out:
+            return np.concatenate(self._out)
+        return self._buffer[None].mean(axis=1) if self.length else np.zeros(0)
+
+
+class LoudnessReading(NamedTuple):
+    """Integrated loudness (LUFS, ``-inf`` for silence) and loudness range (LU)."""
+
+    integrated_lufs: float
+    loudness_range_lu: float
+
+
+def _integrated(block_ms: np.ndarray) -> float:
+    kept, _ = _gated(block_ms, RELATIVE_GATE_LU)
+    return float(_lufs(kept.mean())) if len(kept) else -np.inf
+
+
+def _loudness_range(windows: np.ndarray, length: int, fs: int) -> float:
+    if length < round(LRA_WINDOW_S * fs):
+        return 0.0
+    _, lufs = _gated(windows, LRA_RELATIVE_GATE_LU)
+    if len(lufs) == 0:
+        return 0.0
+    low, high = np.percentile(lufs, LRA_PERCENTILES)
+    return float(high - low)
+
+
+def _blocks(seconds: float, hop_s: float, fs: int) -> _Blocks:
+    return _Blocks(int(round(seconds * fs)), int(round(hop_s * fs)))
+
+
+def stream_loudness(chunks: Iterable[np.ndarray], fs: int) -> LoudnessReading:
+    """Integrated loudness and LRA of a signal that arrives in chunks.
+
+    ``chunks`` are float arrays ``(k, channels)`` (or 1-D, mono) in [-1, 1],
+    one after another; any sizes. One pass, holding one chunk plus the block
+    energies (a few floats per second), so a track of any length meters in
+    bounded memory. Same results as :func:`numpy_lufs` and
+    :func:`loudness_range_lu` on the joined signal.
+    """
+    gate, short_term = (
+        _blocks(BLOCK_S, BLOCK_HOP_S, fs),
+        _blocks(LRA_WINDOW_S, LRA_HOP_S, fs),
+    )
+    for energy in _k_weighted_energies(chunks, fs):
+        gate.feed(energy)
+        short_term.feed(energy)
+    if gate.length == 0:
+        return LoudnessReading(-np.inf, 0.0)
+    return LoudnessReading(
+        _integrated(gate.result()),
+        _loudness_range(short_term.result(), short_term.length, fs),
+    )
+
+
+def _array_chunks(data: np.ndarray, fs: int, chunk_s: float) -> Iterator[np.ndarray]:
+    step = max(1, int(round(chunk_s * fs)))
+    return (data[start : start + step] for start in range(0, len(data), step))
 
 
 def _gated(block_ms: np.ndarray, relative_gate_lu: float):
@@ -180,15 +260,13 @@ def numpy_lufs(data: np.ndarray, fs: int, *, chunk_s: float = FILTER_CHUNK_S) ->
 
     Every channel is weighted 1.0 (right for mono and stereo; BS.1770's
     surround weights and LFE exclusion for >2 channels are not applied, so
-    the ffmpeg meter reads differently there).
+    the ffmpeg meter reads differently there). Filters ``chunk_s`` at a time.
     """
     data = _as_2d(data)
-    if len(data) == 0:
-        return -np.inf
-    energy = _k_weighted_energy(data, fs, chunk_s=chunk_s)
-    block_ms = _block_mean_squares(energy, fs, block_s=BLOCK_S, hop_s=BLOCK_HOP_S)
-    kept, _ = _gated(block_ms, RELATIVE_GATE_LU)
-    return float(_lufs(kept.mean())) if len(kept) else -np.inf
+    gate = _blocks(BLOCK_S, BLOCK_HOP_S, fs)
+    for energy in _k_weighted_energies(_array_chunks(data, fs, chunk_s), fs):
+        gate.feed(energy)
+    return _integrated(gate.result()) if gate.length else -np.inf
 
 
 def loudness_range_lu(data: np.ndarray, fs: int) -> float:
@@ -197,17 +275,78 @@ def loudness_range_lu(data: np.ndarray, fs: int) -> float:
     The spread between the 10th and 95th percentile of the gated 3 s
     short-term loudness. 0.0 for silence or a signal shorter than 3 s.
     """
-    if len(data) == 0:
-        return 0.0
-    energy = _k_weighted_energy(data, fs, chunk_s=FILTER_CHUNK_S)
-    if len(energy) < round(LRA_WINDOW_S * fs):
-        return 0.0
-    windows = _block_mean_squares(energy, fs, block_s=LRA_WINDOW_S, hop_s=LRA_HOP_S)
-    _, lufs = _gated(windows, LRA_RELATIVE_GATE_LU)
-    if len(lufs) == 0:
-        return 0.0
-    low, high = np.percentile(lufs, LRA_PERCENTILES)
-    return float(high - low)
+    data = _as_2d(data)
+    windows = _blocks(LRA_WINDOW_S, LRA_HOP_S, fs)
+    for energy in _k_weighted_energies(_array_chunks(data, fs, FILTER_CHUNK_S), fs):
+        windows.feed(energy)
+    return _loudness_range(windows.result(), windows.length, fs)
+
+
+#: ffmpeg decodes a file for :func:`file_loudness` as 32-bit float WAV...
+_WAV_FLOAT = "pcm_f32le"
+#: ...read this many seconds at a time: a 30 min stereo track meters at ~130 MB
+#: peak RSS (~106 MB of it numpy and scipy), the same as a 5 min one.
+FILE_CHUNK_S = 5.0
+
+
+def _wav_format(stream) -> tuple[int, int]:
+    """``(channels, rate)`` from a streamed WAV header, read up to its ``data``
+    chunk (ffmpeg writes unknown sizes when piping, so they are not used)."""
+    header = stream.read(12)
+    if len(header) < 12 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+        raise RuntimeError("ffmpeg did not produce a WAV stream")
+    channels = rate = None
+    while True:
+        chunk = stream.read(8)
+        if len(chunk) < 8:
+            raise RuntimeError("WAV stream ended before its data chunk")
+        name, size = chunk[:4], struct.unpack("<I", chunk[4:])[0]
+        if name == b"data":
+            if channels is None:
+                raise RuntimeError("WAV stream has no fmt chunk")
+            return channels, rate
+        body = stream.read(size + size % 2)
+        if name == b"fmt ":
+            channels, rate = struct.unpack("<HI", body[2:8])
+
+
+def file_loudness(
+    path, *, chunk_s: float = FILE_CHUNK_S, ffmpeg: Optional[str] = None
+) -> LoudnessReading:
+    """Integrated loudness and LRA of a media file's audio, in bounded memory.
+
+    ffmpeg (``ffmpeg``, default :func:`mixing.util.ffmpeg_exe`) decodes the
+    first audio stream at its own rate and channel count (no resampling, no
+    downmix) as float WAV, read ``chunk_s`` seconds at a time into
+    :func:`stream_loudness`; memory stays a chunk's worth whatever the
+    length. Raises ``RuntimeError`` when ffmpeg cannot decode it.
+    """
+    cmd = [
+        ffmpeg or ffmpeg_exe(), "-v", "error", "-i", str(path), "-vn", "-map", "0:a:0",
+        "-c:a", _WAV_FLOAT, "-f", "wav", "-",
+    ]  # fmt: skip
+    # stderr to a file: a pipe nobody reads fills up and blocks ffmpeg
+    with tempfile.TemporaryFile() as errors:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errors) as proc:
+            try:
+                channels, rate = _wav_format(proc.stdout)
+            except RuntimeError:
+                channels = None
+            if channels is not None:
+                frame = 4 * channels
+                step = max(1, int(round(chunk_s * rate))) * frame
+
+                def chunks() -> Iterator[np.ndarray]:
+                    while block := proc.stdout.read(step):
+                        usable = len(block) - len(block) % frame
+                        yield np.frombuffer(block[:usable], "<f4").reshape(-1, channels)
+
+                reading = stream_loudness(chunks(), rate)
+        errors.seek(0)
+        message = errors.read().decode(errors="replace")
+    if proc.returncode != 0 or channels is None:
+        raise RuntimeError(f"ffmpeg could not decode the audio of {path!s}: {message}")
+    return reading
 
 
 # --- other meters ----------------------------------------------------------------
