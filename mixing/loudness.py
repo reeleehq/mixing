@@ -30,15 +30,15 @@ import warnings
 from functools import lru_cache
 from typing import Callable, Optional, Sequence, Union
 
-try:
+from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint
+
+try:  # numpy only: scipy is imported where used, so the ffmpeg meter works without it
     import numpy as np
-except ImportError as e:  # numpy is the extra's own requirement
+except ImportError as e:
     raise ImportError(
-        "mixing.loudness needs numpy and scipy: pip install 'mixing[loudness]'",
+        f"mixing.loudness needs numpy and scipy: {install_hint(LOUDNESS_EXTRA)}",
         name=e.name,
     ) from e
-
-from mixing.util import ffmpeg_exe
 
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
