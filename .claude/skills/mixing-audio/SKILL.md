@@ -519,7 +519,7 @@ shift_pitch(
 )  # +2 semitones, same duration and loudness
 ```
 
-- `voice_profile`: `f0_hz` is the median f0 over voiced frames of `f0_tracker` (default `pyin_tracker()`, needs `mixing[beats]`; `f0=False` skips it). Configure pyin through the tracker, `f0_tracker=pyin_tracker(fmin=50, fmax=400, min_voiced_prob=0.2)` (the same arguments on `voice_profile` are deprecated). Default range 65-600 Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than the tracker's `min_samples` (pyin: one 128 ms frame) give `f0_hz=None, voiced_fraction=None`. Any `(mono samples, rate) -> (f0 per frame, voiced flags)` callable is a tracker; it applies its own voicing threshold, e.g. over `denote`:
+- `voice_profile`: `f0_hz` is the median f0 over voiced frames of `f0_tracker` (default `pyin_tracker()`, needs `mixing[beats]`; `f0=False` skips it). Configure pyin through the tracker, `f0_tracker=pyin_tracker(fmin=50, fmax=400, min_voiced_prob=0.2)` (`voice_profile` itself no longer takes them). Default range 65-600 Hz; a voice above `fmax` reads as a subharmonic. Spans shorter than the tracker's `min_samples` (pyin: one 128 ms frame) give `f0_hz=None, voiced_fraction=None`. Any `(mono samples, rate) -> (f0 per frame, voiced flags)` callable is a tracker; it applies its own voicing threshold, e.g. over `denote`:
 
   ```python
   def denote_tracker(*, threshold=0.5, **kwargs):

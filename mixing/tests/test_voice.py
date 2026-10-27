@@ -481,24 +481,10 @@ def test_tracker_min_samples_sets_the_shortest_span_tracked():
     assert out["a"]["f0_hz"] is None
 
 
-def test_pyin_arguments_on_voice_profile_are_deprecated(monkeypatch):
-    built = []
-    real = voice_module.pyin_tracker
-    monkeypatch.setattr(
-        voice_module, "pyin_tracker", lambda **kw: built.append(kw) or real(**kw)
-    )
+def test_pyin_arguments_belong_to_pyin_tracker():
+    # removed from voice_profile (#99): configure pyin through its tracker
     audio = Audio(AudioSegment.silent(1000, frame_rate=16000))
-    with pytest.warns(DeprecationWarning, match="pyin_tracker"):
-        voice_profile(audio, fmin=80.0, min_voiced_prob=0.3)
-    assert built[-1] == {"fmin": 80.0, "min_voiced_prob": 0.3}
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        voice_profile(audio)
-    with (
-        pytest.warns(DeprecationWarning),
-        pytest.raises(ValueError, match="pyin_tracker"),
-    ):
-        voice_profile(audio, fmax=300.0, f0_tracker=lambda y, fs: ([1.0], [True]))
-    with pytest.warns(DeprecationWarning, match="mixing#99") as caught:  # f0 off
-        voice_profile(audio, f0=False, fmax=300.0, f0_tracker=lambda y, fs: ([], []))
-    assert caught[0].filename == __file__  # attributed to the caller
+    with pytest.raises(TypeError, match="fmin"):
+        voice_profile(audio, fmin=80.0)
+    out = voice_profile(audio, f0_tracker=voice_module.pyin_tracker(fmin=80.0))
+    assert out["all"]["f0_hz"] is None  # silence: no voiced frame
