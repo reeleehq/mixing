@@ -543,8 +543,15 @@ To bring a file (a narration take, a clip, an hour-long track) to a target **wit
 ```python
 from mixing.loudness import level_file
 
-r = level_file("take.wav", "take_leveled.wav", target_lufs=-16, ceiling_db=-1.5, sample_rate=44100)
-r.gain_db, r.measured_lufs, r.output_lufs, r.output  # output_lufs < target: the limiter took loudness off
+r = level_file(
+    "take.wav", "take_leveled.wav", target_lufs=-16, ceiling_db=-1.5, sample_rate=44100
+)
+(
+    r.gain_db,
+    r.measured_lufs,
+    r.output_lufs,
+    r.output,
+)  # output_lufs < target: the limiter took loudness off
 ```
 
 The output is audio only (in place over a video is refused). `sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.

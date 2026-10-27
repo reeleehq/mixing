@@ -38,7 +38,16 @@ import warnings
 from contextlib import closing
 from functools import lru_cache, partial
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, NamedTuple, Optional, Sequence, Union
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
 
@@ -724,7 +733,9 @@ def _limited_blocks(chunks, margin: int, block_gain) -> Iterator[np.ndarray]:
         end = held_start + len(held)
         start, stop = done, min(end, done + LIMITER_CHUNK_FRAMES)
         lo, hi = max(0, start - margin), min(end, stop + margin)
-        gain = block_gain(held[lo - held_start : hi - held_start], start - lo, stop - lo)
+        gain = block_gain(
+            held[lo - held_start : hi - held_start], start - lo, stop - lo
+        )
         out = held[start - held_start : stop - held_start] * gain[:, None]  # float64
         done = stop
         keep = max(0, done - margin)
@@ -823,7 +834,9 @@ class LeveledFile(NamedTuple):
     before and after (``output_lufs`` falls short of the target when the
     limiter had to take a lot off, or the gain was capped)."""
 
-    output: Any  #: what the ``output`` protocol returned (the ``Path``, or a sink's result)
+    output: (
+        Any  #: what the ``output`` protocol returned (the ``Path``, or a sink's result)
+    )
     gain_db: float
     measured_lufs: float  #: the source's integrated loudness, at the output rate
     output_lufs: float  #: the written file's, measured back from it
@@ -896,7 +909,9 @@ def level_file(
     """
     src = Path(src)
     if not -np.inf < ceiling_db <= 0:
-        raise ValueError(f"ceiling_db is in dB, at or below full scale; got {ceiling_db}")
+        raise ValueError(
+            f"ceiling_db is in dB, at or below full scale; got {ceiling_db}"
+        )
     if not np.isfinite(target_lufs):
         raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
     if window_s is not None and not 0 < window_s < np.inf:
@@ -906,7 +921,11 @@ def level_file(
     # the settings are checked before the first pass (any rate does for that)
     _limiter(ceiling=ceiling, window=None, fs=sample_rate or 1, **limits)
     decode = partial(
-        decode_float_chunks, src, chunk_s=chunk_s, ffmpeg=ffmpeg, sample_rate=sample_rate
+        decode_float_chunks,
+        src,
+        chunk_s=chunk_s,
+        ffmpeg=ffmpeg,
+        sample_rate=sample_rate,
     )
     rate, chunks = decode()
     with closing(chunks):
@@ -938,7 +957,9 @@ def level_file(
                 **limits,
             )
             encode_float_chunks(leveled, rate, path, args=encode_args, ffmpeg=ffmpeg)
-        output_lufs = file_loudness(path, chunk_s=chunk_s, ffmpeg=ffmpeg).integrated_lufs
+        output_lufs = file_loudness(
+            path, chunk_s=chunk_s, ffmpeg=ffmpeg
+        ).integrated_lufs
 
     default_path = src.with_name(f"{src.stem}{LEVELED_SUFFIX}{src.suffix}")
     written = write_egress(output, default_path=default_path, write=write)

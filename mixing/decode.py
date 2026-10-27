@@ -68,7 +68,9 @@ def _wav_format(stream) -> tuple[int, int]:
 
 
 @contextmanager
-def _ffmpeg(cmd: list[str], *, what: str, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL):
+def _ffmpeg(
+    cmd: list[str], *, what: str, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL
+):
     """Run the ffmpeg ``cmd`` for the block; yield the process.
 
     Its stderr goes to a temporary file (a pipe nobody reads fills up and
@@ -94,7 +96,9 @@ def _ffmpeg(cmd: list[str], *, what: str, stdin=subprocess.DEVNULL, stdout=subpr
         if proc.returncode != 0:
             errors.seek(0)
             message = errors.read().decode(errors="replace").strip()
-            raise RuntimeError(f"ffmpeg could not {what}: {message[-_STDERR_TAIL_CHARS:]}")
+            raise RuntimeError(
+                f"ffmpeg could not {what}: {message[-_STDERR_TAIL_CHARS:]}"
+            )
 
 
 def _decode(path, chunk_s: float, ffmpeg: Optional[str], sample_rate: Optional[int]):

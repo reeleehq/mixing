@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mixing"
-version = "0.0.84"
+version = "0.0.85"
 description = "Tools for video and audio editing"
 readme = "README.md"
 requires-python = ">=3.10"
