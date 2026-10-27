@@ -170,7 +170,7 @@
       <h1>Source code for mixing.util</h1><div class="highlight"><pre>
 <span></span><code><span id="line-1"><span class="sd">"""General utilities for mixing video, audio, etc."""</span>
 </span><span id="line-2">
-</span><span id="line-3"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+</span><span id="line-3"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Optional</span>
 </span><span id="line-4"><span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
 </span><span id="line-5"><span class="kn">import</span><span class="w"> </span><span class="nn">importlib.util</span>
 </span><span id="line-6"><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
@@ -236,228 +236,265 @@
 </span><span id="line-60">
 </span><span id="line-61">
 </span><span id="line-62"><span class="n">MEDIA_EXTRA</span> <span class="o">=</span> <span class="s2">"media"</span>
-</span><span id="line-63"><span class="n">MEDIA_INSTALL_HINT</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install 'mixing[</span><span class="si">{</span><span class="n">MEDIA_EXTRA</span><span class="si">}</span><span class="s2">]'"</span>
-</span><span id="line-64">
-</span><span id="line-65"><span class="c1"># Import names (top-level) that the ``media`` extra provides, per media area.</span>
-</span><span id="line-66"><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"pydub"</span><span class="p">,</span> <span class="s2">"scipy"</span><span class="p">)</span>
-</span><span id="line-67"><span class="n">VIDEO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"moviepy"</span><span class="p">,</span> <span class="s2">"cv2"</span><span class="p">,</span> <span class="s2">"PIL"</span><span class="p">,</span> <span class="s2">"burns"</span><span class="p">,</span> <span class="s2">"looks"</span><span class="p">)</span>
-</span><span id="line-68"><span class="c1"># Everything the extra supplies; ``require_package`` uses it to pick its hint.</span>
-</span><span id="line-69"><span class="n">MEDIA_IMPORT_NAMES</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">+</span> <span class="n">VIDEO_IMPORT_NAMES</span><span class="p">))</span>
-</span><span id="line-70">
-</span><span id="line-71"><span class="c1"># The ``ml`` extra: pretrained models (the AudioSet tagger behind the "audioset"</span>
-</span><span id="line-72"><span class="c1"># segmentation strategy). Imported lazily, inside the functions that need them.</span>
-</span><span id="line-73"><span class="n">ML_EXTRA</span> <span class="o">=</span> <span class="s2">"ml"</span>
-</span><span id="line-74"><span class="n">ML_INSTALL_HINT</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install 'mixing[</span><span class="si">{</span><span class="n">ML_EXTRA</span><span class="si">}</span><span class="s2">]'"</span>
-</span><span id="line-75"><span class="n">ML_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"torch"</span><span class="p">,</span> <span class="s2">"transformers"</span><span class="p">)</span>
-</span><span id="line-76"><span class="n">BEATS_EXTRA</span> <span class="o">=</span> <span class="s2">"beats"</span>
-</span><span id="line-77"><span class="n">BEATS_INSTALL_HINT</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install 'mixing[</span><span class="si">{</span><span class="n">BEATS_EXTRA</span><span class="si">}</span><span class="s2">]'"</span>
-</span><span id="line-78"><span class="n">BEATS_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"librosa"</span><span class="p">,)</span>
-</span><span id="line-79">
-</span><span id="line-80">
-</span><span id="line-81"><span class="k">def</span><span class="w"> </span><span class="nf">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-</span><span id="line-82"><span class="w">    </span><span class="sd">"""True if top-level module ``name`` can be found, without importing it."""</span>
-</span><span id="line-83">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-84">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">find_spec</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-</span><span id="line-85">    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-</span><span id="line-86">        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="line-63"><span class="n">ML_EXTRA</span> <span class="o">=</span> <span class="s2">"ml"</span>
+</span><span id="line-64"><span class="n">BEATS_EXTRA</span> <span class="o">=</span> <span class="s2">"beats"</span>
+</span><span id="line-65"><span class="n">LOUDNESS_EXTRA</span> <span class="o">=</span> <span class="s2">"loudness"</span>
+</span><span id="line-66">
+</span><span id="line-67"><span class="c1"># Import names (top-level) that the ``media`` extra provides, per media area.</span>
+</span><span id="line-68"><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"pydub"</span><span class="p">,</span> <span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="line-69"><span class="n">VIDEO_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"moviepy"</span><span class="p">,</span> <span class="s2">"cv2"</span><span class="p">,</span> <span class="s2">"PIL"</span><span class="p">,</span> <span class="s2">"burns"</span><span class="p">,</span> <span class="s2">"looks"</span><span class="p">)</span>
+</span><span id="line-70"><span class="n">MEDIA_IMPORT_NAMES</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">AUDIO_IMPORT_NAMES</span> <span class="o">+</span> <span class="n">VIDEO_IMPORT_NAMES</span><span class="p">))</span>
+</span><span id="line-71"><span class="c1"># ``ml``: pretrained models (the AudioSet tagger behind the "audioset"</span>
+</span><span id="line-72"><span class="c1"># segmentation strategy), imported lazily inside the functions that need them.</span>
+</span><span id="line-73"><span class="n">ML_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"torch"</span><span class="p">,</span> <span class="s2">"transformers"</span><span class="p">)</span>
+</span><span id="line-74"><span class="n">BEATS_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"librosa"</span><span class="p">,)</span>
+</span><span id="line-75"><span class="n">LOUDNESS_IMPORT_NAMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"numpy"</span><span class="p">,</span> <span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="line-76">
+</span><span id="line-77"><span class="c1">#: The one table of the extras mixing checks for: ``{extra: import names it</span>
+</span><span id="line-78"><span class="c1">#: supplies}``. A module in several extras (numpy) maps to the first, so the</span>
+</span><span id="line-79"><span class="c1">#: broadest install wins. ``extra_for`` / ``install_hint`` are public so a</span>
+</span><span id="line-80"><span class="c1">#: caller can map a missing module (``ImportError.name``) to its install line.</span>
+</span><span id="line-81"><span class="n">EXTRAS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="line-82">    <span class="n">MEDIA_EXTRA</span><span class="p">:</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">,</span>
+</span><span id="line-83">    <span class="n">ML_EXTRA</span><span class="p">:</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">,</span>
+</span><span id="line-84">    <span class="n">BEATS_EXTRA</span><span class="p">:</span> <span class="n">BEATS_IMPORT_NAMES</span><span class="p">,</span>
+</span><span id="line-85">    <span class="n">LOUDNESS_EXTRA</span><span class="p">:</span> <span class="n">LOUDNESS_IMPORT_NAMES</span><span class="p">,</span>
+</span><span id="line-86"><span class="p">}</span>
 </span><span id="line-87">
 </span><span id="line-88">
+<div class="viewcode-block" id="install_hint">
+<a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.install_hint">[docs]</a>
+</span><span id="line-89"><span class="k">def</span><span class="w"> </span><span class="nf">install_hint</span><span class="p">(</span><span class="n">extra</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-90"><span class="w">    </span><span class="sd">"""The pip line that installs ``extra``.</span>
+</span><span id="line-91">
+</span><span id="line-92"><span class="sd">    &gt;&gt;&gt; install_hint("media")</span>
+</span><span id="line-93"><span class="sd">    "pip install 'mixing[media]'"</span>
+</span><span id="line-94"><span class="sd">    """</span>
+</span><span id="line-95">    <span class="k">if</span> <span class="n">extra</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">EXTRAS</span><span class="p">:</span>
+</span><span id="line-96">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"unknown extra </span><span class="si">{</span><span class="n">extra</span><span class="si">!r}</span><span class="s2">; one of </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">EXTRAS</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="line-97">    <span class="k">return</span> <span class="sa">f</span><span class="s2">"pip install 'mixing[</span><span class="si">{</span><span class="n">extra</span><span class="si">}</span><span class="s2">]'"</span></div>
+
+</span><span id="line-98">
+</span><span id="line-99">
+<div class="viewcode-block" id="extra_for">
+<a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.extra_for">[docs]</a>
+</span><span id="line-100"><span class="k">def</span><span class="w"> </span><span class="nf">extra_for</span><span class="p">(</span><span class="n">module</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+</span><span id="line-101"><span class="w">    </span><span class="sd">"""The extra that supplies ``module`` (dotted names by their top level), or ``None``.</span>
+</span><span id="line-102">
+</span><span id="line-103"><span class="sd">    &gt;&gt;&gt; extra_for("scipy.signal"), extra_for("librosa"), extra_for("requests")</span>
+</span><span id="line-104"><span class="sd">    ('media', 'beats', None)</span>
+</span><span id="line-105"><span class="sd">    """</span>
+</span><span id="line-106">    <span class="n">top</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="line-107">    <span class="k">return</span> <span class="nb">next</span><span class="p">((</span><span class="n">extra</span> <span class="k">for</span> <span class="n">extra</span><span class="p">,</span> <span class="n">names</span> <span class="ow">in</span> <span class="n">EXTRAS</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">names</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span></div>
+
+</span><span id="line-108">
+</span><span id="line-109">
+</span><span id="line-110"><span class="n">MEDIA_INSTALL_HINT</span> <span class="o">=</span> <span class="n">install_hint</span><span class="p">(</span><span class="n">MEDIA_EXTRA</span><span class="p">)</span>
+</span><span id="line-111"><span class="n">ML_INSTALL_HINT</span> <span class="o">=</span> <span class="n">install_hint</span><span class="p">(</span><span class="n">ML_EXTRA</span><span class="p">)</span>
+</span><span id="line-112"><span class="n">BEATS_INSTALL_HINT</span> <span class="o">=</span> <span class="n">install_hint</span><span class="p">(</span><span class="n">BEATS_EXTRA</span><span class="p">)</span>
+</span><span id="line-113">
+</span><span id="line-114">
+</span><span id="line-115"><span class="k">def</span><span class="w"> </span><span class="nf">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="line-116"><span class="w">    </span><span class="sd">"""True if top-level module ``name`` can be found, without importing it."""</span>
+</span><span id="line-117">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-118">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">find_spec</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="line-119">    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+</span><span id="line-120">        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="line-121">
+</span><span id="line-122">
+<div class="viewcode-block" id="require_extra">
+<a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_extra">[docs]</a>
+</span><span id="line-123"><span class="k">def</span><span class="w"> </span><span class="nf">require_extra</span><span class="p">(</span>
+</span><span id="line-124">    <span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">extra</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="line-125"><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-126"><span class="w">    </span><span class="sd">"""Raise an informative ``ImportError`` if ``extra`` is not installed.</span>
+</span><span id="line-127">
+</span><span id="line-128"><span class="sd">    Checks ``modules`` (default: every module the extra supplies) without</span>
+</span><span id="line-129"><span class="sd">    importing them; the error names the extra's install line, and its</span>
+</span><span id="line-130"><span class="sd">    ``name`` is the first missing module.</span>
+</span><span id="line-131">
+</span><span id="line-132"><span class="sd">    &gt;&gt;&gt; require_extra("demo", "ml", modules=("math",))</span>
+</span><span id="line-133"><span class="sd">    &gt;&gt;&gt; require_extra("demo", "ml", modules=("no_such_module_xyz",))</span>
+</span><span id="line-134"><span class="sd">    Traceback (most recent call last):</span>
+</span><span id="line-135"><span class="sd">      ...</span>
+</span><span id="line-136"><span class="sd">    ImportError: demo requires the 'ml' extra ...</span>
+</span><span id="line-137"><span class="sd">    """</span>
+</span><span id="line-138">    <span class="n">hint</span> <span class="o">=</span> <span class="n">install_hint</span><span class="p">(</span><span class="n">extra</span><span class="p">)</span>
+</span><span id="line-139">    <span class="n">modules</span> <span class="o">=</span> <span class="n">EXTRAS</span><span class="p">[</span><span class="n">extra</span><span class="p">]</span> <span class="k">if</span> <span class="n">modules</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">modules</span>
+</span><span id="line-140">    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">modules</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span>
+</span><span id="line-141">    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+</span><span id="line-142">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="line-143">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">feature</span><span class="si">}</span><span class="s2"> requires the </span><span class="si">{</span><span class="n">extra</span><span class="si">!r}</span><span class="s2"> extra "</span>
+</span><span id="line-144">            <span class="sa">f</span><span class="s2">"(missing: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">). Install it with </span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span>
+</span><span id="line-145">            <span class="n">name</span><span class="o">=</span><span class="n">missing</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+</span><span id="line-146">        <span class="p">)</span></div>
+
+</span><span id="line-147">
+</span><span id="line-148">
 <div class="viewcode-block" id="require_media_extra">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_media_extra">[docs]</a>
-</span><span id="line-89"><span class="k">def</span><span class="w"> </span><span class="nf">require_media_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">):</span>
-</span><span id="line-90"><span class="w">    </span><span class="sd">"""Raise an informative ``ImportError`` if the ``media`` extra is not installed.</span>
-</span><span id="line-91">
-</span><span id="line-92"><span class="sd">    The base ``pip install mixing`` ships only the pure modules (``srt``,</span>
-</span><span id="line-93"><span class="sd">    ``chapters``, ``errors``, ``util``, ``egress``, ``transcript``, TTS); the</span>
-</span><span id="line-94"><span class="sd">    moviepy / opencv / scipy / pydub backends come with ``mixing[media]``.</span>
-</span><span id="line-95">
-</span><span id="line-96"><span class="sd">    &gt;&gt;&gt; require_media_extra("demo", modules=("math",))</span>
-</span><span id="line-97"><span class="sd">    &gt;&gt;&gt; require_media_extra("demo", modules=("no_such_module_xyz",))</span>
-</span><span id="line-98"><span class="sd">    Traceback (most recent call last):</span>
-</span><span id="line-99"><span class="sd">      ...</span>
-</span><span id="line-100"><span class="sd">    ImportError: demo requires the 'media' extra ...</span>
-</span><span id="line-101"><span class="sd">    """</span>
-</span><span id="line-102">    <span class="n">_require_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="n">MEDIA_EXTRA</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="n">MEDIA_INSTALL_HINT</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="n">modules</span><span class="p">)</span></div>
+</span><span id="line-149"><span class="k">def</span><span class="w"> </span><span class="nf">require_media_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">):</span>
+</span><span id="line-150"><span class="w">    </span><span class="sd">""":func:`require_extra` for ``media``: the moviepy / opencv / scipy / pydub</span>
+</span><span id="line-151"><span class="sd">    backends that the base ``pip install mixing`` (pure modules only) lacks.</span>
+</span><span id="line-152">
+</span><span id="line-153"><span class="sd">    &gt;&gt;&gt; require_media_extra("demo", modules=("no_such_module_xyz",))</span>
+</span><span id="line-154"><span class="sd">    Traceback (most recent call last):</span>
+</span><span id="line-155"><span class="sd">      ...</span>
+</span><span id="line-156"><span class="sd">    ImportError: demo requires the 'media' extra ...</span>
+</span><span id="line-157"><span class="sd">    """</span>
+</span><span id="line-158">    <span class="n">require_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">,</span> <span class="n">MEDIA_EXTRA</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="n">modules</span><span class="p">)</span></div>
 
-</span><span id="line-103">
-</span><span id="line-104">
+</span><span id="line-159">
+</span><span id="line-160">
 <div class="viewcode-block" id="require_ml_extra">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_ml_extra">[docs]</a>
-</span><span id="line-105"><span class="k">def</span><span class="w"> </span><span class="nf">require_ml_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">):</span>
-</span><span id="line-106"><span class="w">    </span><span class="sd">"""Raise an informative ``ImportError`` if the ``ml`` extra is not installed.</span>
-</span><span id="line-107">
-</span><span id="line-108"><span class="sd">    ``torch`` / ``transformers`` (the pretrained AudioSet tagger) come with</span>
-</span><span id="line-109"><span class="sd">    ``mixing[ml]``; nothing imports them until a learned feature is used.</span>
-</span><span id="line-110">
-</span><span id="line-111"><span class="sd">    &gt;&gt;&gt; require_ml_extra("demo", modules=("math",))</span>
-</span><span id="line-112"><span class="sd">    &gt;&gt;&gt; require_ml_extra("demo", modules=("no_such_module_xyz",))</span>
-</span><span id="line-113"><span class="sd">    Traceback (most recent call last):</span>
-</span><span id="line-114"><span class="sd">      ...</span>
-</span><span id="line-115"><span class="sd">    ImportError: demo requires the 'ml' extra ...</span>
-</span><span id="line-116"><span class="sd">    """</span>
-</span><span id="line-117">    <span class="n">_require_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="n">ML_EXTRA</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="n">ML_INSTALL_HINT</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="n">modules</span><span class="p">)</span></div>
+</span><span id="line-161"><span class="k">def</span><span class="w"> </span><span class="nf">require_ml_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">):</span>
+</span><span id="line-162"><span class="w">    </span><span class="sd">""":func:`require_extra` for ``ml`` (``torch`` / ``transformers``)."""</span>
+</span><span id="line-163">    <span class="n">require_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">,</span> <span class="n">ML_EXTRA</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="n">modules</span><span class="p">)</span></div>
 
-</span><span id="line-118">
-</span><span id="line-119">
-</span><span id="line-120"><span class="k">def</span><span class="w"> </span><span class="nf">_require_extra</span><span class="p">(</span><span class="n">feature</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">extra</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">hint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">modules</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]):</span>
-</span><span id="line-121">    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">modules</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_importable</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span>
-</span><span id="line-122">    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
-</span><span id="line-123">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-</span><span id="line-124">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">feature</span><span class="si">}</span><span class="s2"> requires the </span><span class="si">{</span><span class="n">extra</span><span class="si">!r}</span><span class="s2"> extra "</span>
-</span><span id="line-125">            <span class="sa">f</span><span class="s2">"(missing: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">). Install it with "</span>
-</span><span id="line-126">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">."</span><span class="p">,</span>
-</span><span id="line-127">            <span class="n">name</span><span class="o">=</span><span class="n">missing</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-</span><span id="line-128">        <span class="p">)</span>
-</span><span id="line-129">
-</span><span id="line-130">
+</span><span id="line-164">
+</span><span id="line-165">
 <div class="viewcode-block" id="require_package">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.require_package">[docs]</a>
-</span><span id="line-131"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-132"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-133"><span class="sd">    Import a package, raising an informative error if not installed.</span>
-</span><span id="line-134">
-</span><span id="line-135"><span class="sd">    Packages supplied by the ``media``, ``ml`` or ``beats`` extra get a hint naming that extra.</span>
-</span><span id="line-136"><span class="sd">    The error's ``name`` is ``package_name``, so a caller can map it to its own</span>
-</span><span id="line-137"><span class="sd">    install hint.</span>
-</span><span id="line-138">
-</span><span id="line-139"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
-</span><span id="line-140"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
-</span><span id="line-141"><span class="sd">    3.141592653589793</span>
-</span><span id="line-142"><span class="sd">    """</span>
-</span><span id="line-143">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-144">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
-</span><span id="line-145">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="line-146">        <span class="n">top</span> <span class="o">=</span> <span class="n">package_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"."</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-</span><span id="line-147">        <span class="k">if</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">MEDIA_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-148">            <span class="n">hint</span> <span class="o">=</span> <span class="n">MEDIA_INSTALL_HINT</span>
-</span><span id="line-149">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">ML_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-150">            <span class="n">hint</span> <span class="o">=</span> <span class="n">ML_INSTALL_HINT</span>
-</span><span id="line-151">        <span class="k">elif</span> <span class="n">top</span> <span class="ow">in</span> <span class="n">BEATS_IMPORT_NAMES</span><span class="p">:</span>
-</span><span id="line-152">            <span class="n">hint</span> <span class="o">=</span> <span class="n">BEATS_INSTALL_HINT</span>
-</span><span id="line-153">        <span class="k">else</span><span class="p">:</span>
-</span><span id="line-154">            <span class="n">hint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-155">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-</span><span id="line-156">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
-</span><span id="line-157">            <span class="sa">f</span><span class="s2">"Please install it via '</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">'."</span><span class="p">,</span>
-</span><span id="line-158">            <span class="n">name</span><span class="o">=</span><span class="n">package_name</span><span class="p">,</span>
-</span><span id="line-159">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
+</span><span id="line-166"><span class="k">def</span><span class="w"> </span><span class="nf">require_package</span><span class="p">(</span><span class="n">package_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-167"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-168"><span class="sd">    Import a package, raising an informative error if not installed.</span>
+</span><span id="line-169">
+</span><span id="line-170"><span class="sd">    A package an extra supplies (see ``EXTRAS``) gets a hint naming that extra.</span>
+</span><span id="line-171"><span class="sd">    The error's ``name`` is ``package_name``, so a caller can map it to its own</span>
+</span><span id="line-172"><span class="sd">    install hint.</span>
+</span><span id="line-173">
+</span><span id="line-174"><span class="sd">    &gt;&gt;&gt; math = require_package('math')  # doctest: +SKIP</span>
+</span><span id="line-175"><span class="sd">    &gt;&gt;&gt; math.pi  # doctest: +SKIP</span>
+</span><span id="line-176"><span class="sd">    3.141592653589793</span>
+</span><span id="line-177"><span class="sd">    """</span>
+</span><span id="line-178">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-179">        <span class="k">return</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
+</span><span id="line-180">    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="line-181">        <span class="n">extra</span> <span class="o">=</span> <span class="n">extra_for</span><span class="p">(</span><span class="n">package_name</span><span class="p">)</span>
+</span><span id="line-182">        <span class="n">hint</span> <span class="o">=</span> <span class="n">install_hint</span><span class="p">(</span><span class="n">extra</span><span class="p">)</span> <span class="k">if</span> <span class="n">extra</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"pip install </span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-183">        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="line-184">            <span class="sa">f</span><span class="s2">"Package '</span><span class="si">{</span><span class="n">package_name</span><span class="si">}</span><span class="s2">' is required for this functionality. "</span>
+</span><span id="line-185">            <span class="sa">f</span><span class="s2">"Please install it via '</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">'."</span><span class="p">,</span>
+</span><span id="line-186">            <span class="n">name</span><span class="o">=</span><span class="n">package_name</span><span class="p">,</span>
+</span><span id="line-187">        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span></div>
 
-</span><span id="line-160">
-</span><span id="line-161">
+</span><span id="line-188">
+</span><span id="line-189">
 <div class="viewcode-block" id="to_seconds">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.to_seconds">[docs]</a>
-</span><span id="line-162"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="line-163"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-164"><span class="sd">    Convert time value to seconds based on unit.</span>
-</span><span id="line-165">
-</span><span id="line-166"><span class="sd">    Args:</span>
-</span><span id="line-167"><span class="sd">        value: Time value to convert</span>
-</span><span id="line-168"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
-</span><span id="line-169"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
-</span><span id="line-170">
-</span><span id="line-171"><span class="sd">    Returns:</span>
-</span><span id="line-172"><span class="sd">        Time in seconds</span>
-</span><span id="line-173">
-</span><span id="line-174"><span class="sd">    Examples:</span>
-</span><span id="line-175"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-176"><span class="sd">        10.0</span>
-</span><span id="line-177"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-178"><span class="sd">        10.0</span>
-</span><span id="line-179"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
-</span><span id="line-180"><span class="sd">        10.0</span>
-</span><span id="line-181"><span class="sd">    """</span>
-</span><span id="line-182">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
-</span><span id="line-183">        <span class="k">return</span> <span class="n">value</span>
-</span><span id="line-184">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
-</span><span id="line-185">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
-</span><span id="line-186">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
-</span><span id="line-187">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
-</span><span id="line-188">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-189">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+</span><span id="line-190"><span class="k">def</span><span class="w"> </span><span class="nf">to_seconds</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">TimeUnit</span> <span class="o">|</span> <span class="n">AudioTimeUnit</span><span class="p">,</span> <span class="n">rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="line-191"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-192"><span class="sd">    Convert time value to seconds based on unit.</span>
+</span><span id="line-193">
+</span><span id="line-194"><span class="sd">    Args:</span>
+</span><span id="line-195"><span class="sd">        value: Time value to convert</span>
+</span><span id="line-196"><span class="sd">        unit: Unit of the value ('seconds', 'frames', 'milliseconds', 'samples')</span>
+</span><span id="line-197"><span class="sd">        rate: Frame rate (fps) for 'frames' or sample rate (Hz) for 'samples'</span>
+</span><span id="line-198">
+</span><span id="line-199"><span class="sd">    Returns:</span>
+</span><span id="line-200"><span class="sd">        Time in seconds</span>
+</span><span id="line-201">
+</span><span id="line-202"><span class="sd">    Examples:</span>
+</span><span id="line-203"><span class="sd">        &gt;&gt;&gt; to_seconds(10, unit="seconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-204"><span class="sd">        10.0</span>
+</span><span id="line-205"><span class="sd">        &gt;&gt;&gt; to_seconds(240, unit="frames", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-206"><span class="sd">        10.0</span>
+</span><span id="line-207"><span class="sd">        &gt;&gt;&gt; to_seconds(10000, unit="milliseconds", rate=24)  # doctest: +SKIP</span>
+</span><span id="line-208"><span class="sd">        10.0</span>
+</span><span id="line-209"><span class="sd">    """</span>
+</span><span id="line-210">    <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"seconds"</span><span class="p">:</span>
+</span><span id="line-211">        <span class="k">return</span> <span class="n">value</span>
+</span><span id="line-212">    <span class="k">elif</span> <span class="n">unit</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"frames"</span><span class="p">,</span> <span class="s2">"samples"</span><span class="p">):</span>
+</span><span id="line-213">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="n">rate</span>
+</span><span id="line-214">    <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="s2">"milliseconds"</span><span class="p">:</span>
+</span><span id="line-215">        <span class="k">return</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">1000.0</span>
+</span><span id="line-216">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-217">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
-</span><span id="line-190">
-</span><span id="line-191">
+</span><span id="line-218">
+</span><span id="line-219">
 <div class="viewcode-block" id="get_path_from_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.get_path_from_clipboard">[docs]</a>
-</span><span id="line-192"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="line-193"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-194"><span class="sd">    Get file path from clipboard and validate it.</span>
-</span><span id="line-195">
-</span><span id="line-196"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
-</span><span id="line-197"><span class="sd">    - Direct file paths</span>
-</span><span id="line-198"><span class="sd">    - File paths within error messages or tracebacks</span>
-</span><span id="line-199"><span class="sd">    - Quoted paths</span>
-</span><span id="line-200"><span class="sd">    """</span>
-</span><span id="line-201">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-</span><span id="line-202">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-</span><span id="line-203">
-</span><span id="line-204">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
-</span><span id="line-205">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
-</span><span id="line-206">
-</span><span id="line-207">    <span class="c1"># Validate it's text, not binary data</span>
-</span><span id="line-208">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
-</span><span id="line-209">        <span class="k">try</span><span class="p">:</span>
-</span><span id="line-210">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
-</span><span id="line-211">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
-</span><span id="line-212">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-213">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
-</span><span id="line-214">                <span class="s2">"Expected a file path string."</span>
-</span><span id="line-215">            <span class="p">)</span>
-</span><span id="line-216">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="line-217">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
-</span><span id="line-218">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-219">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-220">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
-</span><span id="line-221">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-222">        <span class="p">)</span>
+</span><span id="line-220"><span class="k">def</span><span class="w"> </span><span class="nf">get_path_from_clipboard</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-221"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-222"><span class="sd">    Get file path from clipboard and validate it.</span>
 </span><span id="line-223">
-</span><span id="line-224">    <span class="c1"># Clean up the path</span>
-</span><span id="line-225">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-226">
-</span><span id="line-227">    <span class="c1"># Try the path as-is first</span>
-</span><span id="line-228">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
-</span><span id="line-229">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
-</span><span id="line-230">        <span class="k">return</span> <span class="n">file_path</span>
+</span><span id="line-224"><span class="sd">    Intelligently extracts file paths from various clipboard contents including:</span>
+</span><span id="line-225"><span class="sd">    - Direct file paths</span>
+</span><span id="line-226"><span class="sd">    - File paths within error messages or tracebacks</span>
+</span><span id="line-227"><span class="sd">    - Quoted paths</span>
+</span><span id="line-228"><span class="sd">    """</span>
+</span><span id="line-229">    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="line-230">    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 </span><span id="line-231">
-</span><span id="line-232">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
-</span><span id="line-233">    <span class="c1"># Look for quoted paths or paths in error messages</span>
-</span><span id="line-234">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="line-235">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
-</span><span id="line-236">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
-</span><span id="line-237">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
-</span><span id="line-238">    <span class="p">]</span>
-</span><span id="line-239">
-</span><span id="line-240">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
-</span><span id="line-241">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
-</span><span id="line-242">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
-</span><span id="line-243">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
-</span><span id="line-244">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
-</span><span id="line-245">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-</span><span id="line-246">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
-</span><span id="line-247">                <span class="p">)</span>
-</span><span id="line-248">                <span class="k">return</span> <span class="n">candidate</span>
-</span><span id="line-249">
-</span><span id="line-250">    <span class="c1"># If still not found, give helpful error</span>
-</span><span id="line-251">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
-</span><span id="line-252">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
-</span><span id="line-253">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-</span><span id="line-254">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
-</span><span id="line-255">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
-</span><span id="line-256">    <span class="p">)</span></div>
+</span><span id="line-232">    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Getting file path from clipboard..."</span><span class="p">)</span>
+</span><span id="line-233">    <span class="n">clipboard_content</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span><span class="o">.</span><span class="n">paste</span><span class="p">()</span>
+</span><span id="line-234">
+</span><span id="line-235">    <span class="c1"># Validate it's text, not binary data</span>
+</span><span id="line-236">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+</span><span id="line-237">        <span class="k">try</span><span class="p">:</span>
+</span><span id="line-238">            <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)</span>
+</span><span id="line-239">        <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+</span><span id="line-240">            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-241">                <span class="s2">"Clipboard contains binary data that cannot be decoded as text. "</span>
+</span><span id="line-242">                <span class="s2">"Expected a file path string."</span>
+</span><span id="line-243">            <span class="p">)</span>
+</span><span id="line-244">    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="line-245">        <span class="n">file_path</span> <span class="o">=</span> <span class="n">clipboard_content</span>
+</span><span id="line-246">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-247">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-248">            <span class="sa">f</span><span class="s2">"Clipboard content is not a valid string or bytes. "</span>
+</span><span id="line-249">            <span class="sa">f</span><span class="s2">"Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">clipboard_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-250">        <span class="p">)</span>
+</span><span id="line-251">
+</span><span id="line-252">    <span class="c1"># Clean up the path</span>
+</span><span id="line-253">    <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-254">
+</span><span id="line-255">    <span class="c1"># Try the path as-is first</span>
+</span><span id="line-256">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+</span><span id="line-257">        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"... File path: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
+</span><span id="line-258">        <span class="k">return</span> <span class="n">file_path</span>
+</span><span id="line-259">
+</span><span id="line-260">    <span class="c1"># If that didn't work, try to extract paths from the text</span>
+</span><span id="line-261">    <span class="c1"># Look for quoted paths or paths in error messages</span>
+</span><span id="line-262">    <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="line-263">        <span class="sa">r</span><span class="s2">"'([^']+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))'"</span><span class="p">,</span>  <span class="c1"># Single quoted paths</span>
+</span><span id="line-264">        <span class="sa">r</span><span class="s1">'"([^"]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"'</span><span class="p">,</span>  <span class="c1"># Double quoted paths</span>
+</span><span id="line-265">        <span class="sa">r</span><span class="s2">"([/~][^\s'</span><span class="se">\"</span><span class="s2">]+\.(?:mp4|mov|avi|mkv|m4v|webm|flv|wmv|mpg|mpeg))"</span><span class="p">,</span>  <span class="c1"># Unquoted absolute paths</span>
+</span><span id="line-266">    <span class="p">]</span>
+</span><span id="line-267">
+</span><span id="line-268">    <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+</span><span id="line-269">        <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+</span><span id="line-270">        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+</span><span id="line-271">            <span class="n">candidate</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</span><span id="line-272">            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">candidate</span><span class="p">):</span>
+</span><span id="line-273">                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+</span><span id="line-274">                    <span class="s2">"... Extracted file path from clipboard text: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">candidate</span>
+</span><span id="line-275">                <span class="p">)</span>
+</span><span id="line-276">                <span class="k">return</span> <span class="n">candidate</span>
+</span><span id="line-277">
+</span><span id="line-278">    <span class="c1"># If still not found, give helpful error</span>
+</span><span id="line-279">    <span class="c1"># Truncate long strings to avoid printing huge binary garbage</span>
+</span><span id="line-280">    <span class="n">display_content</span> <span class="o">=</span> <span class="n">file_path</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">100</span> <span class="k">else</span> <span class="n">file_path</span><span class="p">[:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+</span><span id="line-281">    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="line-282">        <span class="sa">f</span><span class="s2">"Clipboard content is not a valid (existing) file path: </span><span class="si">{</span><span class="n">display_content</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+</span><span id="line-283">        <span class="sa">f</span><span class="s2">"Tip: Copy the file path directly, not an error message containing it."</span>
+</span><span id="line-284">    <span class="p">)</span></div>
 
-</span><span id="line-257">
-</span><span id="line-258">
+</span><span id="line-285">
+</span><span id="line-286">
 <div class="viewcode-block" id="copy_to_clipboard">
 <a class="viewcode-back" href="../../_autosummary/mixing.util.html#mixing.copy_to_clipboard">[docs]</a>
-</span><span id="line-259"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-260"><span class="w">    </span><span class="sd">"""</span>
-</span><span id="line-261"><span class="sd">    Copy data to system clipboard.</span>
-</span><span id="line-262">
-</span><span id="line-263"><span class="sd">    Args:</span>
-</span><span id="line-264"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
-</span><span id="line-265"><span class="sd">    """</span>
-</span><span id="line-266">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
-</span><span id="line-267">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+</span><span id="line-287"><span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">|</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-288"><span class="w">    </span><span class="sd">"""</span>
+</span><span id="line-289"><span class="sd">    Copy data to system clipboard.</span>
+</span><span id="line-290">
+</span><span id="line-291"><span class="sd">    Args:</span>
+</span><span id="line-292"><span class="sd">        data: Bytes (for binary data like images) or string to copy</span>
+</span><span id="line-293"><span class="sd">    """</span>
+</span><span id="line-294">    <span class="n">pyclip</span> <span class="o">=</span> <span class="n">require_package</span><span class="p">(</span><span class="s2">"pyclip"</span><span class="p">)</span>
+</span><span id="line-295">    <span class="n">pyclip</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
 
 </span></code></pre></div>
     </div></div>
@@ -472,7 +509,7 @@
 </footer>
     </div>
     
-    <script src="../../_static/documentation_options.js?v=cac962a1"></script>
+    <script src="../../_static/documentation_options.js?v=29ed05f3"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

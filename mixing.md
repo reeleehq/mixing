@@ -1,4 +1,4 @@
-> built 2026-10-27 08:09 UTC from 8e1eabc (main) · mixing 0.0.69. Details: build_info.json
+> built 2026-10-27 09:18 UTC from c9672e0 (main) · mixing 0.0.70. Details: build_info.json
 
 # index.html.md
 
@@ -2393,17 +2393,41 @@ Transcribe `audio` with ElevenLabs Scribe.
 
 General utilities for mixing video, audio, etc.
 
+### Module Attributes
+
+| [`EXTRAS`](_autosummary/mixing.util.html.md#mixing.util.EXTRAS)   | import names it supplies}\`\`.   |
+|-----------------------------------------------------------|----------------------------------|
+
 ### Functions
 
-| [`copy_to_clipboard`](_autosummary/mixing.util.html.md#mixing.util.copy_to_clipboard)(data)                     | Copy data to system clipboard.                                            |
-|----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| [`ffmpeg_exe`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe)()                                | Resolve an ffmpeg executable, preferring the pip-bundled binary.          |
-| [`get_path_from_clipboard`](_autosummary/mixing.util.html.md#mixing.util.get_path_from_clipboard)()                   | Get file path from clipboard and validate it.                             |
-| [`has_ffmpeg`](_autosummary/mixing.util.html.md#mixing.util.has_ffmpeg)()                                | Return True if the `ffmpeg` binary is available on `PATH`.                |
-| [`require_media_extra`](_autosummary/mixing.util.html.md#mixing.util.require_media_extra)(feature, \*[, modules]) | Raise an informative `ImportError` if the `media` extra is not installed. |
-| [`require_ml_extra`](_autosummary/mixing.util.html.md#mixing.util.require_ml_extra)(feature, \*[, modules])    | Raise an informative `ImportError` if the `ml` extra is not installed.    |
-| [`require_package`](_autosummary/mixing.util.html.md#mixing.util.require_package)(package_name)               | Import a package, raising an informative error if not installed.          |
-| [`to_seconds`](_autosummary/mixing.util.html.md#mixing.util.to_seconds)(value, \*, unit, rate)           | Convert time value to seconds based on unit.                              |
+| [`copy_to_clipboard`](_autosummary/mixing.util.html.md#mixing.util.copy_to_clipboard)(data)                      | Copy data to system clipboard.                                                                                                                                                            |
+|-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`extra_for`](_autosummary/mixing.util.html.md#mixing.util.extra_for)(module)                            | The extra that supplies `module` (dotted names by their top level), or `None`.                                                                                                            |
+| [`ffmpeg_exe`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe)()                                 | Resolve an ffmpeg executable, preferring the pip-bundled binary.                                                                                                                          |
+| [`get_path_from_clipboard`](_autosummary/mixing.util.html.md#mixing.util.get_path_from_clipboard)()                    | Get file path from clipboard and validate it.                                                                                                                                             |
+| [`has_ffmpeg`](_autosummary/mixing.util.html.md#mixing.util.has_ffmpeg)()                                 | Return True if the `ffmpeg` binary is available on `PATH`.                                                                                                                                |
+| [`install_hint`](_autosummary/mixing.util.html.md#mixing.util.install_hint)(extra)                          | The pip line that installs `extra`.                                                                                                                                                       |
+| [`require_extra`](_autosummary/mixing.util.html.md#mixing.util.require_extra)(feature, extra, \*[, modules]) | Raise an informative `ImportError` if `extra` is not installed.                                                                                                                           |
+| [`require_media_extra`](_autosummary/mixing.util.html.md#mixing.util.require_media_extra)(feature, \*[, modules])  | [`require_extra()`](_autosummary/mixing.util.html.md#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub backends that the base `pip install mixing` (pure modules only) lacks. |
+| [`require_ml_extra`](_autosummary/mixing.util.html.md#mixing.util.require_ml_extra)(feature, \*[, modules])     | [`require_extra()`](_autosummary/mixing.util.html.md#mixing.util.require_extra) for `ml` (`torch` / `transformers`).                                                                                     |
+| [`require_package`](_autosummary/mixing.util.html.md#mixing.util.require_package)(package_name)                | Import a package, raising an informative error if not installed.                                                                                                                          |
+| [`to_seconds`](_autosummary/mixing.util.html.md#mixing.util.to_seconds)(value, \*, unit, rate)            | Convert time value to seconds based on unit.                                                                                                                                              |
+
+### mixing.util.EXTRAS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]]* *= {'beats': ('librosa',), 'loudness': ('numpy', 'scipy'), 'media': ('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'), 'ml': ('torch', 'transformers')}*
+
+import names it
+supplies}\`\`. A module in several extras (numpy) maps to the first, so the
+broadest install wins. `extra_for` / `install_hint` are public so a
+caller can map a missing module (`ImportError.name`) to its install line.
+
+* **Type:**
+  The one table of the extras mixing checks for
+* **Type:**
+  ```
+  ``
+  ```
+
+  {extra
 
 ### mixing.util.copy_to_clipboard(data)
 
@@ -2413,6 +2437,18 @@ Copy data to system clipboard.
   **data** ([`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes) | [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Bytes (for binary data like images) or string to copy
 * **Return type:**
   [`None`](https://docs.python.org/3/builtins/constants.html#None)
+
+### mixing.util.extra_for(module)
+
+The extra that supplies `module` (dotted names by their top level), or `None`.
+
+```pycon
+>>> extra_for("scipy.signal"), extra_for("librosa"), extra_for("requests")
+('media', 'beats', None)
+```
+
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.util.ffmpeg_exe()
 
@@ -2467,16 +2503,43 @@ True
 * **Return type:**
   [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
 
-### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
+### mixing.util.install_hint(extra)
 
-Raise an informative `ImportError` if the `media` extra is not installed.
-
-The base `pip install mixing` ships only the pure modules (`srt`,
-`chapters`, `errors`, `util`, `egress`, `transcript`, TTS); the
-moviepy / opencv / scipy / pydub backends come with `mixing[media]`.
+The pip line that installs `extra`.
 
 ```pycon
->>> require_media_extra("demo", modules=("math",))
+>>> install_hint("media")
+"pip install 'mixing[media]'"
+```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+### mixing.util.require_extra(feature, extra, , modules=None)
+
+Raise an informative `ImportError` if `extra` is not installed.
+
+Checks `modules` (default: every module the extra supplies) without
+importing them; the error names the extra’s install line, and its
+`name` is the first missing module.
+
+```pycon
+>>> require_extra("demo", "ml", modules=("math",))
+>>> require_extra("demo", "ml", modules=("no_such_module_xyz",))
+Traceback (most recent call last):
+  ...
+ImportError: demo requires the 'ml' extra ...
+```
+
+* **Return type:**
+  [`None`](https://docs.python.org/3/builtins/constants.html#None)
+
+### mixing.util.require_media_extra(feature, , modules=('numpy', 'pydub', 'scipy', 'moviepy', 'cv2', 'PIL', 'burns', 'looks'))
+
+[`require_extra()`](_autosummary/mixing.util.html.md#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub
+backends that the base `pip install mixing` (pure modules only) lacks.
+
+```pycon
 >>> require_media_extra("demo", modules=("no_such_module_xyz",))
 Traceback (most recent call last):
   ...
@@ -2485,24 +2548,13 @@ ImportError: demo requires the 'media' extra ...
 
 ### mixing.util.require_ml_extra(feature, , modules=('torch', 'transformers'))
 
-Raise an informative `ImportError` if the `ml` extra is not installed.
-
-`torch` / `transformers` (the pretrained AudioSet tagger) come with
-`mixing[ml]`; nothing imports them until a learned feature is used.
-
-```pycon
->>> require_ml_extra("demo", modules=("math",))
->>> require_ml_extra("demo", modules=("no_such_module_xyz",))
-Traceback (most recent call last):
-  ...
-ImportError: demo requires the 'ml' extra ...
-```
+[`require_extra()`](_autosummary/mixing.util.html.md#mixing.util.require_extra) for `ml` (`torch` / `transformers`).
 
 ### mixing.util.require_package(package_name)
 
 Import a package, raising an informative error if not installed.
 
-Packages supplied by the `media`, `ml` or `beats` extra get a hint naming that extra.
+A package an extra supplies (see `EXTRAS`) gets a hint naming that extra.
 The error’s `name` is `package_name`, so a caller can map it to its own
 install hint.
 
@@ -2543,20 +2595,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-27 08:09 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/8e1eabcf3218c9c3c5af85091a33fe17c1b45403"><code>8e1eabc</code></a> on branch <code>main</code>, for **mixing 0.0.69** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-27 09:18 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/c9672e0bdf1a5aa541f993042648cc63bf968830"><code>c9672e0</code></a> on branch <code>main</code>, for **mixing 0.0.70** (from <code>pyproject.toml</code>).
 
 #### WARNING
 The documentation and the package may be misaligned:
 
-- The documented version (0.0.69) is ahead of the latest release on PyPI (0.0.68): these docs describe unreleased code.
+- The documented version (0.0.70) is ahead of the latest release on PyPI (0.0.69): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/8e1eabcf3218c9c3c5af85091a33fe17c1b45403"><code>8e1eabcf3218c9c3c5af85091a33fe17c1b45403</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/c9672e0bdf1a5aa541f993042648cc63bf968830"><code>c9672e0bdf1a5aa541f993042648cc63bf968830</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.69</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.70</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -2565,9 +2617,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40470361042">40470361042</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40476873653">40476873653</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>17faf22f13051a6b4a1f41de229e7b177a438ccb</code> (in the history of the built commit) |
+| Event commit | <code>441b86f13093d65e12bf0fb7e4c053e887fa234d</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -2592,13 +2644,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.68/">0.0.68</a>, older than the documented version (0.0.69).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.69/">0.0.69</a>, older than the documented version (0.0.70).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 8e1eabcf3218c9c3c5af85091a33fe17c1b45403
+git checkout c9672e0bdf1a5aa541f993042648cc63bf968830
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

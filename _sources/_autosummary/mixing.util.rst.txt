@@ -4,14 +4,23 @@ mixing.util
 .. automodule:: mixing.util
 
    
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      EXTRAS
+   
    .. rubric:: Functions
 
    .. autosummary::
    
       copy_to_clipboard
+      extra_for
       ffmpeg_exe
       get_path_from_clipboard
       has_ffmpeg
+      install_hint
+      require_extra
       require_media_extra
       require_ml_extra
       require_package
