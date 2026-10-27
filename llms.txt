@@ -26,7 +26,7 @@
 - [mixing.util](_autosummary/mixing.util.html.md): General utilities for mixing video, audio, etc.
 - [mixing.filtergraph](_autosummary/mixing.filtergraph.html.md): Pure ffmpeg filter-string builders: no media dependency, no I/O.
 - [For AI agents](ai-agents.html.md): &#96;mixing&#96; ships artifacts for coding agents alongside its code. This page lists
-- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-10-27 21:02 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
+- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-10-27 21:12 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
 
 ## Optional
 
