@@ -85,6 +85,21 @@ ml = [
     "torch",
     "transformers",
 ]
+# Speech/music separation (mixing.audio.separation: separate_speech, remove_talk).
+# The default strategy, MossFormer2-SE-48K inverted, runs through ClearVoice
+# (Apache-2.0 code and weights; it brings torch and huggingface-hub). Caveat:
+# clearvoice 0.1.2 pins numpy<2, librosa==0.10.2.post1 and opencv-python==4.10.0.84,
+# and that opencv-python is a second `cv2` provider next to media's
+# opencv-contrib-python -- install it in an environment where that is acceptable.
+separation = [
+    "clearvoice",
+]
+# The "htdemucs" separation strategy (Demucs' vocals stem as speech; MIT):
+# instrumental beds only, since it removes singing too. Its own extra, so the
+# default install does not carry it (nor it clearvoice's pins).
+demucs = [
+    "demucs",
+]
 widget = [
     "ipywidgets",
     "soundfile",

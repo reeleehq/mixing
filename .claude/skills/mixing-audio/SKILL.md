@@ -457,6 +457,25 @@ for song in songs:  # Segments from find_segments(..., strategy="audioset")
 - Known misses: a sung line that reads as talk right after the host with no long enough music between them (the intro runs on into the song); a jingle of `min_music_seconds` or more *before* the host's intro (it is taken for the song body, so the intro is missed: raise `min_music_seconds` above the jingle); talk only in the last ~1.5 s (the last 3 s window barely sees it).
 - `talk_edges_from_probs(probs, start=, end=, ...)` is the audio half on precomputed `WindowProbabilities`, for re-tuning without re-running the model.
 
+### Remove the host's talk, keep the music (`remove_talk`, `mixing[separation]` extra)
+
+`find_talk_edges` says *where* the host talks; `remove_talk` takes the talk out and keeps the music under it (singing included), so a song can start at its real start instead of at `clean_start`:
+
+```python
+from mixing.audio import find_talk_edges, remove_talk, separate_speech
+
+edges = find_talk_edges(audio, song, words=words)
+clean = remove_talk(audio, edges)  # TalkEdges, Segments or [(start, end), ...] in seconds
+remove_talk("song.wav", [(0.0, 12.4)], output="song_clean.wav")
+speech, music = separate_speech("clip.wav")  # the seam on its own
+```
+
+- The separator runs only on each span widened by `margin` (0.3 s) plus the strategy's `context_s`, never the whole file; the music estimate is crossfaded in and out over `crossfade` (0.3 s, inside the widened span; none at a file edge). Overlapping widened spans merge. Everything outside the widened spans is sample-identical to the input.
+- `separator=`: `"mossformer2_se_48k"` (default; MossFormer2-SE-48K speech enhancer *inverted*: mixture minus the speech estimate, Wiener mask; keeps singing; Apache-2.0; `mixing[separation]` = `clearvoice`, which pins `numpy<2` and installs `opencv-python` next to media's `opencv-contrib-python`), `"htdemucs"` (Demucs' `vocals` stem as speech; **instrumental beds only**, it removes singing too; MIT; `mixing[demucs]`), a `SeparationStrategy`, or any callable `(samples (n, ch), sr) -> (speech, music)` (this is how to plug in Bandit-v2 or another DnR model; wrap it in `SeparationStrategy(..., mono=True, sample_rate=...)` to get per-channel runs and resampling).
+- `SEPARATORS` is the registry; every entry has `license` and `commercial_ok` (filter: `{k: s for k, s in SEPARATORS.items() if s.commercial_ok}`). CC BY-NC checkpoints are deliberately not registered.
+- A mono-only strategy runs per channel (radio music is wide, the talk centred: this matters). A strategy at a lower rate than the input gets the band above its Nyquist passed through to the music. `invert_enhancer(enhance)` turns any speech enhancer into a separator.
+- Evidence (#63): on real talk over singing, DnR-trained separators reach +9.7 dB SI-SDR, inverted MossFormer2-SE +7.3, vocal/instrumental separators (htdemucs) -3.7; over an instrumental, +3.8 / +0.8 / +5.4. On the synthetic slow-test clip (formant voice at 0 dB over a stereo instrumental): MossFormer2 +0.1 -> +5.1 dB, htdemucs +0.1 -> +10.3 dB.
+
 ## Beat / downbeat / onset analysis (`mixing[beats]` extra)
 
 ```python

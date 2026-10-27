@@ -68,6 +68,8 @@ WIDGET_EXTRA = "widget"
 GEN_EXTRA = "gen"
 LLM_EXTRA = "llm"
 CLIPBOARD_EXTRA = "clipboard"
+SEPARATION_EXTRA = "separation"
+DEMUCS_EXTRA = "demucs"
 
 # Import names (top-level) that the ``media`` extra provides, per media area.
 AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
@@ -78,6 +80,12 @@ MEDIA_IMPORT_NAMES = tuple(dict.fromkeys(AUDIO_IMPORT_NAMES + VIDEO_IMPORT_NAMES
 ML_IMPORT_NAMES = ("torch", "transformers")
 BEATS_IMPORT_NAMES = ("librosa",)
 LOUDNESS_IMPORT_NAMES = ("numpy", "scipy")
+# ``separation``: the default speech/music separator of mixing.audio.separation
+# (MossFormer2-SE-48K via ClearVoice; it brings torch). ``demucs``: the htdemucs
+# strategy ("instrumental beds only"), kept apart so neither install carries the
+# other's pins.
+SEPARATION_IMPORT_NAMES = ("clearvoice",)
+DEMUCS_IMPORT_NAMES = ("demucs",)
 
 #: The one table of mixing's extras: ``{extra: import names it supplies}``,
 #: each declared by the same-named extra in ``pyproject.toml`` (a test holds the
@@ -92,6 +100,8 @@ EXTRAS: dict[str, tuple[str, ...]] = {
     ML_EXTRA: ML_IMPORT_NAMES,
     BEATS_EXTRA: BEATS_IMPORT_NAMES,
     LOUDNESS_EXTRA: LOUDNESS_IMPORT_NAMES,
+    SEPARATION_EXTRA: SEPARATION_IMPORT_NAMES,
+    DEMUCS_EXTRA: DEMUCS_IMPORT_NAMES,
     AUDIO_EXTRA: ("pydub", "ffmpeg", "soundfile"),
     WIDGET_EXTRA: ("ipywidgets", "soundfile", "IPython"),
     GEN_EXTRA: ("google.genai",),

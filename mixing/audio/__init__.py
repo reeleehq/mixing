@@ -20,6 +20,10 @@ Main exports:
   the results back at exact length
 - find_talk_edges: the host's talk at the start/end of a carved song (talk over
   music counts), with the music proper's clean start/end
+- separate_speech, remove_talk: split speech from music (pluggable separators:
+  MossFormer2-SE inverted by default, extra ``separation``; htdemucs for
+  instrumental beds, extra ``demucs``), and remove a host's talk inside given
+  spans while keeping the music (sample-identical outside them)
 - voice_profile, shift_pitch: per-speaker median f0, loudness, spectral centroid
   and low-band (boom) ratio; pitch shift by semitones (ffmpeg rubberband with
   formant preservation, stock-ffmpeg resample, or librosa -- extra ``beats``)
@@ -84,6 +88,14 @@ from .segmentation import (
 from .tagging import WindowProbabilities, ast_audioset_classifier
 from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
 from .beats import beat_grid, BeatGrid
+from .separation import (
+    SeparationStrategy,
+    SEPARATORS,
+    DEFAULT_SEPARATOR,
+    separate_speech,
+    remove_talk,
+    invert_enhancer,
+)
 from .leveling import (
     loudness,
     loudness_range,
@@ -151,4 +163,10 @@ __all__ = [
     "talk_edges_from_probs",
     "beat_grid",
     "BeatGrid",
+    "SeparationStrategy",
+    "SEPARATORS",
+    "DEFAULT_SEPARATOR",
+    "separate_speech",
+    "remove_talk",
+    "invert_enhancer",
 ]
