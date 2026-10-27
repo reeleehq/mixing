@@ -42,6 +42,7 @@ from ..egress import Output, deliver
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
 from ..loudness import (
     ABSOLUTE_GATE_LUFS,
+    DEFAULT_TRUE_PEAK_METHOD,
     MAX_GAIN_DB,
     integrated_lufs,
     limit_peaks,
@@ -111,10 +112,14 @@ def loudness_range(audio: Union[str, Path, Audio]) -> float:
 
 
 def true_peak_db(
-    audio: Union[str, Path, Audio], *, oversampling: Optional[int] = None
+    audio: Union[str, Path, Audio],
+    *,
+    oversampling: Optional[int] = None,
+    method: str = DEFAULT_TRUE_PEAK_METHOD,
 ) -> float:
     """True peak of ``audio`` in dBTP; see :func:`mixing.loudness.true_peak_db`."""
-    return _true_peak_db(*audio_samples(as_audio(audio)), oversampling=oversampling)
+    samples, fs = audio_samples(as_audio(audio))
+    return _true_peak_db(samples, fs, oversampling=oversampling, method=method)
 
 
 def _noise_floor(

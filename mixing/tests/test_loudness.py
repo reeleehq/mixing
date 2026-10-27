@@ -450,3 +450,115 @@ def test_decoded_chunks_keep_rate_and_channels_and_leave_stdin_alone(tmp_path):
         cwd=str(Path(__file__).resolve().parents[2]),
     )  # fmt: skip
     assert out.stdout.strip() == "kept", out.stderr
+
+
+# --- method="long": the long sinc, flat to 0.497 fs (#106) --------------------
+
+#: Silence the exact reference pads its signal with: its FFT is periodic, so this
+#: keeps the signal's periodic images far enough away not to matter.
+EXACT_PAD = 1 << 17
+#: Samples kept out at each end when comparing against the exact reference.
+LONG_EDGE = 2500
+
+
+def _exact_envelope(x, up):
+    """``|y|`` on the ``up``-times grid of the exact sinc reconstruction of
+    ``x`` taken as silent outside its span: a brickwall (``scipy.signal.resample``)
+    on ``x`` zero-padded to ``EXACT_PAD`` samples."""
+    from scipy.signal import resample
+
+    padded = np.zeros(EXACT_PAD)
+    start = (EXACT_PAD - len(x)) // 2
+    padded[start : start + len(x)] = x
+    y = resample(padded, EXACT_PAD * up)
+    return np.abs(y[start * up : (start + len(x)) * up])
+
+
+def _clipped_full_band_noise(n, rng):
+    """Hard-clipped white noise: the material the short filter reads ~1 dB low."""
+    return np.clip(rng.standard_normal(n) * 2, -1, 1)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_long_method_reads_clipped_full_band_noise_as_an_exact_sinc_would(seed):
+    # against the exact reconstruction: "long" reads this within ~0.05 dB (the
+    # tail it truncates), "short" 0.2-1 dB low
+    x = _clipped_full_band_noise(12000, np.random.default_rng(seed))
+    inner = slice(LONG_EDGE, -LONG_EDGE)
+    exact = _db(_exact_envelope(x, TP_UP)[LONG_EDGE * TP_UP : -LONG_EDGE * TP_UP].max())
+
+    def meter(method):
+        return _db(true_peak_envelope(x, TP_FS, method=method)[inner].max())
+
+    assert meter("long") == pytest.approx(exact, abs=0.05)
+    assert meter("short") < exact - 0.2
+
+
+def test_long_method_matches_short_where_short_is_exact():
+    x = _band_limited_noise(6000, 0.40, np.random.default_rng(5))
+    inner = slice(TP_EDGE, -TP_EDGE)
+    short = true_peak_envelope(x, TP_FS)[inner]
+    long = true_peak_envelope(x, TP_FS, method="long")[inner]
+    np.testing.assert_allclose(long, short, atol=1e-3)
+
+
+def test_long_method_keeps_the_meters_conventions(monkeypatch):
+    # samples pass unchanged, silence outside the span (no looping), and the
+    # chunk joins are exact
+    import mixing.loudness as loudness
+
+    x = np.zeros(5000)
+    x[2500] = 0.5
+    assert true_peak_envelope(x, TP_FS, method="long").max() == 0.5
+    ramp = np.linspace(-0.8, 0.8, 2400)
+    assert true_peak_db(ramp, TP_FS, method="long") < -0.5
+    data = np.random.default_rng(8).standard_normal((TP_FS, 2)) * 0.3
+    whole = true_peak_envelope(data, TP_FS, method="long")
+    # many joins (6576 samples apart), each within reach of the 4097-tap filter
+    monkeypatch.setattr(loudness, "FILTER_CHUNK_S", 0.137)
+    chunked = true_peak_envelope(data, TP_FS, method="long")
+    np.testing.assert_allclose(chunked, whole, rtol=0, atol=1e-12)
+
+
+def test_long_limiter_holds_a_hard_ceiling_on_clipped_material():
+    # limited to -1 dBTP at 8x, re-measured on the exact reconstruction's 32x
+    # grid: "long" lands within ~0.07 dB (whatever the factor: clipped noise
+    # peaks midway between samples), "short" 0.3-0.8 dB over
+    x = 1.5 * _clipped_full_band_noise(12000, np.random.default_rng(6))[:, None]
+    ceiling = 10 ** (-1.0 / 20)
+    up = 32
+    inner = slice(LONG_EDGE * up, -LONG_EDGE * up)
+
+    def exact_peak_db(method):
+        out = limit_peaks(
+            x, ceiling=ceiling, true_peak=True, fs=TP_FS, oversampling=8, method=method
+        )
+        return _db(_exact_envelope(out[:, 0], up)[inner].max())
+
+    assert exact_peak_db("long") <= -1.0 + 0.08
+    assert exact_peak_db("short") > -1.0 + 0.3
+
+
+def test_method_is_validated():
+    x = np.zeros((100, 1))
+    for bad in ("sinc", "fft", ""):
+        with pytest.raises(ValueError, match="unknown true-peak method"):
+            true_peak_envelope(x, FS, method=bad)
+    with pytest.raises(ValueError, match="unknown true-peak method"):
+        limit_peaks(x, ceiling=0.5, true_peak=True, fs=FS, method="")
+    with pytest.raises(ValueError, match="true_peak=True only"):
+        limit_peaks(x, ceiling=0.5, method="long")
+
+
+@pytest.mark.parametrize("chunk", [FS // 3, 1000])
+def test_chunked_long_limiter_matches_the_whole_signal(monkeypatch, chunk):
+    # the long filter's 2048 samples of context are part of the chunk margin
+    import mixing.loudness as loudness
+
+    rng = np.random.default_rng(10)
+    data = rng.standard_normal((FS * 2, 2)) * 0.4
+    data[FS // 3 + 7] = 2.5
+    kwargs = dict(ceiling=0.8, window=4, true_peak=True, fs=FS, method="long")
+    whole = limit_peaks(data, **kwargs)
+    monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", chunk)
+    np.testing.assert_allclose(limit_peaks(data, **kwargs), whole, rtol=0, atol=1e-12)
