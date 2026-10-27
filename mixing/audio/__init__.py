@@ -27,6 +27,9 @@ Main exports:
 - voice_profile, shift_pitch: per-speaker median f0, loudness, spectral centroid
   and low-band (boom) ratio; pitch shift by semitones (ffmpeg rubberband with
   formant preservation, stock-ffmpeg resample, or librosa -- extra ``beats``)
+- contains_song, landmarks: does this clip contain the song? A landmark-hash
+  fingerprint verdict (``"contains"`` / ``"absent"`` / ``"undecided"``) with the
+  clip's offset in the song; numpy + scipy only, thresholds uncalibrated
 
 Examples:
     >>> from mixing.audio import Audio, fade_in, concatenate_audio  # doctest: +SKIP
@@ -104,6 +107,17 @@ from .leveling import (
     noise_floor_db,
 )
 from .turns import process_turns
+from .fingerprint import (
+    LandmarkParams,
+    Landmarks,
+    MatchParams,
+    SongMatch,
+    SongThresholds,
+    SongVerdict,
+    contains_song,
+    landmarks,
+    song_verdict,
+)
 from .voice import voice_profile, shift_pitch, has_rubberband, pyin_tracker, F0Tracker
 from ..errors import MixingError, WindowTooWideForClip
 
@@ -169,4 +183,13 @@ __all__ = [
     "separate_speech",
     "remove_talk",
     "invert_enhancer",
+    "contains_song",
+    "landmarks",
+    "song_verdict",
+    "SongMatch",
+    "SongVerdict",
+    "Landmarks",
+    "LandmarkParams",
+    "MatchParams",
+    "SongThresholds",
 ]
