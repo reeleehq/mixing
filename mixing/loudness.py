@@ -405,6 +405,7 @@ def limit_peaks(
     window: Optional[int] = None,
     true_peak: bool = False,
     fs: Optional[int] = None,
+    oversampling: Optional[int] = None,
 ) -> np.ndarray:
     """``data`` ``(n, channels)`` with no peak above ``ceiling`` (linear, full scale 1.0).
 
@@ -423,6 +424,15 @@ def limit_peaks(
     milliseconds or more (the default is 50 ms); a window of a sample or two
     can overshoot by ~1 dB because the gain then changes faster than the
     interpolation assumes.
+
+    ``oversampling`` is the true-peak meter's factor (default: the meter's,
+    4x at 48 kHz). The peak *between* grid points is not seen, so the true
+    ceiling holds to the grid: limited to -1 dBTP, bright material (noise up
+    to 0.45 fs) measures about -0.8 dBTP on a fine (32x) grid at 4x, -0.96
+    at 8x, -0.99 at 16x, at roughly 1x / 2x / 4x the cost. Content between
+    0.47 fs and Nyquist reads up to ~0.5 dB low whatever the factor (see
+    :func:`true_peak_envelope`), so for a hard ceiling on full-band
+    material use ``oversampling=8`` and a ceiling ~0.5 dB under the target.
     """
     if not 0 < ceiling <= 1:
         raise ValueError(f"ceiling is linear, in (0, 1]; got {ceiling} (not dB)")
@@ -434,7 +444,7 @@ def limit_peaks(
     if true_peak:
         if fs is None:
             raise ValueError("true_peak=True needs fs")
-        peak = true_peak_envelope(data, fs)
+        peak = true_peak_envelope(data, fs, oversampling=oversampling)
         peak = np.maximum(peak, np.concatenate([[0.0], peak[:-1]]))  # the gap before
     else:
         peak = np.abs(data).max(axis=1)

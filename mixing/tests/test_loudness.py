@@ -272,3 +272,20 @@ def test_true_peak_limiter_holds_the_ceiling_by_an_independent_meter():
     out = limit_peaks(x, ceiling=10 ** (-1.0 / 20), true_peak=True, fs=TP_FS)
     inner = slice(TP_EDGE * TP_UP, -TP_EDGE * TP_UP)
     assert _db(_sinc_envelope(out[:, 0])[inner].max()) <= -1.0 + 0.01
+
+
+def test_a_finer_grid_brings_the_limiter_to_its_true_ceiling():
+    # at 4x the peak between grid points is missed: -1 dBTP limits to ~-0.8 by
+    # a 16x reference; at 8x it lands within a few hundredths of the ceiling
+    x = 1.5 * _band_limited_noise(TP_FS // 2, 0.45, np.random.default_rng(1))[:, None]
+    ceiling = 10 ** (-1.0 / 20)
+    inner = slice(TP_EDGE * 16, -TP_EDGE * 16)
+
+    def fine_peak_db(oversampling):
+        out = limit_peaks(
+            x, ceiling=ceiling, true_peak=True, fs=TP_FS, oversampling=oversampling
+        )
+        return _db(_sinc_envelope(out[:, 0], up=16)[inner].max())
+
+    assert fine_peak_db(None) > -1.0 + 0.1
+    assert fine_peak_db(8) <= -1.0 + 0.06
