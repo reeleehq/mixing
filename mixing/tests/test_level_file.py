@@ -7,6 +7,7 @@ ffmpeg, written atomically).
 """
 
 import subprocess
+import sys
 import warnings
 
 import numpy as np
@@ -57,6 +58,8 @@ def test_stream_limiter_checks_settings_at_once_and_channels_as_it_goes():
         stream_limit_peaks(iter(()), ceiling=-1.0)  # raised before any chunk
     with pytest.raises(ValueError, match="needs fs"):
         stream_limit_peaks(iter(()), ceiling=0.5, true_peak=True)
+    with pytest.raises(ValueError, match="integer >= 1"):
+        stream_limit_peaks(iter(()), ceiling=0.5, true_peak=True, fs=FS, oversampling=0)
     with pytest.raises(ValueError, match="channels"):
         list(stream_limit_peaks([np.zeros((5, 2)), np.zeros((5, 1))], ceiling=0.5))
     assert list(stream_limit_peaks([], ceiling=0.5)) == []
@@ -120,6 +123,7 @@ def test_level_file_reaches_the_target_with_one_gain(tmp_path):
     assert result.output == tmp_path / "out.wav"
     assert result.gain_db == pytest.approx(-20.0 - result.measured_lufs)
     assert file_loudness(result.output).integrated_lufs == pytest.approx(-20.0, abs=0.1)
+    assert result.output_lufs == pytest.approx(-20.0, abs=0.1)
     # one gain: every sample scaled alike (the limiter had nothing to do here)
     before, _ = _read(src)
     after, _ = _read(result.output)
@@ -132,10 +136,13 @@ def test_level_file_reaches_the_target_with_one_gain(tmp_path):
 def test_a_big_positive_gain_is_limited_not_clipped(tmp_path):
     # a quiet signal with a full-scale-to-be burst: the gain alone would clip
     src = _speechy(tmp_path, volume_db=-20)
-    out = level_file(src, tmp_path / "out.wav", target_lufs=-9.0, ceiling_db=-1.5).output
-    samples, rate = _read(out)
+    result = level_file(src, tmp_path / "out.wav", target_lufs=-9.0, ceiling_db=-1.5)
+    samples, rate = _read(result.output)
     assert true_peak_db(samples, rate) <= -1.5 + 0.1
     assert np.abs(samples).max() < 10 ** (-1.4 / 20)  # nothing at full scale
+    # the limiter took loudness off, and the result says so
+    assert result.output_lufs < -9.0 - 0.5
+    assert result.output_lufs == pytest.approx(file_loudness(result.output).integrated_lufs)
 
 
 @needs_ffmpeg
@@ -210,9 +217,54 @@ def test_bad_settings_fail_before_any_decoding(tmp_path, monkeypatch):
         raise AssertionError("decoded before checking the settings")
 
     monkeypatch.setattr(loudness, "decode_float_chunks", no_decode)
-    for bad in (dict(ceiling_db=0.5), dict(method="long", true_peak=False)):
+    for bad in (
+        dict(ceiling_db=0.5),
+        dict(ceiling_db=-np.inf),
+        dict(ceiling_db=np.nan),
+        dict(target_lufs=np.nan),
+        dict(method="long", true_peak=False),
+        dict(oversampling=0),
+        dict(window_s=0),
+    ):
         with pytest.raises(ValueError):
-            level_file(tmp_path / "x.wav", target_lufs=-20.0, **bad)
+            level_file(tmp_path / "x.wav", **{"target_lufs": -20.0, **bad})
+    with pytest.raises(ValueError, match="finite"):
+        loudness.level_group([np.ones((FS, 1)) * 0.1], FS, target_lufs=np.nan)
+
+
+@needs_ffmpeg
+def test_in_place_refuses_a_file_with_a_picture(tmp_path):
+    from mixing.util import ffmpeg_exe
+
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-f", "lavfi", "-i", "color=red:s=64x36:d=2:r=10",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration=2:sample_rate={FS}",
+         "-shortest", "-c:a", "aac", str(clip)],
+        check=True,
+    )  # fmt: skip
+    before = clip.read_bytes()
+    with pytest.raises(ValueError, match="video"):
+        level_file(clip, clip, target_lufs=-20.0)
+    assert clip.read_bytes() == before
+    beside = level_file(clip, target_lufs=-20.0).output  # elsewhere: audio only
+    assert beside.name == f"clip{LEVELED_SUFFIX}.mp4"
+    assert loudness._other_streams(beside, None) == []
+
+
+@needs_ffmpeg
+def test_in_place_keeps_permissions_and_symlinks(tmp_path):
+    import os
+    import stat
+
+    src = _speechy(tmp_path, seconds=2)
+    src.chmod(0o640)
+    link = tmp_path / "link.wav"
+    link.symlink_to(src.name)
+    level_file(link, link, target_lufs=-20.0)
+    assert link.is_symlink() and stat.S_IMODE(os.stat(src).st_mode) == 0o640
+    assert file_loudness(src).integrated_lufs == pytest.approx(-20.0, abs=0.1)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["link.wav", "voice.wav"]
 
 
 @needs_ffmpeg
@@ -231,6 +283,28 @@ def test_a_failed_encode_leaves_no_file_behind(tmp_path):
     with pytest.raises(KeyError):
         encode_float_chunks(broken(), FS, tmp_path / "z.wav")
     assert list(tmp_path.iterdir()) == []
+
+
+@needs_ffmpeg
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script ffmpeg")
+@pytest.mark.parametrize("frames", [1, 100, FS])
+def test_an_ffmpeg_that_dies_midway_raises_its_message_and_leaves_no_file(tmp_path, frames):
+    # it stops reading with data still buffered: closing stdin used to raise
+    # BrokenPipeError past the cleanup, leaving the partial file behind
+    from mixing.decode import encode_float_chunks
+
+    fake = tmp_path / "fake-ffmpeg"
+    fake.write_text(
+        '#!/bin/sh\nhead -c 300000 > /dev/null\nfor last; do :; done\n'
+        'echo partial > "$last"\necho "fake ffmpeg gave up" >&2\nexit 1\n'
+    )
+    fake.chmod(0o755)
+    out = tmp_path / "out" / "x.wav"
+    out.parent.mkdir()
+    chunks = (np.zeros((frames, 2)) for _ in range(max(1, FS * 4 // frames)))
+    with pytest.raises(RuntimeError, match="fake ffmpeg gave up"):
+        encode_float_chunks(chunks, FS, out, ffmpeg=str(fake))
+    assert list(out.parent.iterdir()) == []
 
 
 @needs_ffmpeg

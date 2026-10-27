@@ -580,6 +580,8 @@ def _target_gain(
 ) -> float:
     """The gain (dB) from ``measured`` to ``target_lufs``: 0 for silence, capped
     at ``max_gain_db`` with a warning (to the caller's caller) naming ``subject``."""
+    if not np.isfinite(target_lufs):
+        raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
     if not measured > ABSOLUTE_GATE_LUFS:  # silence (or NaN): nothing to level
         return 0.0
     gain = target_lufs - measured
@@ -755,6 +757,10 @@ def _limiter(*, ceiling, window, true_peak, fs, oversampling, method):
             raise ValueError(f"{name} applies to true_peak=True only")
     if true_peak and fs is None:
         raise ValueError("true_peak=True needs fs")
+    if oversampling is not None and not (
+        isinstance(oversampling, numbers.Integral) and oversampling >= 1
+    ):
+        raise ValueError(f"oversampling must be an integer >= 1, got {oversampling!r}")
     if method is None:
         method = DEFAULT_TRUE_PEAK_METHOD
     interpolation = _interpolation(method)
@@ -810,11 +816,30 @@ def _smoothed_gain(need: np.ndarray, w: int) -> np.ndarray:
 
 
 class LeveledFile(NamedTuple):
-    """What :func:`level_file` did: where it wrote, and the gain it measured."""
+    """What :func:`level_file` did: where it wrote, the gain, and the loudness
+    before and after (``output_lufs`` falls short of the target when the
+    limiter had to take a lot off, or the gain was capped)."""
 
     output: Any  #: what the ``output`` protocol returned (the ``Path``, or a sink's result)
     gain_db: float
     measured_lufs: float  #: the source's integrated loudness, at the output rate
+    output_lufs: float  #: the written file's, measured back from it
+
+
+#: A banner's line for a stream that is not audio (the picture, cover art,
+#: subtitles): ``level_file`` would drop it.
+_OTHER_STREAM = re.compile(r"Stream #\d+:\d+.*?: (Video|Subtitle|Data|Attachment):")
+
+
+def _other_streams(path: Path, ffmpeg: Optional[str]) -> list[str]:
+    """The kinds of ``path``'s streams that are not audio, from ffmpeg's banner."""
+    banner = subprocess.run(
+        [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(path)],
+        capture_output=True,
+        text=True,
+        errors="replace",
+    ).stderr
+    return [m.group(1).lower() for m in _OTHER_STREAM.finditer(banner)]
 
 
 def level_file(
@@ -827,7 +852,8 @@ def level_file(
     sample_rate: Optional[int] = None,
     max_gain_db: float = MAX_GAIN_DB,
     method: Optional[str] = None,
-    window: Optional[int] = None,
+    oversampling: Optional[int] = None,
+    window_s: Optional[float] = None,
     encode_args: Sequence[str] = (),
     chunk_s: float = DECODE_CHUNK_S,
     ffmpeg: Optional[str] = None,
@@ -844,32 +870,38 @@ def level_file(
        unlike ffmpeg ``loudnorm``, which rides the gain through it;
     2. the gain is applied in float (nothing clips before the limiter),
        :func:`stream_limit_peaks` holds ``ceiling_db`` (dBTP with
-       ``true_peak``, else dBFS; ``method`` and ``window`` are its), and
+       ``true_peak``, else dBFS; ``method``, ``oversampling`` and the
+       lookahead ``window_s``, in seconds, are its), and
        :func:`mixing.decode.encode_float_chunks` writes it (``encode_args``
        are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``).
 
-    ``sample_rate`` resamples as the file is decoded, so both the measurement
-    and the limiter work at the rate written and the ceiling holds in the
-    output (an encoder resampling after the limiter could push a peak over
-    it). A lossy format (mp3, aac) can still read a few tenths of a dB over
-    the ceiling. ``output`` follows mixing's ``output`` protocol (default:
-    beside ``src`` with ``LEVELED_SUFFIX`` on its stem); it may be ``src``
-    itself, replaced once the new file is complete.
+    The written file is then metered back (``output_lufs``): it reads below
+    the target when the limiter took a lot off. ``sample_rate`` resamples as
+    the file is decoded, so the measurement and the limiter work at the rate
+    written and the ceiling holds in the output (an encoder resampling after
+    the limiter could push a peak over it). A lossy format (mp3, aac) can
+    still read a few tenths of a dB over the ceiling.
 
-    Returns a :class:`LeveledFile` ``(output, gain_db, measured_lufs)``.
+    The output is **audio only** (the first audio stream; no picture, cover
+    art or tags). ``output`` follows mixing's ``output`` protocol (default:
+    beside ``src`` with ``LEVELED_SUFFIX`` on its stem). It may be ``src``
+    itself, replaced once the new file is complete, unless ``src`` has other
+    streams (a video's picture, say), which that would destroy: a
+    ``ValueError`` then.
+
+    Returns a :class:`LeveledFile` ``(output, gain_db, measured_lufs, output_lufs)``.
     """
     src = Path(src)
-    if ceiling_db > 0:
-        raise ValueError(f"ceiling_db is in dB at or below full scale; got {ceiling_db}")
-    limit = partial(
-        stream_limit_peaks,
-        ceiling=10.0 ** (ceiling_db / 20.0),
-        window=window,
-        true_peak=true_peak,
-        method=method,
-    )
-    # check the settings before the first pass (any rate will do for that)
-    limit((), fs=sample_rate or 1)
+    if not -np.inf < ceiling_db <= 0:
+        raise ValueError(f"ceiling_db is in dB, at or below full scale; got {ceiling_db}")
+    if not np.isfinite(target_lufs):
+        raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
+    if window_s is not None and not window_s > 0:
+        raise ValueError(f"window_s is in seconds, > 0; got {window_s}")
+    ceiling = 10.0 ** (ceiling_db / 20.0)
+    limits = dict(true_peak=true_peak, oversampling=oversampling, method=method)
+    # the settings are checked before the first pass (any rate does for that)
+    _limiter(ceiling=ceiling, window=None, fs=sample_rate or 1, **limits)
     decode = partial(
         decode_float_chunks, src, chunk_s=chunk_s, ffmpeg=ffmpeg, sample_rate=sample_rate
     )
@@ -880,13 +912,28 @@ def level_file(
         measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject=src.name
     )
     scale = 10.0 ** (gain_db / 20.0)
+    output_lufs = None
 
     def write(path: Path) -> None:
+        nonlocal output_lufs
+        if path.resolve() == src.resolve() and (others := _other_streams(src, ffmpeg)):
+            raise ValueError(
+                f"leveling {src.name} in place would drop its {', '.join(others)} "
+                "stream(s): level_file writes audio only; give another output"
+            )
         rate, chunks = decode()
+        window = None if window_s is None else max(1, round(window_s * rate))
         with closing(chunks):
-            leveled = limit((chunk * scale for chunk in chunks), fs=rate)
+            leveled = stream_limit_peaks(
+                (chunk * scale for chunk in chunks),
+                ceiling=ceiling,
+                fs=rate,
+                window=window,
+                **limits,
+            )
             encode_float_chunks(leveled, rate, path, args=encode_args, ffmpeg=ffmpeg)
+        output_lufs = file_loudness(path, chunk_s=chunk_s, ffmpeg=ffmpeg).integrated_lufs
 
     default_path = src.with_name(f"{src.stem}{LEVELED_SUFFIX}{src.suffix}")
     written = write_egress(output, default_path=default_path, write=write)
-    return LeveledFile(written, gain_db, measured)
+    return LeveledFile(written, gain_db, measured, output_lufs)
