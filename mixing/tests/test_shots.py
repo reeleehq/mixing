@@ -106,3 +106,101 @@ def test_real_video_duration_and_dense_cuts(tmp_path):
     assert spans[-1][1] == pytest.approx(3.0, abs=0.1)
     sheet = contact_sheet(out, spans, columns=3)
     assert sheet.size[0] == 3 * 240 and sheet.size[1] % 2 == 0
+
+
+def _two_colour_video(path, *, seconds=2, fps=10):
+    import subprocess
+
+    from mixing.util import ffmpeg_exe
+
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-f", "lavfi", "-i", f"color=red:s=160x90:d={seconds}:r={fps}",
+         "-f", "lavfi", "-i", f"color=blue:s=160x90:d={seconds}:r={fps}",
+         "-filter_complex", "[0][1]concat=n=2:v=1[v]", "-map", "[v]", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+def test_merge_short_spans_keeps_the_tiling():
+    from mixing.video.shot_boundaries import merge_short_spans
+
+    spans = [(0.0, 0.2), (0.2, 3.0), (3.0, 3.3), (3.3, 6.0)]
+    assert merge_short_spans(spans, min_s=1.0) == [(0.0, 3.3), (3.3, 6.0)]
+    assert merge_short_spans([(0.0, 0.5)], min_s=1.0) == [(0.0, 0.5)]
+    assert merge_short_spans([], min_s=1.0) == []
+
+
+def test_strategy_seam_and_min_shot_s():
+    fake = lambda video, **kw: [(0.0, 2.0), (2.0, 2.3), (2.3, 5.0)]  # noqa: E731
+    assert shots("x", strategy=fake) == fake("x")
+    assert shots("x", strategy=fake, min_shot_s=0.5) == [(0.0, 2.3), (2.3, 5.0)]
+    with pytest.raises(ValueError, match="unknown shot strategy"):
+        shots("x", strategy="nope")
+
+
+def test_chunked_sampler_matches_one_array():
+    rng = np.random.default_rng(0)
+    frames = rng.integers(0, 30, (40, 4, 4)).astype(np.uint8)
+    frames[17:] += 150
+    whole = shots("x", fps=2, sampler=lambda v, fps: frames)
+    chunked = shots(
+        "x", fps=2, sampler=lambda v, fps: (frames[i : i + 3] for i in range(0, 40, 3))
+    )
+    assert chunked == whole == [(0.0, 8.5), (8.5, 20.0)]
+
+
+def test_streamed_frames_match_a_one_shot_decode(tmp_path):
+    from mixing.video.shot_boundaries import iter_frames, sample_frames
+
+    video = _two_colour_video(tmp_path / "ab.mp4")
+    whole = sample_frames(video, fps=5)
+    chunks = list(iter_frames(video, fps=5, chunk_frames=3))
+    assert max(len(c) for c in chunks) == 3
+    assert np.array_equal(np.concatenate(chunks), whole)
+
+
+def test_pyscenedetect_strategy_maps_scenes_to_spans(monkeypatch):
+    import sys
+    import types
+
+    class Timecode:
+        def __init__(self, s):
+            self.s = s
+
+        def get_seconds(self):
+            return self.s
+
+    seen = {}
+    stub = types.ModuleType("scenedetect")
+    stub.ContentDetector = lambda **kw: seen.setdefault("kwargs", kw)
+    stub.detect = lambda path, detector: [
+        (Timecode(0.0), Timecode(2.0)),
+        (Timecode(2.0), Timecode(4.0)),
+    ]
+    monkeypatch.setitem(sys.modules, "scenedetect", stub)
+    assert shots("v.mp4", strategy="pyscenedetect", threshold=20.0) == [
+        (0.0, 2.0),
+        (2.0, 4.0),
+    ]
+    assert seen["kwargs"] == {"threshold": 20.0}
+
+
+def test_contact_sheet_labels_each_thumbnail(tmp_path):
+    video = _two_colour_video(tmp_path / "ab.mp4")
+    spans = [(0.0, 2.0), (2.0, 4.0)]
+    plain = contact_sheet(video, spans, labels=False)
+    labelled = contact_sheet(video, spans)
+    corner = (2, plain.height - 2)  # inside the first thumbnail's label box
+    assert plain.getpixel(corner)[0] > 200  # red frame
+    assert labelled.getpixel(corner) == (0, 0, 0)
+
+
+def test_grab_frame_scales_and_raises(tmp_path):
+    from mixing.video import grab_frame
+
+    video = _two_colour_video(tmp_path / "ab.mp4")
+    assert grab_frame(video, 1.0).size == (160, 90)
+    assert grab_frame(video, 3.0, width=80).size == (80, 46)  # height kept even
+    with pytest.raises(RuntimeError, match="could not grab"):
+        grab_frame(tmp_path / "missing.mp4", 0.0)

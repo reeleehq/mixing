@@ -1,7 +1,8 @@
 """Thumbnail / cover-image generation from a video frame.
 
-Extracts a representative frame and renders it to a 16:9 1280x720 image
-(a good default for video thumbnails and podcast-cover-over-video alike),
+Extracts a representative frame (:func:`grab_frame`, also used by
+:func:`mixing.video.shot_boundaries.contact_sheet`) and renders it to a 16:9
+1280x720 image (a good default for video thumbnails and podcast-cover-over-video alike),
 optionally overlaying a short title with a legible gradient band. Uses ffmpeg
 for frame extraction and Pillow for compositing. Platform-neutral — the size
 is a sensible default, not a YouTube-specific coupling.
@@ -13,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 from ..egress import Output, write_egress
+from ..util import ffmpeg_exe
 
 PathLike = str | Path
 
@@ -60,38 +62,36 @@ def make_thumbnail(
         at_time = DEFAULT_FRAME_TIME_FRACTION * _media_duration(video)
 
     def _write(out: Path) -> None:
-        raw_frame = out.with_suffix(".rawframe.png")
-        _extract_frame(video, at_time, raw_frame)
-
-        img = Image.open(raw_frame).convert("RGB")
-        img = _cover_resize(img, size)
+        img = _cover_resize(grab_frame(video, at_time), size)
         if text:
             _overlay_text(img, text)
         img.save(out, quality=90)
-        raw_frame.unlink(missing_ok=True)
 
     return write_egress(output, default_path=default_path, write=_write)
 
 
-def _extract_frame(video: Path, at_time: float, dest: Path) -> Path:
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "error",
-            "-ss",
-            f"{at_time:.3f}",
-            "-i",
-            str(video),
-            "-frames:v",
-            "1",
-            str(dest),
-        ],
-        check=True,
-        capture_output=True,
-    )
-    return dest
+def grab_frame(video: PathLike, at_time: float, *, width: int | None = None):
+    """The frame of ``video`` at ``at_time`` seconds as an RGB PIL image.
+
+    ``width`` scales it (height follows the aspect ratio, kept even); ``None``
+    keeps the video's size. One ffmpeg seek, piped as PNG (no temp file).
+    """
+    import io
+
+    from PIL import Image
+
+    scale = ["-vf", f"scale={width}:-2"] if width else []
+    cmd = [
+        ffmpeg_exe(), "-v", "error", "-ss", f"{at_time:.3f}", "-i", str(video),
+        "-frames:v", "1", *scale, "-f", "image2pipe", "-vcodec", "png", "-",
+    ]  # fmt: skip
+    proc = subprocess.run(cmd, capture_output=True)
+    if proc.returncode != 0 or not proc.stdout:
+        raise RuntimeError(
+            f"ffmpeg could not grab a frame of {video!s} at {at_time:.2f}s: "
+            f"{proc.stderr.decode(errors='replace')}"
+        )
+    return Image.open(io.BytesIO(proc.stdout)).convert("RGB")
 
 
 def _media_duration(path: PathLike) -> float:
