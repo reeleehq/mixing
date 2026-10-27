@@ -44,6 +44,11 @@ from typing import Callable, Hashable, Mapping, Optional, Sequence, Union
 import numpy as np
 
 from ..egress import Output, deliver
+from ..filtergraph import (  # noqa: F401  (ATEMPO_RANGE: re-exported)
+    ATEMPO_RANGE,
+    SEMITONES_PER_OCTAVE,
+    resample_pitch_filter,
+)
 from ..util import ffmpeg_exe, require_package
 from .audio_ops import Audio
 from .leveling import integrated_lufs
@@ -95,7 +100,6 @@ WHOLE_AUDIO_LABEL = "all"
 # --- shift_pitch defaults -----------------------------------------------------
 #: Accepted ``|semitones|`` (two octaves).
 MAX_SEMITONES = 24.0
-SEMITONES_PER_OCTAVE = 12.0
 PITCH_METHODS = ("auto", "rubberband", "resample", "librosa")
 #: Largest processing delay (s), either sign, searched for and removed.
 MAX_SHIFT_LATENCY_S = 0.5
@@ -111,8 +115,6 @@ LENGTH_TOLERANCE_S = 0.005
 #: not from ``pitchq``, so the faster ``"speed"`` stays the default.
 RUBBERBAND_PITCHQ = ("speed", "quality", "consistency")
 DEFAULT_RUBBERBAND_PITCHQ = "speed"
-#: ``atempo`` accepts a factor in this range per stage (older ffmpeg builds).
-ATEMPO_RANGE = (0.5, 2.0)
 # The delay of a pitch shifter depends on the ratio (rubberband: ~1024/ratio -
 # 1024 samples plus a signal-dependent part), so it is measured per filter on a
 # seeded voice-like probe: harmonic bursts (random f0, length, gap). A pitch
@@ -552,25 +554,6 @@ def rubberband_strategy(
     return _run_aligned(data, fs, filters)
 
 
-def _atempo_chain(factor: float) -> list:
-    """``atempo`` stages whose product is ``factor``, each within ``ATEMPO_RANGE``."""
-    lo, hi = ATEMPO_RANGE
-    stages = []
-    while factor > hi or factor < lo:
-        step = hi if factor > hi else lo
-        stages.append(step)
-        factor /= step
-    return [*stages, factor]
-
-
-def _resample_filter(ratio: float, fs: int) -> str:
-    rate = int(round(fs * ratio))  # asetrate takes an integer rate
-    tempos = _atempo_chain(fs / rate)
-    return ",".join(
-        [f"asetrate={rate}", f"aresample={fs}"] + [f"atempo={t:.10f}" for t in tempos]
-    )
-
-
 def resample_strategy(
     data: np.ndarray, fs: int, semitones: float, preserve_formants: bool
 ) -> np.ndarray:
@@ -584,7 +567,7 @@ def resample_strategy(
     smears each burst's onset by 10-30 ms, and at +-24 semitones single
     bursts can be off by tens of ms.
     """
-    return _run_aligned(data, fs, _resample_filter(_ratio(semitones), fs))
+    return _run_aligned(data, fs, resample_pitch_filter(semitones, fs))
 
 
 def librosa_strategy(
