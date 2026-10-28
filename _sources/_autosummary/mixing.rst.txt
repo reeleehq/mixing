@@ -48,6 +48,7 @@
    edit
    egress
    errors
+   probe
    srt
    transcript
    util

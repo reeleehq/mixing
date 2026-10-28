@@ -12,15 +12,32 @@ than parse prose.
 
 ### Exceptions
 
-| [`MixingError`](#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                |
-|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look. |
+| [`MixingError`](#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                                                                                      |
+|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| [`WindowTooWideForClip`](#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look.                                                                       |
+| [`ProbeError`](#mixing.errors.ProbeError)                                | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](mixing.probe.html.md#mixing.probe.probe)).   |
+| [`MediaNotFoundError`](#mixing.errors.MediaNotFoundError)                        | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+
+### *exception* mixing.errors.MediaNotFoundError
+
+Bases: [`ProbeError`](#mixing.errors.ProbeError), [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)
+
+The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)).
 
 ### *exception* mixing.errors.MixingError
 
 Bases: [`Exception`](https://docs.python.org/3/builtins/exceptions.html#Exception)
 
 Base for every error `mixing` raises on its own behalf.
+
+### *exception* mixing.errors.ProbeError
+
+Bases: [`MixingError`](#mixing.errors.MixingError), [`ValueError`](https://docs.python.org/3/builtins/exceptions.html#ValueError)
+
+ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](mixing.probe.html.md#mixing.probe.probe)).
+
+A [`ValueError`](https://docs.python.org/3/builtins/exceptions.html#ValueError), so the `except ValueError` handlers that caught the
+probes it replaced keep working.
 
 ### *exception* mixing.errors.WindowTooWideForClip(, clip_index, clip_duration_s, window_s, hop_s, max_window_s)
 

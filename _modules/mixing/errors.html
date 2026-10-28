@@ -119,6 +119,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.edit.html">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.errors.html">mixing.errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.probe.html">mixing.probe</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../_autosummary/mixing.util.html">mixing.util</a></li>
@@ -183,7 +184,7 @@
 </span><span id="line-11">
 </span><span id="line-12"><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 </span><span id="line-13">
-</span><span id="line-14"><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"MixingError"</span><span class="p">,</span> <span class="s2">"WindowTooWideForClip"</span><span class="p">]</span>
+</span><span id="line-14"><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"MixingError"</span><span class="p">,</span> <span class="s2">"WindowTooWideForClip"</span><span class="p">,</span> <span class="s2">"ProbeError"</span><span class="p">,</span> <span class="s2">"MediaNotFoundError"</span><span class="p">]</span>
 </span><span id="line-15">
 </span><span id="line-16"><span class="c1">#: Decimal places the remedy in a :class:`WindowTooWideForClip` message is stated to.</span>
 </span><span id="line-17"><span class="c1">#: The number is rounded DOWN to them, so what the message tells a caller to pass is</span>
@@ -198,76 +199,94 @@
 
 </span><span id="line-24">
 </span><span id="line-25">
+<div class="viewcode-block" id="ProbeError">
+<a class="viewcode-back" href="../../_autosummary/mixing.errors.html#mixing.ProbeError">[docs]</a>
+</span><span id="line-26"><span class="k">class</span><span class="w"> </span><span class="nc">ProbeError</span><span class="p">(</span><span class="n">MixingError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+</span><span id="line-27"><span class="w">    </span><span class="sd">"""ffmpeg/ffprobe could not read a media file (see :func:`mixing.probe.probe`).</span>
+</span><span id="line-28">
+</span><span id="line-29"><span class="sd">    A :class:`ValueError`, so the ``except ValueError`` handlers that caught the</span>
+</span><span id="line-30"><span class="sd">    probes it replaced keep working.</span>
+</span><span id="line-31"><span class="sd">    """</span></div>
+
+</span><span id="line-32">
+</span><span id="line-33">
+<div class="viewcode-block" id="MediaNotFoundError">
+<a class="viewcode-back" href="../../_autosummary/mixing.errors.html#mixing.MediaNotFoundError">[docs]</a>
+</span><span id="line-34"><span class="k">class</span><span class="w"> </span><span class="nc">MediaNotFoundError</span><span class="p">(</span><span class="n">ProbeError</span><span class="p">,</span> <span class="ne">FileNotFoundError</span><span class="p">):</span>
+</span><span id="line-35"><span class="w">    </span><span class="sd">"""The media file to probe does not exist (also a :class:`FileNotFoundError`)."""</span></div>
+
+</span><span id="line-36">
+</span><span id="line-37">
 <div class="viewcode-block" id="WindowTooWideForClip">
 <a class="viewcode-back" href="../../_autosummary/mixing.errors.html#mixing.WindowTooWideForClip">[docs]</a>
-</span><span id="line-26"><span class="k">class</span><span class="w"> </span><span class="nc">WindowTooWideForClip</span><span class="p">(</span><span class="n">MixingError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-</span><span id="line-27"><span class="w">    </span><span class="sd">"""An explicit analysis window leaves a clip no second, independent look.</span>
-</span><span id="line-28">
-</span><span id="line-29"><span class="sd">    Raised by :func:`mixing.audio.align_clips_to_reference` when the caller passes a</span>
-</span><span id="line-30"><span class="sd">    ``window_s`` wider than :attr:`max_window_s` — the length above which the clip holds</span>
-</span><span id="line-31"><span class="sd">    no second INDEPENDENT window, so the consensus vote has nothing to arbitrate and</span>
-</span><span id="line-32"><span class="sd">    ``support`` comes back ``None``.</span>
-</span><span id="line-33">
-</span><span id="line-34"><span class="sd">    Why an error and not a clamp or a silent single window: the caller asked for a</span>
-</span><span id="line-35"><span class="sd">    windowed vote and would otherwise receive a single whole-clip correlation whose</span>
-</span><span id="line-36"><span class="sd">    only signal is the ABSENCE of a support number — indistinguishable from a clip</span>
-</span><span id="line-37"><span class="sd">    that is genuinely too short to support at any window (issue #43). Clamping would</span>
-</span><span id="line-38"><span class="sd">    be worse still: an explicit ``window_s`` is the caller saying what a window means</span>
-</span><span id="line-39"><span class="sd">    for their material, and silently measuring at a different one makes ``support``</span>
-</span><span id="line-40"><span class="sd">    incomparable across a set for a reason nothing reports.</span>
-</span><span id="line-41">
-</span><span id="line-42"><span class="sd">    It subclasses :class:`ValueError` because it is an argument that cannot be honored,</span>
-</span><span id="line-43"><span class="sd">    so existing ``except ValueError`` handlers around alignment keep working.</span>
-</span><span id="line-44">
-</span><span id="line-45"><span class="sd">    Attributes:</span>
-</span><span id="line-46"><span class="sd">        clip_index: Position of the offending clip in the ``clips`` sequence, or</span>
-</span><span id="line-47"><span class="sd">            ``None`` when the caller did not identify one.</span>
-</span><span id="line-48"><span class="sd">        clip_duration_s: The clip's duration in seconds.</span>
-</span><span id="line-49"><span class="sd">        window_s: The window that was asked for.</span>
-</span><span id="line-50"><span class="sd">        hop_s: The hop in force — the caller's, or the one derived from ``window_s``.</span>
-</span><span id="line-51"><span class="sd">            Reported because it is part of the grid that was asked for; it is NOT part</span>
-</span><span id="line-52"><span class="sd">            of the bound, which does not depend on it (see</span>
-</span><span id="line-53"><span class="sd">            :func:`~mixing.audio.audio_ops._max_supportable_window_s`).</span>
-</span><span id="line-54"><span class="sd">        max_window_s: The largest window that still leaves this clip a second,</span>
-</span><span id="line-55"><span class="sd">            independent look. The bound is inclusive, so for any clip long enough to be</span>
-</span><span id="line-56"><span class="sd">            worth aligning a retry at exactly this window measures — which is what makes</span>
-</span><span id="line-57"><span class="sd">            it worth reporting. A degenerate clip of a sample or two has no such window</span>
-</span><span id="line-58"><span class="sd">            at all; the value is floored at one sample there and is a lower bound rather</span>
-</span><span id="line-59"><span class="sd">            than a promise.</span>
-</span><span id="line-60"><span class="sd">    """</span>
-</span><span id="line-61">
-</span><span id="line-62">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-</span><span id="line-63">        <span class="bp">self</span><span class="p">,</span>
-</span><span id="line-64">        <span class="o">*</span><span class="p">,</span>
-</span><span id="line-65">        <span class="n">clip_index</span><span class="p">:</span> <span class="s2">"int | None"</span><span class="p">,</span>
-</span><span id="line-66">        <span class="n">clip_duration_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="line-67">        <span class="n">window_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="line-68">        <span class="n">hop_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="line-69">        <span class="n">max_window_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="line-70">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-71">        <span class="bp">self</span><span class="o">.</span><span class="n">clip_index</span> <span class="o">=</span> <span class="n">clip_index</span>
-</span><span id="line-72">        <span class="bp">self</span><span class="o">.</span><span class="n">clip_duration_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">clip_duration_s</span><span class="p">)</span>
-</span><span id="line-73">        <span class="bp">self</span><span class="o">.</span><span class="n">window_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">window_s</span><span class="p">)</span>
-</span><span id="line-74">        <span class="bp">self</span><span class="o">.</span><span class="n">hop_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">hop_s</span><span class="p">)</span>
-</span><span id="line-75">        <span class="bp">self</span><span class="o">.</span><span class="n">max_window_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">max_window_s</span><span class="p">)</span>
-</span><span id="line-76">        <span class="n">who</span> <span class="o">=</span> <span class="s2">"clip"</span> <span class="k">if</span> <span class="n">clip_index</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"clip </span><span class="si">{</span><span class="n">clip_index</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="line-77">        <span class="c1"># Rounded DOWN, never to nearest: a ceiling printed even one ULP above the real</span>
-</span><span id="line-78">        <span class="c1"># one sends the caller straight back into this exception, which is the one</span>
-</span><span id="line-79">        <span class="c1"># remedy the message must not suggest.</span>
-</span><span id="line-80">        <span class="n">advice</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_window_s</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="n">_ADVICE_DECIMALS</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
-</span><span id="line-81">            <span class="mi">10</span><span class="o">**</span><span class="n">_ADVICE_DECIMALS</span>
-</span><span id="line-82">        <span class="p">)</span>
-</span><span id="line-83">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-</span><span id="line-84">            <span class="sa">f</span><span class="s2">"window_s=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">window_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> is wider than </span><span class="si">{</span><span class="n">who</span><span class="si">}</span><span class="s2"> "</span>
-</span><span id="line-85">            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_duration_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> s) allows: no second INDEPENDENT window fits, "</span>
-</span><span id="line-86">            <span class="sa">f</span><span class="s2">"so the consensus vote has nothing to arbitrate and support would be None "</span>
-</span><span id="line-87">            <span class="sa">f</span><span class="s2">"for a reason nothing reports — pass window_s &lt;= "</span>
-</span><span id="line-88">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">advice</span><span class="si">:</span><span class="s2">.</span><span class="si">{</span><span class="n">_ADVICE_DECIMALS</span><span class="si">}</span><span class="s2">f</span><span class="si">}</span><span class="s2">, or window_s=None to fit the window to each "</span>
-</span><span id="line-89">            <span class="sa">f</span><span class="s2">"clip. "</span>
-</span><span id="line-90">            <span class="sa">f</span><span class="s2">"(hop_s=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hop_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> does not enter this bound: the analysis grid "</span>
-</span><span id="line-91">            <span class="sa">f</span><span class="s2">"always ends with a window one window's length from the clip's end, "</span>
-</span><span id="line-92">            <span class="sa">f</span><span class="s2">"whatever the hop.)"</span>
-</span><span id="line-93">        <span class="p">)</span></div>
+</span><span id="line-38"><span class="k">class</span><span class="w"> </span><span class="nc">WindowTooWideForClip</span><span class="p">(</span><span class="n">MixingError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+</span><span id="line-39"><span class="w">    </span><span class="sd">"""An explicit analysis window leaves a clip no second, independent look.</span>
+</span><span id="line-40">
+</span><span id="line-41"><span class="sd">    Raised by :func:`mixing.audio.align_clips_to_reference` when the caller passes a</span>
+</span><span id="line-42"><span class="sd">    ``window_s`` wider than :attr:`max_window_s` — the length above which the clip holds</span>
+</span><span id="line-43"><span class="sd">    no second INDEPENDENT window, so the consensus vote has nothing to arbitrate and</span>
+</span><span id="line-44"><span class="sd">    ``support`` comes back ``None``.</span>
+</span><span id="line-45">
+</span><span id="line-46"><span class="sd">    Why an error and not a clamp or a silent single window: the caller asked for a</span>
+</span><span id="line-47"><span class="sd">    windowed vote and would otherwise receive a single whole-clip correlation whose</span>
+</span><span id="line-48"><span class="sd">    only signal is the ABSENCE of a support number — indistinguishable from a clip</span>
+</span><span id="line-49"><span class="sd">    that is genuinely too short to support at any window (issue #43). Clamping would</span>
+</span><span id="line-50"><span class="sd">    be worse still: an explicit ``window_s`` is the caller saying what a window means</span>
+</span><span id="line-51"><span class="sd">    for their material, and silently measuring at a different one makes ``support``</span>
+</span><span id="line-52"><span class="sd">    incomparable across a set for a reason nothing reports.</span>
+</span><span id="line-53">
+</span><span id="line-54"><span class="sd">    It subclasses :class:`ValueError` because it is an argument that cannot be honored,</span>
+</span><span id="line-55"><span class="sd">    so existing ``except ValueError`` handlers around alignment keep working.</span>
+</span><span id="line-56">
+</span><span id="line-57"><span class="sd">    Attributes:</span>
+</span><span id="line-58"><span class="sd">        clip_index: Position of the offending clip in the ``clips`` sequence, or</span>
+</span><span id="line-59"><span class="sd">            ``None`` when the caller did not identify one.</span>
+</span><span id="line-60"><span class="sd">        clip_duration_s: The clip's duration in seconds.</span>
+</span><span id="line-61"><span class="sd">        window_s: The window that was asked for.</span>
+</span><span id="line-62"><span class="sd">        hop_s: The hop in force — the caller's, or the one derived from ``window_s``.</span>
+</span><span id="line-63"><span class="sd">            Reported because it is part of the grid that was asked for; it is NOT part</span>
+</span><span id="line-64"><span class="sd">            of the bound, which does not depend on it (see</span>
+</span><span id="line-65"><span class="sd">            :func:`~mixing.audio.audio_ops._max_supportable_window_s`).</span>
+</span><span id="line-66"><span class="sd">        max_window_s: The largest window that still leaves this clip a second,</span>
+</span><span id="line-67"><span class="sd">            independent look. The bound is inclusive, so for any clip long enough to be</span>
+</span><span id="line-68"><span class="sd">            worth aligning a retry at exactly this window measures — which is what makes</span>
+</span><span id="line-69"><span class="sd">            it worth reporting. A degenerate clip of a sample or two has no such window</span>
+</span><span id="line-70"><span class="sd">            at all; the value is floored at one sample there and is a lower bound rather</span>
+</span><span id="line-71"><span class="sd">            than a promise.</span>
+</span><span id="line-72"><span class="sd">    """</span>
+</span><span id="line-73">
+</span><span id="line-74">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="line-75">        <span class="bp">self</span><span class="p">,</span>
+</span><span id="line-76">        <span class="o">*</span><span class="p">,</span>
+</span><span id="line-77">        <span class="n">clip_index</span><span class="p">:</span> <span class="s2">"int | None"</span><span class="p">,</span>
+</span><span id="line-78">        <span class="n">clip_duration_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="line-79">        <span class="n">window_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="line-80">        <span class="n">hop_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="line-81">        <span class="n">max_window_s</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="line-82">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-83">        <span class="bp">self</span><span class="o">.</span><span class="n">clip_index</span> <span class="o">=</span> <span class="n">clip_index</span>
+</span><span id="line-84">        <span class="bp">self</span><span class="o">.</span><span class="n">clip_duration_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">clip_duration_s</span><span class="p">)</span>
+</span><span id="line-85">        <span class="bp">self</span><span class="o">.</span><span class="n">window_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">window_s</span><span class="p">)</span>
+</span><span id="line-86">        <span class="bp">self</span><span class="o">.</span><span class="n">hop_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">hop_s</span><span class="p">)</span>
+</span><span id="line-87">        <span class="bp">self</span><span class="o">.</span><span class="n">max_window_s</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">max_window_s</span><span class="p">)</span>
+</span><span id="line-88">        <span class="n">who</span> <span class="o">=</span> <span class="s2">"clip"</span> <span class="k">if</span> <span class="n">clip_index</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"clip </span><span class="si">{</span><span class="n">clip_index</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="line-89">        <span class="c1"># Rounded DOWN, never to nearest: a ceiling printed even one ULP above the real</span>
+</span><span id="line-90">        <span class="c1"># one sends the caller straight back into this exception, which is the one</span>
+</span><span id="line-91">        <span class="c1"># remedy the message must not suggest.</span>
+</span><span id="line-92">        <span class="n">advice</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_window_s</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="n">_ADVICE_DECIMALS</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+</span><span id="line-93">            <span class="mi">10</span><span class="o">**</span><span class="n">_ADVICE_DECIMALS</span>
+</span><span id="line-94">        <span class="p">)</span>
+</span><span id="line-95">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="line-96">            <span class="sa">f</span><span class="s2">"window_s=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">window_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> is wider than </span><span class="si">{</span><span class="n">who</span><span class="si">}</span><span class="s2"> "</span>
+</span><span id="line-97">            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">clip_duration_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> s) allows: no second INDEPENDENT window fits, "</span>
+</span><span id="line-98">            <span class="sa">f</span><span class="s2">"so the consensus vote has nothing to arbitrate and support would be None "</span>
+</span><span id="line-99">            <span class="sa">f</span><span class="s2">"for a reason nothing reports — pass window_s &lt;= "</span>
+</span><span id="line-100">            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">advice</span><span class="si">:</span><span class="s2">.</span><span class="si">{</span><span class="n">_ADVICE_DECIMALS</span><span class="si">}</span><span class="s2">f</span><span class="si">}</span><span class="s2">, or window_s=None to fit the window to each "</span>
+</span><span id="line-101">            <span class="sa">f</span><span class="s2">"clip. "</span>
+</span><span id="line-102">            <span class="sa">f</span><span class="s2">"(hop_s=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">hop_s</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> does not enter this bound: the analysis grid "</span>
+</span><span id="line-103">            <span class="sa">f</span><span class="s2">"always ends with a window one window's length from the clip's end, "</span>
+</span><span id="line-104">            <span class="sa">f</span><span class="s2">"whatever the hop.)"</span>
+</span><span id="line-105">        <span class="p">)</span></div>
 
 </span></code></pre></div>
     </div></div>
@@ -282,7 +301,7 @@
 </footer>
     </div>
     
-    <script src="../../_static/documentation_options.js?v=339ea818"></script>
+    <script src="../../_static/documentation_options.js?v=97e62c01"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

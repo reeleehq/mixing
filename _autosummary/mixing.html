@@ -89,6 +89,7 @@
 <li class="toctree-l3"><a class="reference internal" href="mixing.edit.html">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.errors.html">mixing.errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.probe.html">mixing.probe</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.util.html">mixing.util</a></li>
@@ -707,16 +708,19 @@ Defaults to <code class="xref py py-func docutils literal notranslate"><span cla
 <tr class="row-odd"><td><p><a class="reference internal" href="mixing.errors.html#module-mixing.errors" title="mixing.errors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">errors</span></code></a></p></td>
 <td><p>Typed errors <code class="code docutils literal notranslate"><span class="pre">mixing</span></code> raises — the home for exceptions a caller may want to catch.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.srt.html#module-mixing.srt" title="mixing.srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.probe.html#module-mixing.probe" title="mixing.probe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">probe</span></code></a></p></td>
+<td><p>One light media probe: <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code> first, ffmpeg's banner as the fallback.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.srt.html#module-mixing.srt" title="mixing.srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt</span></code></a></p></td>
 <td><p>Canonical SRT / timeline parsing and formatting (pure, dependency-free).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.html#module-mixing.transcript" title="mixing.transcript"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transcript</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.html#module-mixing.transcript" title="mixing.transcript"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transcript</span></code></a></p></td>
 <td><p>Transcript-driven media editing.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.util.html#module-mixing.util" title="mixing.util"><code class="xref py py-obj docutils literal notranslate"><span class="pre">util</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.util.html#module-mixing.util" title="mixing.util"><code class="xref py py-obj docutils literal notranslate"><span class="pre">util</span></code></a></p></td>
 <td><p>General utilities for mixing video, audio, etc.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.filtergraph.html#module-mixing.filtergraph" title="mixing.filtergraph"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filtergraph</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.filtergraph.html#module-mixing.filtergraph" title="mixing.filtergraph"><code class="xref py py-obj docutils literal notranslate"><span class="pre">filtergraph</span></code></a></p></td>
 <td><p>Pure ffmpeg filter-string builders: no media dependency, no I/O.</p></td>
 </tr>
 </tbody>
@@ -770,7 +774,7 @@ Defaults to <code class="xref py py-func docutils literal notranslate"><span cla
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=339ea818"></script>
+<script src="../_static/documentation_options.js?v=97e62c01"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

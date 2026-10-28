@@ -15,6 +15,7 @@
 - [mixing.edit](_autosummary/mixing.edit.html.md): Render a re-edit of a finished video from a sound edit list and its picture clips.
 - [mixing.egress](_autosummary/mixing.egress.html.md): Canonical &#42;egress&#42;: route a produced result to its destination.
 - [mixing.errors](_autosummary/mixing.errors.html.md): Typed errors &#96;mixing&#96; raises — the home for exceptions a caller may want to catch.
+- [mixing.probe](_autosummary/mixing.probe.html.md): One light media probe: &#96;ffprobe&#96; first, ffmpeg’s banner as the fallback.
 - [mixing.srt](_autosummary/mixing.srt.html.md): Canonical SRT / timeline parsing and formatting (pure, dependency-free).
 - [mixing.transcript](_autosummary/mixing.transcript.html.md): Transcript-driven media editing.
 - [mixing.transcript.fillers](_autosummary/mixing.transcript.fillers.html.md): Filler-word detection over Scribe-shaped word lists.
@@ -26,7 +27,7 @@
 - [mixing.util](_autosummary/mixing.util.html.md): General utilities for mixing video, audio, etc.
 - [mixing.filtergraph](_autosummary/mixing.filtergraph.html.md): Pure ffmpeg filter-string builders: no media dependency, no I/O.
 - [For AI agents](ai-agents.html.md): &#96;mixing&#96; ships artifacts for coding agents alongside its code. This page lists
-- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-10-28 02:58 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
+- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-10-28 03:25 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
 
 ## Optional
 

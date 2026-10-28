@@ -13,6 +13,7 @@
 - [mixing.edit](mixing.edit.html.md): Render a re-edit of a finished video from a sound edit list and its picture clips.
 - [mixing.egress](mixing.egress.html.md): Canonical &#42;egress&#42;: route a produced result to its destination.
 - [mixing.errors](mixing.errors.html.md): Typed errors &#96;mixing&#96; raises — the home for exceptions a caller may want to catch.
+- [mixing.probe](mixing.probe.html.md): One light media probe: &#96;ffprobe&#96; first, ffmpeg’s banner as the fallback.
 - [mixing.srt](mixing.srt.html.md): Canonical SRT / timeline parsing and formatting (pure, dependency-free).
 - [mixing.transcript](mixing.transcript.html.md): Transcript-driven media editing.
 - [mixing.transcript.fillers](mixing.transcript.fillers.html.md): Filler-word detection over Scribe-shaped word lists.

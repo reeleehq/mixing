@@ -10,4 +10,6 @@ mixing.errors
    
       MixingError
       WindowTooWideForClip
+      ProbeError
+      MediaNotFoundError
    

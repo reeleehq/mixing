@@ -88,7 +88,9 @@ about 115 MB for five minutes of 48 kHz stereo).
 - The source’s length is its counted video packets (`ffprobe`) or, without
   `ffprobe` or for a variable-rate source, its duration; a span past it is
   refused. Without `ffprobe` the rate is read from ffmpeg’s banner (snapped
-  by [`as_rate()`](#mixing.edit.as_rate)) and both streams are taken to start together.
+  by [`as_rate()`](#mixing.edit.as_rate)) and both streams are taken to start together. The
+  source is read by [`mixing.probe`](mixing.probe.html.md#module-mixing.probe) (shared with
+  `mixing.video.cutaways`).
 - The PCM sound is handled as little-endian float (every platform ffmpeg
   ships for in practice).
 
@@ -257,7 +259,8 @@ Uses `ffprobe` (its `r_frame_rate` is the exact rational; packets are
 counted, which reads but does not decode the file) when one is found
 beside ffmpeg or on `PATH`, else ffmpeg’s banner (rate snapped by
 [`as_rate()`](#mixing.edit.as_rate), frame count from the duration, no stream offsets). Warns
-when the source looks variable-rate.
+when the source looks variable-rate. The reading is
+[`mixing.probe.probe()`](mixing.probe.html.md#mixing.probe.probe)’s; this is its view for a render.
 
 * **Return type:**
   [`SourceInfo`](#mixing.edit.SourceInfo)

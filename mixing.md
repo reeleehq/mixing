@@ -1,4 +1,4 @@
-> built 2026-10-28 02:58 UTC from 83adf00 (main) · mixing 0.0.86. Details: build_info.json
+> built 2026-10-28 03:25 UTC from bf8fe6a (main) · mixing 0.0.87. Details: build_info.json
 
 # index.html.md
 
@@ -983,7 +983,9 @@ about 115 MB for five minutes of 48 kHz stereo).
 - The source’s length is its counted video packets (`ffprobe`) or, without
   `ffprobe` or for a variable-rate source, its duration; a span past it is
   refused. Without `ffprobe` the rate is read from ffmpeg’s banner (snapped
-  by [`as_rate()`](_autosummary/mixing.edit.html.md#mixing.edit.as_rate)) and both streams are taken to start together.
+  by [`as_rate()`](_autosummary/mixing.edit.html.md#mixing.edit.as_rate)) and both streams are taken to start together. The
+  source is read by [`mixing.probe`](_autosummary/mixing.probe.html.md#module-mixing.probe) (shared with
+  `mixing.video.cutaways`).
 - The PCM sound is handled as little-endian float (every platform ffmpeg
   ships for in practice).
 
@@ -1152,7 +1154,8 @@ Uses `ffprobe` (its `r_frame_rate` is the exact rational; packets are
 counted, which reads but does not decode the file) when one is found
 beside ffmpeg or on `PATH`, else ffmpeg’s banner (rate snapped by
 [`as_rate()`](_autosummary/mixing.edit.html.md#mixing.edit.as_rate), frame count from the duration, no stream offsets). Warns
-when the source looks variable-rate.
+when the source looks variable-rate. The reading is
+[`mixing.probe.probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe)’s; this is its view for a render.
 
 * **Return type:**
   [`SourceInfo`](_autosummary/mixing.edit.html.md#mixing.edit.SourceInfo)
@@ -1347,15 +1350,32 @@ than parse prose.
 
 ### Exceptions
 
-| [`MixingError`](_autosummary/mixing.errors.html.md#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                |
-|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](_autosummary/mixing.errors.html.md#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look. |
+| [`MixingError`](_autosummary/mixing.errors.html.md#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                                                                                      |
+|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| [`WindowTooWideForClip`](_autosummary/mixing.errors.html.md#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look.                                                                       |
+| [`ProbeError`](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError)                                | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe)).   |
+| [`MediaNotFoundError`](_autosummary/mixing.errors.html.md#mixing.errors.MediaNotFoundError)                        | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+
+### *exception* mixing.errors.MediaNotFoundError
+
+Bases: [`ProbeError`](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError), [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)
+
+The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)).
 
 ### *exception* mixing.errors.MixingError
 
 Bases: [`Exception`](https://docs.python.org/3/builtins/exceptions.html#Exception)
 
 Base for every error `mixing` raises on its own behalf.
+
+### *exception* mixing.errors.ProbeError
+
+Bases: [`MixingError`](_autosummary/mixing.errors.html.md#mixing.errors.MixingError), [`ValueError`](https://docs.python.org/3/builtins/exceptions.html#ValueError)
+
+ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe)).
+
+A [`ValueError`](https://docs.python.org/3/builtins/exceptions.html#ValueError), so the `except ValueError` handlers that caught the
+probes it replaced keep working.
 
 ### *exception* mixing.errors.WindowTooWideForClip(, clip_index, clip_duration_s, window_s, hop_s, max_window_s)
 
@@ -1954,10 +1974,288 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 | [`edit`](_autosummary/mixing.edit.html.md#module-mixing.edit)               | Render a re-edit of a finished video from a sound edit list and its picture clips. |
 | [`egress`](_autosummary/mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
 | [`errors`](_autosummary/mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
+| [`probe`](_autosummary/mixing.probe.html.md#module-mixing.probe)             | One light media probe: `ffprobe` first, ffmpeg's banner as the fallback.           |
 | [`srt`](_autosummary/mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
 | [`transcript`](_autosummary/mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                   |
 | [`util`](_autosummary/mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                    |
 | [`filtergraph`](_autosummary/mixing.filtergraph.html.md#module-mixing.filtergraph) | Pure ffmpeg filter-string builders: no media dependency, no I/O.                   |
+
+
+# _autosummary/mixing.probe.html.md
+
+# mixing.probe
+
+One light media probe: `ffprobe` first, ffmpeg’s banner as the fallback.
+
+What a file holds (its displayed size, exact frame rate, frame count, stream
+start times, rotation, duration, sound format), read by subprocess so that
+importing this module pulls no media library (no moviepy, opencv, numpy or
+PIL). [`mixing.edit`](_autosummary/mixing.edit.html.md#module-mixing.edit) and `mixing.video.cutaways` both read their
+sources through it.
+
+```pycon
+>>> from mixing.probe import probe
+>>> info = probe("talk.mp4")
+>>> info.fps, info.frames, info.width, info.height
+(Fraction(30000, 1001), 900, 1920, 1080)
+```
+
+**Two methods, one result.** [`probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe) returns a frozen [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe)
+whose `method` says how it was read:
+
+- `"ffprobe"` (exact): the rate is `r_frame_rate` as a
+  [`Fraction`](https://docs.python.org/3/library/fractions.html#fractions.Fraction) (`30000/1001` stays exact), the frame count is
+  > the counted video packets (or the container’s `nb_frames` header), the
+  > video starts at its `start_time` and the sound at its first **decoded**
+  > frame (an opus stream’s first packet precedes it by its pre-skip), cover
+  > art (`attached_pic`) is not taken for the picture, the rotation comes from the display
+  > matrix (side data) or the `rotate` tag, and `r_frame_rate` is checked
+  > against `avg_frame_rate` (and the packet count against the duration) to
+  > detect a variable rate.
+- `"banner"` (approximate): when no `ffprobe` sits beside
+  [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe) or on `PATH` (imageio-ffmpeg’s build ships
+  > none), the text `ffmpeg -i` prints is parsed by [`parse_banner()`](_autosummary/mixing.probe.html.md#mixing.probe.parse_banner). The
+  > rates are the printed decimals (`tbr` as `fps`, `fps` as `avg_fps`)
+  > snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate), the frame count is estimated from the
+  > **container** duration, both streams are assumed to start with the file, and
+  > a variable rate is seen only when the two printed rates disagree.
+
+`ffprobe=` is the seam: the default finds one ([`find_ffprobe()`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe)), a path
+uses that binary, `None` forces the banner. A file that does not exist raises
+[`MediaNotFoundError`](_autosummary/mixing.errors.html.md#mixing.errors.MediaNotFoundError); one ffmpeg cannot read raises
+[`ProbeError`](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError) (both are 
+
+```
+``
+```
+
+ValueError\`\`s).
+
+### Module Attributes
+
+| [`AUTO_FFPROBE`](_autosummary/mixing.probe.html.md#mixing.probe.AUTO_FFPROBE)   | `probe(ffprobe=AUTO_FFPROBE)` (the default) looks for an ffprobe with [`find_ffprobe()`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe); a path names one; `None` forces the banner.   |
+|-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`FFPROBE_METHOD`](_autosummary/mixing.probe.html.md#mixing.probe.FFPROBE_METHOD) | [`MediaProbe.method`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.method) of an exact (`ffprobe`) and an approximate (`ffmpeg -i` banner) reading.                                          |
+
+### Functions
+
+| [`probe`](_autosummary/mixing.probe.html.md#mixing.probe.probe)(media, \*[, ffprobe, count_packets])   | Probe `media` with ffprobe when there is one, else with ffmpeg's banner.                                                                          |
+|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`parse_banner`](_autosummary/mixing.probe.html.md#mixing.probe.parse_banner)(text)                           | A [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe) from the text `ffmpeg -i FILE` prints (approximate).                                |
+| [`find_ffprobe`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe)()                               | The ffprobe beside [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe), else on `PATH`, else `None`. |
+| [`snap_rate`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate)(fps)                               | A float frame rate as the exact rate it stands for.                                                                                               |
+
+### Classes
+
+| [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe)(method[, duration, width, ...])   | What [`probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe) read about a media file.   |
+|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+
+### mixing.probe.AUTO_FFPROBE *= 'auto'*
+
+`probe(ffprobe=AUTO_FFPROBE)` (the default) looks for an ffprobe with
+[`find_ffprobe()`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe); a path names one; `None` forces the banner.
+
+### mixing.probe.FFPROBE_METHOD *= 'ffprobe'*
+
+[`MediaProbe.method`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.method) of an exact (`ffprobe`) and an approximate
+(`ffmpeg -i` banner) reading.
+
+### *class* mixing.probe.MediaProbe(method, duration=None, width=None, height=None, rotation=0.0, fps=None, avg_fps=None, frames=None, packets=None, video_start=0.0, video_duration=None, audio_start=None, sample_rate=None, channels=None, variable_rate=False, has_audio=False)
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+What [`probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe) read about a media file.
+
+Video fields are `None` (and `has_video` false) for an audio-only file;
+sound fields are `None` (and `has_audio` false) for a silent one.
+
+#### method
+
+`"ffprobe"` (exact) or `"banner"` (approximate, see the
+module docstring).
+
+* **Type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+#### duration
+
+the container’s duration (s), `None` when not stated.
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+### width, height
+
+the size of the first video stream’s decoded frames
+after the display rotation (a 90/270-degree rotation swaps the
+coded size, as ffmpeg’s decode does). The sample aspect ratio is
+not applied: an anamorphic stream reports its storage size.
+
+#### rotation
+
+the display rotation in degrees, as ffmpeg reports it.
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
+#### fps
+
+the nominal rate (`r_frame_rate`, else `avg_frame_rate`); from
+the banner, its `tbr` (else its `fps`) snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate).
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Fraction`](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]
+
+#### avg_fps
+
+`avg_frame_rate`; from the banner, its `fps`. `None`
+when unset.
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Fraction`](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]
+
+#### frames
+
+the frame count at `fps`: the video packets when the rate is
+constant and they are known, else the video duration times `fps`.
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
+
+#### packets
+
+the video packet count, counted (`count_packets=True`) or
+the container’s `nb_frames` header; `None` when unknown.
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
+
+#### video_start
+
+where the first video frame sits after the file’s start
+(what an input seek counts from).
+
+* **Type:**
+  [`float`](https://docs.python.org/3/builtins/functions.html#float)
+
+#### video_duration
+
+the video stream’s own length (s).
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+#### audio_start
+
+where the sound’s first decoded frame plays after the
+file’s start (from the banner, assumed `0.0`: it states no
+stream start times).
+
+* **Type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+### sample_rate, channels
+
+of the first audio stream.
+
+#### variable_rate
+
+the picture is not at a constant rate (the nominal and
+average rates disagree by more than `VFR_TOLERANCE`, or, from
+ffprobe, the packets disagree with the duration).
+
+* **Type:**
+  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
+
+#### has_audio
+
+the file has an audio stream.
+
+* **Type:**
+  [`bool`](https://docs.python.org/3/builtins/functions.html#bool)
+
+#### *property* audio_offset *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[float](https://docs.python.org/3/builtins/functions.html#float)]*
+
+before).
+
+* **Type:**
+  How far the sound starts after the first video frame (negative
+
+#### *property* coded_size *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Tuple](https://docs.python.org/3/library/typing.html#typing.Tuple)[[int](https://docs.python.org/3/builtins/functions.html#int), [int](https://docs.python.org/3/builtins/functions.html#int)]]*
+
+`(width, height)` as stored, before the display rotation.
+
+#### *property* exact *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
+
+Whether this came from ffprobe (exact) rather than the banner.
+
+### mixing.probe.find_ffprobe()
+
+The ffprobe beside [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe), else on `PATH`, else `None`.
+
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
+
+### mixing.probe.parse_banner(text)
+
+A [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe) from the text `ffmpeg -i FILE` prints (approximate).
+
+The banner states the container duration, the first video stream’s coded
+size, its two rates (`N tbr` is ffmpeg’s guess at `r_frame_rate` and
+becomes `fps`; `N fps` is `avg_frame_rate` and becomes `avg_fps`;
+both snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate)), the display rotation and the first
+audio stream’s rate and layout. It has no per-stream start times (both
+streams are **assumed** to start with the file: `video_start` and
+`audio_start` are `0.0`) and no packet count (`frames` is the
+container duration times `fps`), so a variable rate is detected only
+when the two printed rates disagree.
+
+```pycon
+>>> found = parse_banner('''Duration: 00:00:10.50, start: 0.0
+...   Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 29.97 fps
+...   Stream #0:1: Audio: aac, 48000 Hz, stereo, fltp''')
+>>> found.fps, found.frames, (found.width, found.height), found.channels
+(Fraction(30000, 1001), 315, (1920, 1080), 2)
+```
+
+* **Return type:**
+  [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe)
+
+### mixing.probe.probe(media, , ffprobe='auto', count_packets=True)
+
+Probe `media` with ffprobe when there is one, else with ffmpeg’s banner.
+
+* **Parameters:**
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), os.PathLike[str]]) – the file (or any location ffmpeg opens).
+  * **ffprobe** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – the ffprobe binary. [`AUTO_FFPROBE`](_autosummary/mixing.probe.html.md#mixing.probe.AUTO_FFPROBE) (default) finds one
+    with [`find_ffprobe()`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe); `None` forces the approximate banner
+    ([`parse_banner()`](_autosummary/mixing.probe.html.md#mixing.probe.parse_banner)).
+  * **count_packets** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – have ffprobe count the video packets (reads, but does
+    not decode, the whole file) for an exact frame count. `False`
+    uses the container’s `nb_frames` header, which mkv lacks.
+* **Raises:**
+  * [**MediaNotFoundError**](_autosummary/mixing.errors.html.md#mixing.errors.MediaNotFoundError) – `media` does not exist.
+  * [**ProbeError**](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError) – ffmpeg/ffprobe cannot read it, or the named `ffprobe`
+        cannot be run.
+  * [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `ffprobe=""`.
+* **Return type:**
+  [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe)
+
+### mixing.probe.snap_rate(fps)
+
+A float frame rate as the exact rate it stands for.
+
+A rate near an integer or an NTSC rate (`k * 1000 / 1001`) is taken to
+mean it; anything else is approximated with a denominator of at most
+`MAX_RATE_DENOMINATOR`.
+
+```pycon
+>>> snap_rate(29.97), snap_rate(25.0), snap_rate(23.976), snap_rate(12.5)
+(Fraction(30000, 1001), Fraction(25, 1), Fraction(24000, 1001), Fraction(25, 2))
+```
+
+* **Return type:**
+  [`Fraction`](https://docs.python.org/3/library/fractions.html#fractions.Fraction)
 
 
 # _autosummary/mixing.srt.html.md
@@ -3027,20 +3325,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-28 02:58 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/83adf00df7e18c07a99acd21e947c9ff50dd04fe"><code>83adf00</code></a> on branch <code>main</code>, for **mixing 0.0.86** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-10-28 03:25 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/bf8fe6a7e82998cc84c35b0bf3f0f0b9e52342cc"><code>bf8fe6a</code></a> on branch <code>main</code>, for **mixing 0.0.87** (from <code>pyproject.toml</code>).
 
 #### WARNING
 The documentation and the package may be misaligned:
 
-- The documented version (0.0.86) is ahead of the latest release on PyPI (0.0.85): these docs describe unreleased code.
+- The documented version (0.0.87) is ahead of the latest release on PyPI (0.0.86): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/83adf00df7e18c07a99acd21e947c9ff50dd04fe"><code>83adf00df7e18c07a99acd21e947c9ff50dd04fe</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/bf8fe6a7e82998cc84c35b0bf3f0f0b9e52342cc"><code>bf8fe6a7e82998cc84c35b0bf3f0f0b9e52342cc</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.86</code>                                                                                                                                    |
+| Tags at this commit | <code>0.0.87</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3049,9 +3347,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40623163599">40623163599</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/40625664026">40625664026</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>fdbaac662bc2c8b9de28a30006e0e1176dbc33b0</code> (in the history of the built commit) |
+| Event commit | <code>7a59ea856e6126c1ed97ed0cf6188a64f4549bb7</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3076,13 +3374,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.85/">0.0.85</a>, older than the documented version (0.0.86).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.86/">0.0.86</a>, older than the documented version (0.0.87).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 83adf00df7e18c07a99acd21e947c9ff50dd04fe
+git checkout bf8fe6a7e82998cc84c35b0bf3f0f0b9e52342cc
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

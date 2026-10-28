@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+
+<html :class="{ 'dark' : darkMode === true }" data-content_root="../" lang="en" x-data="{ darkMode: $persist(window.matchMedia('(prefers-color-scheme: dark)').matches), activeSection: ''}">
+<head>
+<script>
+    (function () {
+      // Set initial color scheme
+      if ((localStorage.getItem("_x_darkMode") === "true") || (window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        document.documentElement.classList.add("dark");
+      }
+
+      // Watch for media preference changes
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => {
+        localStorage.setItem("_x_darkMode", event.matches);
+        document.documentElement.classList.toggle("dark", event.matches);
+      });
+    })();
+  </script>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta charset="utf-8"/>
+<meta content="#ffffff" media="(prefers-color-scheme: light)" name="theme-color"/>
+<meta content="#030711" media="(prefers-color-scheme: dark)" name="theme-color"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<link href="mixing.probe.html.md" rel="alternate" type="text/markdown"/>
+<link href="../llms.txt" rel="describedby" type="text/markdown"/>
+<link href="mixing.probe.html.md" rel="alternate" type="text/markdown"/>
+<link href="llms.txt" rel="describedby"/>
+<title>mixing.probe | mixing</title>
+<meta content="mixing.probe | mixing" property="og:title"/>
+<meta content="mixing.probe | mixing" name="twitter:title"/>
+<link href="../_static/pygments.css?v=d75fae25" rel="stylesheet" type="text/css"/>
+<link href="../_static/theme.css?v=009055c6" rel="stylesheet" type="text/css"/>
+<link href="../_static/sphinx_autodoc_typehints.css?v=057ac668" rel="stylesheet" type="text/css"/>
+<link href="../_static/copybutton.css?v=76b2166b" rel="stylesheet" type="text/css"/>
+<link href="../_static/epythet.css?v=6b72e7cd" rel="stylesheet" type="text/css"/>
+<link href="../search.html" rel="search" title="Search"/>
+<link href="../genindex.html" rel="index" title="Index"/>
+<link href="mixing.srt.html" rel="next" title="mixing.srt"/>
+<link href="mixing.errors.html" rel="prev" title="mixing.errors"/>
+</head>
+<body :class="{ 'overflow-hidden': showSidebar }" class="min-h-screen font-sans antialiased bg-background text-foreground" x-data="{ showSidebar: false, showScrollTop: false }">
+<div @click.self="showSidebar = false" class="fixed inset-0 z-50 overflow-hidden bg-background/80 backdrop-blur-sm md:hidden" x-cloak="" x-show="showSidebar"></div><div class="relative flex flex-col min-h-screen" id="page"><a class="absolute top-0 left-0 z-[100] block bg-background p-4 text-xl transition -translate-x-full opacity-0 focus:translate-x-0 focus:opacity-100" href="#content">
+      Skip to content
+    </a><header class="sticky top-0 z-40 w-full border-b shadow-xs border-border bg-background/90 backdrop-blur"><div class="container flex items-center h-14">
+<div class="hidden mr-4 md:flex">
+<a class="flex items-center mr-6" href="../index.html"><span class="hidden font-bold sm:inline-block text-clip whitespace-nowrap">mixing</span>
+</a><nav class="flex items-center gap-6 text-sm font-medium">
+<a class="transition-colors hover:text-foreground/80 text-foreground/60" href="https://github.com/thorwhalen/mixing" rel="noopener nofollow">GitHub</a>
+</nav></div><button @click="showSidebar = true" class="inline-flex items-center justify-center h-10 px-0 py-2 mr-2 text-base font-medium transition-colors rounded-md hover:text-accent-foreground hover:bg-transparent md:hidden" type="button">
+<svg aria-hidden="true" fill="currentColor" height="24" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M152.587 825.087q-19.152 0-32.326-13.174t-13.174-32.326q0-19.152 13.174-32.326t32.326-13.174h440q19.152 0 32.326 13.174t13.174 32.326q0 19.152-13.174 32.326t-32.326 13.174h-440Zm0-203.587q-19.152 0-32.326-13.174T107.087 576q0-19.152 13.174-32.326t32.326-13.174h320q19.152 0 32.326 13.174T518.087 576q0 19.152-13.174 32.326T472.587 621.5h-320Zm0-203.587q-19.152 0-32.326-13.174t-13.174-32.326q0-19.152 13.174-32.326t32.326-13.174h440q19.152 0 32.326 13.174t13.174 32.326q0 19.152-13.174 32.326t-32.326 13.174h-440ZM708.913 576l112.174 112.174q12.674 12.674 12.674 31.826t-12.674 31.826Q808.413 764.5 789.261 764.5t-31.826-12.674l-144-144Q600 594.391 600 576t13.435-31.826l144-144q12.674-12.674 31.826-12.674t31.826 12.674q12.674 12.674 12.674 31.826t-12.674 31.826L708.913 576Z"></path>
+</svg>
+<span class="sr-only">Toggle navigation menu</span>
+</button>
+<div class="flex items-center justify-between flex-1 gap-2 sm:gap-4 md:justify-end">
+<div class="flex-1 w-full md:w-auto md:flex-none"><form @keydown.k.window.meta="$refs.search.focus()" action="../search.html" class="relative flex items-center group" id="searchbox" method="get">
+<input aria-label="Search the docs" class="inline-flex items-center font-medium transition-colors bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background border border-input hover:bg-accent focus:bg-accent hover:text-accent-foreground focus:text-accent-foreground hover:placeholder-accent-foreground py-2 px-4 relative h-9 w-full justify-start rounded-[0.5rem] text-sm text-muted-foreground sm:pr-12 md:w-40 lg:w-64" id="search-input" name="q" placeholder="Search ..." type="search" x-ref="search"/>
+<kbd class="pointer-events-none absolute right-1.5 top-2 hidden h-5 select-none text-muted-foreground items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex group-hover:bg-accent group-hover:text-accent-foreground">
+<span class="text-xs">⌘</span>
+    K
+  </kbd>
+</form>
+</div>
+<nav class="flex items-center gap-1">
+<button @click="darkMode = !darkMode" class="relative inline-flex items-center justify-center px-0 text-sm font-medium transition-colors rounded-md hover:bg-accent hover:text-accent-foreground h-9 w-9" title="Toggle color scheme" type="button">
+<svg class="absolute transition-all scale-100 rotate-0 dark:-rotate-90 dark:scale-0" fill="currentColor" height="16" viewbox="0 96 960 960" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 685q45.456 0 77.228-31.772Q589 621.456 589 576q0-45.456-31.772-77.228Q525.456 467 480 467q-45.456 0-77.228 31.772Q371 530.544 371 576q0 45.456 31.772 77.228Q434.544 685 480 685Zm0 91q-83 0-141.5-58.5T280 576q0-83 58.5-141.5T480 376q83 0 141.5 58.5T680 576q0 83-58.5 141.5T480 776ZM80 621.5q-19.152 0-32.326-13.174T34.5 576q0-19.152 13.174-32.326T80 530.5h80q19.152 0 32.326 13.174T205.5 576q0 19.152-13.174 32.326T160 621.5H80Zm720 0q-19.152 0-32.326-13.174T754.5 576q0-19.152 13.174-32.326T800 530.5h80q19.152 0 32.326 13.174T925.5 576q0 19.152-13.174 32.326T880 621.5h-80Zm-320-320q-19.152 0-32.326-13.174T434.5 256v-80q0-19.152 13.174-32.326T480 130.5q19.152 0 32.326 13.174T525.5 176v80q0 19.152-13.174 32.326T480 301.5Zm0 720q-19.152 0-32.326-13.17Q434.5 995.152 434.5 976v-80q0-19.152 13.174-32.326T480 850.5q19.152 0 32.326 13.174T525.5 896v80q0 19.152-13.174 32.33-13.174 13.17-32.326 13.17ZM222.174 382.065l-43-42Q165.5 327.391 166 308.239t13.174-33.065q13.435-13.674 32.587-13.674t32.065 13.674l42.239 43q12.674 13.435 12.555 31.706-.12 18.272-12.555 31.946-12.674 13.674-31.445 13.413-18.772-.261-32.446-13.174Zm494 494.761-42.239-43q-12.674-13.435-12.674-32.087t12.674-31.565Q686.609 756.5 705.38 757q18.772.5 32.446 13.174l43 41.761Q794.5 824.609 794 843.761t-13.174 33.065Q767.391 890.5 748.239 890.5t-32.065-13.674Zm-42-494.761Q660.5 369.391 661 350.62q.5-18.772 13.174-32.446l41.761-43Q728.609 261.5 747.761 262t33.065 13.174q13.674 13.435 13.674 32.587t-13.674 32.065l-43 42.239q-13.435 12.674-31.706 12.555-18.272-.12-31.946-12.555Zm-495 494.761Q165.5 863.391 165.5 844.239t13.674-32.065l43-42.239q13.435-12.674 32.087-12.674t31.565 12.674Q299.5 782.609 299 801.38q-.5 18.772-13.174 32.446l-41.761 43Q231.391 890.5 212.239 890t-33.065-13.174ZM480 576Z"></path>
+</svg>
+<svg class="absolute transition-all scale-0 rotate-90 dark:rotate-0 dark:scale-100" fill="currentColor" height="16" viewbox="0 96 960 960" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 936q-151 0-255.5-104.5T120 576q0-138 90-239.5T440 218q25-3 39 18t-1 44q-17 26-25.5 55t-8.5 61q0 90 63 153t153 63q31 0 61.5-9t54.5-25q21-14 43-1.5t19 39.5q-14 138-117.5 229T480 936Zm0-80q88 0 158-48.5T740 681q-20 5-40 8t-40 3q-123 0-209.5-86.5T364 396q0-20 3-40t8-40q-78 32-126.5 102T200 576q0 116 82 198t198 82Zm-10-270Z"></path>
+</svg>
+</button>
+</nav>
+</div>
+</div>
+</header>
+<div class="flex-1"><div class="container md:grid md:grid-cols-[220px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10"><aside :aria-hidden="!showSidebar" :class="{ 'translate-x-0': showSidebar }" class="fixed inset-y-0 left-0 md:top-14 z-50 md:z-30 bg-background md:bg-transparent transition-all duration-100 -translate-x-full md:translate-x-0 ml-0 p-6 md:p-0 md:-ml-2 md:h-[calc(100vh-3.5rem)] w-5/6 md:w-full overflow-y-auto border-r border-border md:sticky" id="left-sidebar">
+<a class="justify-start text-sm md:!hidden bg-background" href="../index.html"><span class="font-bold text-clip whitespace-nowrap">mixing</span>
+</a>
+<div class="relative overflow-hidden md:overflow-auto my-4 md:my-0">
+<div class="overflow-y-auto h-full w-full relative pr-6"><nav class="flex md:hidden flex-col font-medium mt-4">
+<a href="https://github.com/thorwhalen/mixing" rel="nofollow noopener">GitHub</a>
+</nav><nav class="table w-full min-w-full my-6 lg:my-8">
+<ul class="current">
+<li class="toctree-l1 current" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="reference internal expandable" href="../api.html">API reference<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul class="current" x-show="expanded">
+<li class="toctree-l2 current" x-data="{ expanded: $el.classList.contains('current') ? true : false }"><a :class="{ 'expanded' : expanded }" @click="expanded = !expanded" class="reference internal expandable" href="mixing.html">mixing<button @click.prevent.stop="expanded = !expanded" type="button" x-cloak=""><span class="sr-only"></span><svg fill="currentColor" height="18px" stroke="none" viewbox="0 0 24 24" width="18px" xmlns="http://www.w3.org/2000/svg"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path></svg></button></a><ul class="current" x-show="expanded">
+<li class="toctree-l3"><a class="reference internal" href="mixing.chapters.html">mixing.chapters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.dubbing.html">mixing.dubbing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.edit.html">mixing.edit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.egress.html">mixing.egress</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.errors.html">mixing.errors</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">mixing.probe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.transcript.html">mixing.transcript</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.util.html">mixing.util</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.filtergraph.html">mixing.filtergraph</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../ai-agents.html">For AI agents</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<button @click="showSidebar = false" class="absolute md:hidden right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100" type="button">
+<svg class="h-4 w-4" fill="currentColor" height="24" stroke="none" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 632 284 828q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536 576l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480 632Z"></path>
+</svg>
+</button>
+</aside>
+<main class="relative py-6 lg:gap-10 lg:py-8 xl:grid xl:grid-cols-[1fr_300px]">
+<div class="w-full min-w-0 mx-auto">
+<nav aria-label="breadcrumbs" class="flex items-center mb-4 space-x-1 text-sm text-muted-foreground">
+<a class="overflow-hidden text-ellipsis whitespace-nowrap hover:text-foreground" href="../index.html">
+<span class="hidden md:inline">mixing</span>
+<svg aria-label="Home" class="md:hidden" fill="currentColor" height="18" stroke="none" viewbox="0 96 960 960" width="18" xmlns="http://www.w3.org/2000/svg">
+<path d="M240 856h120V616h240v240h120V496L480 316 240 496v360Zm-80 80V456l320-240 320 240v480H520V696h-80v240H160Zm320-350Z"></path>
+</svg>
+</a>
+<div class="mr-1">/</div><a class="hover:text-foreground overflow-hidden text-ellipsis whitespace-nowrap" href="../api.html">API reference</a>
+<div class="mr-1">/</div><a class="hover:text-foreground overflow-hidden text-ellipsis whitespace-nowrap" href="mixing.html">mixing</a>
+<div class="mr-1">/</div><span aria-current="page" class="font-medium text-foreground overflow-hidden text-ellipsis whitespace-nowrap">mixing.probe</span>
+</nav>
+<div id="content" role="main">
+<section id="module-mixing.probe">
+<span id="mixing-probe"></span><h1>mixing.probe<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#module-mixing.probe">¶</a></h1>
+<p>One light media probe: <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code> first, ffmpeg’s banner as the fallback.</p>
+<p>What a file holds (its displayed size, exact frame rate, frame count, stream
+start times, rotation, duration, sound format), read by subprocess so that
+importing this module pulls no media library (no moviepy, opencv, numpy or
+PIL). <a class="reference internal" href="mixing.edit.html#module-mixing.edit" title="mixing.edit"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.edit</span></code></a> and <code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.video.cutaways</span></code> both read their
+sources through it.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">mixing.probe</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe</span>
+</span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="n">info</span> <span class="o">=</span> <span class="n">probe</span><span class="p">(</span><span class="s2">"talk.mp4"</span><span class="p">)</span>
+</span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">info</span><span class="o">.</span><span class="n">fps</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">frames</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">height</span>
+</span><span id="line-4"><span class="go">(Fraction(30000, 1001), 900, 1920, 1080)</span>
+</span></code></pre></div>
+</div>
+<p><strong>Two methods, one result.</strong> <a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">probe()</span></code></a> returns a frozen <a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a>
+whose <code class="docutils literal notranslate"><span class="pre">method</span></code> says how it was read:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">"ffprobe"</span></code> (exact): the rate is <code class="docutils literal notranslate"><span class="pre">r_frame_rate</span></code> as a
+<a class="reference external" href="https://docs.python.org/3/library/fractions.html#fractions.Fraction" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Fraction</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> (<code class="docutils literal notranslate"><span class="pre">30000/1001</span></code> stays exact), the frame count is</p>
+<blockquote>
+<div><p>the counted video packets (or the container’s <code class="docutils literal notranslate"><span class="pre">nb_frames</span></code> header), the
+video starts at its <code class="docutils literal notranslate"><span class="pre">start_time</span></code> and the sound at its first <strong>decoded</strong>
+frame (an opus stream’s first packet precedes it by its pre-skip), cover
+art (<code class="docutils literal notranslate"><span class="pre">attached_pic</span></code>) is not taken for the picture, the rotation comes from the display
+matrix (side data) or the <code class="docutils literal notranslate"><span class="pre">rotate</span></code> tag, and <code class="docutils literal notranslate"><span class="pre">r_frame_rate</span></code> is checked
+against <code class="docutils literal notranslate"><span class="pre">avg_frame_rate</span></code> (and the packet count against the duration) to
+detect a variable rate.</p>
+</div></blockquote>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">"banner"</span></code> (approximate): when no <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code> sits beside
+<a class="reference internal" href="mixing.util.html#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.util.ffmpeg_exe()</span></code></a> or on <code class="docutils literal notranslate"><span class="pre">PATH</span></code> (imageio-ffmpeg’s build ships</p>
+<blockquote>
+<div><p>none), the text <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code> prints is parsed by <a class="reference internal" href="#mixing.probe.parse_banner" title="mixing.probe.parse_banner"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_banner()</span></code></a>. The
+rates are the printed decimals (<code class="docutils literal notranslate"><span class="pre">tbr</span></code> as <code class="docutils literal notranslate"><span class="pre">fps</span></code>, <code class="docutils literal notranslate"><span class="pre">fps</span></code> as <code class="docutils literal notranslate"><span class="pre">avg_fps</span></code>)
+snapped by <a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">snap_rate()</span></code></a>, the frame count is estimated from the
+<strong>container</strong> duration, both streams are assumed to start with the file, and
+a variable rate is seen only when the two printed rates disagree.</p>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">ffprobe=</span></code> is the seam: the default finds one (<a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a>), a path
+uses that binary, <code class="docutils literal notranslate"><span class="pre">None</span></code> forces the banner. A file that does not exist raises
+<a class="reference internal" href="mixing.errors.html#mixing.errors.MediaNotFoundError" title="mixing.errors.MediaNotFoundError"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaNotFoundError</span></code></a>; one ffmpeg cannot read raises
+<a class="reference internal" href="mixing.errors.html#mixing.errors.ProbeError" title="mixing.errors.ProbeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProbeError</span></code></a> (both are <a href="#id1"><span class="problematic" id="id2">``</span></a>ValueError``s).</p>
+<p class="rubric">Module Attributes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.AUTO_FFPROBE" title="mixing.probe.AUTO_FFPROBE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AUTO_FFPROBE</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">probe(ffprobe=AUTO_FFPROBE)</span></code> (the default) looks for an ffprobe with <a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a>; a path names one; <code class="docutils literal notranslate"><span class="pre">None</span></code> forces the banner.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.FFPROBE_METHOD" title="mixing.probe.FFPROBE_METHOD"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FFPROBE_METHOD</span></code></a></p></td>
+<td><p><a class="reference internal" href="#mixing.probe.MediaProbe.method" title="mixing.probe.MediaProbe.method"><code class="xref py py-attr docutils literal notranslate"><span class="pre">MediaProbe.method</span></code></a> of an exact (<code class="docutils literal notranslate"><span class="pre">ffprobe</span></code>) and an approximate (<code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code> banner) reading.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">probe</span></code></a>(media, *[, ffprobe, count_packets])</p></td>
+<td><p>Probe <code class="docutils literal notranslate"><span class="pre">media</span></code> with ffprobe when there is one, else with ffmpeg's banner.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.parse_banner" title="mixing.probe.parse_banner"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_banner</span></code></a>(text)</p></td>
+<td><p>A <a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a> from the text <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span> <span class="pre">FILE</span></code> prints (approximate).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_ffprobe</span></code></a>()</p></td>
+<td><p>The ffprobe beside <a class="reference internal" href="mixing.util.html#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.util.ffmpeg_exe()</span></code></a>, else on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, else <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">snap_rate</span></code></a>(fps)</p></td>
+<td><p>A float frame rate as the exact rate it stands for.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Classes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MediaProbe</span></code></a>(method[, duration, width, ...])</p></td>
+<td><p>What <a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">probe()</span></code></a> read about a media file.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py data">
+<dt class="sig sig-object py" id="mixing.probe.AUTO_FFPROBE">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">AUTO_FFPROBE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'auto'</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.AUTO_FFPROBE" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.AUTO_FFPROBE'">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">probe(ffprobe=AUTO_FFPROBE)</span></code> (the default) looks for an ffprobe with
+<a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a>; a path names one; <code class="docutils literal notranslate"><span class="pre">None</span></code> forces the banner.</p>
+</dd></dl>
+<dl class="py data">
+<dt class="sig sig-object py" id="mixing.probe.FFPROBE_METHOD">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">FFPROBE_METHOD</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ffprobe'</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.FFPROBE_METHOD" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.FFPROBE_METHOD'">¶</a></dt>
+<dd><p><a class="reference internal" href="#mixing.probe.MediaProbe.method" title="mixing.probe.MediaProbe.method"><code class="xref py py-attr docutils literal notranslate"><span class="pre">MediaProbe.method</span></code></a> of an exact (<code class="docutils literal notranslate"><span class="pre">ffprobe</span></code>) and an approximate
+(<code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code> banner) reading.</p>
+</dd></dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">MediaProbe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">duration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">avg_fps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">packets</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">video_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">video_duration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">audio_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sample_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">has_audio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#MediaProbe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe'">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<p>What <a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">probe()</span></code></a> read about a media file.</p>
+<p>Video fields are <code class="docutils literal notranslate"><span class="pre">None</span></code> (and <code class="docutils literal notranslate"><span class="pre">has_video</span></code> false) for an audio-only file;
+sound fields are <code class="docutils literal notranslate"><span class="pre">None</span></code> (and <code class="docutils literal notranslate"><span class="pre">has_audio</span></code> false) for a silent one.</p>
+<dl class="field-list simple">
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.method" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.method'">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">"ffprobe"</span></code> (exact) or <code class="docutils literal notranslate"><span class="pre">"banner"</span></code> (approximate, see the
+module docstring).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.duration">
+<span class="sig-name descname"><span class="pre">duration</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.duration" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.duration'">¶</a></dt>
+<dd><p>the container’s duration (s), <code class="docutils literal notranslate"><span class="pre">None</span></code> when not stated.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">width,</span> <span class="pre">height</span></span></dt>
+<dd><p>the size of the first video stream’s decoded frames
+after the display rotation (a 90/270-degree rotation swaps the
+coded size, as ffmpeg’s decode does). The sample aspect ratio is
+not applied: an anamorphic stream reports its storage size.</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.rotation">
+<span class="sig-name descname"><span class="pre">rotation</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.rotation" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.rotation'">¶</a></dt>
+<dd><p>the display rotation in degrees, as ffmpeg reports it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.fps">
+<span class="sig-name descname"><span class="pre">fps</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.fps" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.fps'">¶</a></dt>
+<dd><p>the nominal rate (<code class="docutils literal notranslate"><span class="pre">r_frame_rate</span></code>, else <code class="docutils literal notranslate"><span class="pre">avg_frame_rate</span></code>); from
+the banner, its <code class="docutils literal notranslate"><span class="pre">tbr</span></code> (else its <code class="docutils literal notranslate"><span class="pre">fps</span></code>) snapped by <a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">snap_rate()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/library/fractions.html#fractions.Fraction" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Fraction</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.avg_fps">
+<span class="sig-name descname"><span class="pre">avg_fps</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.avg_fps" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.avg_fps'">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">avg_frame_rate</span></code>; from the banner, its <code class="docutils literal notranslate"><span class="pre">fps</span></code>. <code class="docutils literal notranslate"><span class="pre">None</span></code>
+when unset.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/library/fractions.html#fractions.Fraction" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Fraction</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.frames">
+<span class="sig-name descname"><span class="pre">frames</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.frames" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.frames'">¶</a></dt>
+<dd><p>the frame count at <code class="docutils literal notranslate"><span class="pre">fps</span></code>: the video packets when the rate is
+constant and they are known, else the video duration times <code class="docutils literal notranslate"><span class="pre">fps</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.packets">
+<span class="sig-name descname"><span class="pre">packets</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.packets" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.packets'">¶</a></dt>
+<dd><p>the video packet count, counted (<code class="docutils literal notranslate"><span class="pre">count_packets=True</span></code>) or
+the container’s <code class="docutils literal notranslate"><span class="pre">nb_frames</span></code> header; <code class="docutils literal notranslate"><span class="pre">None</span></code> when unknown.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.video_start">
+<span class="sig-name descname"><span class="pre">video_start</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.video_start" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.video_start'">¶</a></dt>
+<dd><p>where the first video frame sits after the file’s start
+(what an input seek counts from).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.video_duration">
+<span class="sig-name descname"><span class="pre">video_duration</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.video_duration" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.video_duration'">¶</a></dt>
+<dd><p>the video stream’s own length (s).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.audio_start">
+<span class="sig-name descname"><span class="pre">audio_start</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.audio_start" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.audio_start'">¶</a></dt>
+<dd><p>where the sound’s first decoded frame plays after the
+file’s start (from the banner, assumed <code class="docutils literal notranslate"><span class="pre">0.0</span></code>: it states no
+stream start times).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">sample_rate,</span> <span class="pre">channels</span></span></dt>
+<dd><p>of the first audio stream.</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.variable_rate">
+<span class="sig-name descname"><span class="pre">variable_rate</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.variable_rate" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.variable_rate'">¶</a></dt>
+<dd><p>the picture is not at a constant rate (the nominal and
+average rates disagree by more than <code class="xref py py-data docutils literal notranslate"><span class="pre">VFR_TOLERANCE</span></code>, or, from
+ffprobe, the packets disagree with the duration).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.has_audio">
+<span class="sig-name descname"><span class="pre">has_audio</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.has_audio" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.has_audio'">¶</a></dt>
+<dd><p>the file has an audio stream.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.audio_offset">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">audio_offset</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">Optional</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">float</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">]</span></span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.audio_offset" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.audio_offset'">¶</a></dt>
+<dd><p>before).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>How far the sound starts after the first video frame (negative</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.coded_size">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">coded_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">Optional</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">Tuple</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">int</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">int</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.coded_size" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.coded_size'">¶</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">(width,</span> <span class="pre">height)</span></code> as stored, before the display rotation.</p>
+</dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.exact">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">exact</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">bool</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.exact" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.exact'">¶</a></dt>
+<dd><p>Whether this came from ffprobe (exact) rather than the banner.</p>
+</dd></dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.probe.find_ffprobe">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">find_ffprobe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#find_ffprobe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.find_ffprobe" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.find_ffprobe'">¶</a></dt>
+<dd><p>The ffprobe beside <a class="reference internal" href="mixing.util.html#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.util.ffmpeg_exe()</span></code></a>, else on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, else <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.probe.parse_banner">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">parse_banner</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#parse_banner"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.parse_banner" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.parse_banner'">¶</a></dt>
+<dd><p>A <a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a> from the text <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span> <span class="pre">FILE</span></code> prints (approximate).</p>
+<p>The banner states the container duration, the first video stream’s coded
+size, its two rates (<code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">tbr</span></code> is ffmpeg’s guess at <code class="docutils literal notranslate"><span class="pre">r_frame_rate</span></code> and
+becomes <code class="docutils literal notranslate"><span class="pre">fps</span></code>; <code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">fps</span></code> is <code class="docutils literal notranslate"><span class="pre">avg_frame_rate</span></code> and becomes <code class="docutils literal notranslate"><span class="pre">avg_fps</span></code>;
+both snapped by <a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">snap_rate()</span></code></a>), the display rotation and the first
+audio stream’s rate and layout. It has no per-stream start times (both
+streams are <strong>assumed</strong> to start with the file: <code class="docutils literal notranslate"><span class="pre">video_start</span></code> and
+<code class="docutils literal notranslate"><span class="pre">audio_start</span></code> are <code class="docutils literal notranslate"><span class="pre">0.0</span></code>) and no packet count (<code class="docutils literal notranslate"><span class="pre">frames</span></code> is the
+container duration times <code class="docutils literal notranslate"><span class="pre">fps</span></code>), so a variable rate is detected only
+when the two printed rates disagree.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">found</span> <span class="o">=</span> <span class="n">parse_banner</span><span class="p">(</span><span class="s1">'''Duration: 00:00:10.50, start: 0.0</span>
+</span><span id="line-2"><span class="gp">... </span><span class="s1">  Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 29.97 fps</span>
+</span><span id="line-3"><span class="gp">... </span><span class="s1">  Stream #0:1: Audio: aac, 48000 Hz, stereo, fltp'''</span><span class="p">)</span>
+</span><span id="line-4"><span class="gp">&gt;&gt;&gt; </span><span class="n">found</span><span class="o">.</span><span class="n">fps</span><span class="p">,</span> <span class="n">found</span><span class="o">.</span><span class="n">frames</span><span class="p">,</span> <span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">found</span><span class="o">.</span><span class="n">height</span><span class="p">),</span> <span class="n">found</span><span class="o">.</span><span class="n">channels</span>
+</span><span id="line-5"><span class="go">(Fraction(30000, 1001), 315, (1920, 1080), 2)</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.probe.probe">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">probe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">media</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">ffprobe</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count_packets</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#probe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.probe" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.probe'">¶</a></dt>
+<dd><p>Probe <code class="docutils literal notranslate"><span class="pre">media</span></code> with ffprobe when there is one, else with ffmpeg’s banner.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>media</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Union</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>, os.PathLike[str]]</span>) – the file (or any location ffmpeg opens).</p></li>
+<li><p><strong>ffprobe</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span>) – the ffprobe binary. <a class="reference internal" href="#mixing.probe.AUTO_FFPROBE" title="mixing.probe.AUTO_FFPROBE"><code class="xref py py-data docutils literal notranslate"><span class="pre">AUTO_FFPROBE</span></code></a> (default) finds one
+with <a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-func docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a>; <code class="docutils literal notranslate"><span class="pre">None</span></code> forces the approximate banner
+(<a class="reference internal" href="#mixing.probe.parse_banner" title="mixing.probe.parse_banner"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_banner()</span></code></a>).</p></li>
+<li><p><strong>count_packets</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span>) – have ffprobe count the video packets (reads, but does
+not decode, the whole file) for an exact frame count. <code class="docutils literal notranslate"><span class="pre">False</span></code>
+uses the container’s <code class="docutils literal notranslate"><span class="pre">nb_frames</span></code> header, which mkv lacks.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference internal" href="mixing.errors.html#mixing.errors.MediaNotFoundError" title="mixing.errors.MediaNotFoundError"><strong>MediaNotFoundError</strong></a> – <code class="docutils literal notranslate"><span class="pre">media</span></code> does not exist.</p></li>
+<li><p><a class="reference internal" href="mixing.errors.html#mixing.errors.ProbeError" title="mixing.errors.ProbeError"><strong>ProbeError</strong></a> – ffmpeg/ffprobe cannot read it, or the named <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code>
+    cannot be run.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" rel="nofollow noopener" title="(in Python v3.15)"><strong>ValueError</strong><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> – <code class="docutils literal notranslate"><span class="pre">ffprobe=""</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.probe.snap_rate">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">snap_rate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fps</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#snap_rate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.snap_rate" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.snap_rate'">¶</a></dt>
+<dd><p>A float frame rate as the exact rate it stands for.</p>
+<p>A rate near an integer or an NTSC rate (<code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">*</span> <span class="pre">1000</span> <span class="pre">/</span> <span class="pre">1001</span></code>) is taken to
+mean it; anything else is approximated with a denominator of at most
+<code class="xref py py-data docutils literal notranslate"><span class="pre">MAX_RATE_DENOMINATOR</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">snap_rate</span><span class="p">(</span><span class="mf">29.97</span><span class="p">),</span> <span class="n">snap_rate</span><span class="p">(</span><span class="mf">25.0</span><span class="p">),</span> <span class="n">snap_rate</span><span class="p">(</span><span class="mf">23.976</span><span class="p">),</span> <span class="n">snap_rate</span><span class="p">(</span><span class="mf">12.5</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">(Fraction(30000, 1001), Fraction(25, 1), Fraction(24000, 1001), Fraction(25, 2))</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/fractions.html#fractions.Fraction" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Fraction</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+</div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
+<div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
+<ul>
+<li><a :data-current="activeSection === '#mixing.probe.AUTO_FFPROBE'" class="reference internal" href="#mixing.probe.AUTO_FFPROBE"><code class="docutils literal notranslate"><span class="pre">AUTO_FFPROBE</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.FFPROBE_METHOD'" class="reference internal" href="#mixing.probe.FFPROBE_METHOD"><code class="docutils literal notranslate"><span class="pre">FFPROBE_METHOD</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe'" class="reference internal" href="#mixing.probe.MediaProbe"><code class="docutils literal notranslate"><span class="pre">MediaProbe</span></code></a><ul>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.method'" class="reference internal" href="#mixing.probe.MediaProbe.method"><code class="docutils literal notranslate"><span class="pre">MediaProbe.method</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.duration'" class="reference internal" href="#mixing.probe.MediaProbe.duration"><code class="docutils literal notranslate"><span class="pre">MediaProbe.duration</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.rotation'" class="reference internal" href="#mixing.probe.MediaProbe.rotation"><code class="docutils literal notranslate"><span class="pre">MediaProbe.rotation</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.fps'" class="reference internal" href="#mixing.probe.MediaProbe.fps"><code class="docutils literal notranslate"><span class="pre">MediaProbe.fps</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.avg_fps'" class="reference internal" href="#mixing.probe.MediaProbe.avg_fps"><code class="docutils literal notranslate"><span class="pre">MediaProbe.avg_fps</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.frames'" class="reference internal" href="#mixing.probe.MediaProbe.frames"><code class="docutils literal notranslate"><span class="pre">MediaProbe.frames</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.packets'" class="reference internal" href="#mixing.probe.MediaProbe.packets"><code class="docutils literal notranslate"><span class="pre">MediaProbe.packets</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.video_start'" class="reference internal" href="#mixing.probe.MediaProbe.video_start"><code class="docutils literal notranslate"><span class="pre">MediaProbe.video_start</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.video_duration'" class="reference internal" href="#mixing.probe.MediaProbe.video_duration"><code class="docutils literal notranslate"><span class="pre">MediaProbe.video_duration</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.audio_start'" class="reference internal" href="#mixing.probe.MediaProbe.audio_start"><code class="docutils literal notranslate"><span class="pre">MediaProbe.audio_start</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.variable_rate'" class="reference internal" href="#mixing.probe.MediaProbe.variable_rate"><code class="docutils literal notranslate"><span class="pre">MediaProbe.variable_rate</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.has_audio'" class="reference internal" href="#mixing.probe.MediaProbe.has_audio"><code class="docutils literal notranslate"><span class="pre">MediaProbe.has_audio</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.audio_offset'" class="reference internal" href="#mixing.probe.MediaProbe.audio_offset"><code class="docutils literal notranslate"><span class="pre">MediaProbe.audio_offset</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.coded_size'" class="reference internal" href="#mixing.probe.MediaProbe.coded_size"><code class="docutils literal notranslate"><span class="pre">MediaProbe.coded_size</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.exact'" class="reference internal" href="#mixing.probe.MediaProbe.exact"><code class="docutils literal notranslate"><span class="pre">MediaProbe.exact</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#mixing.probe.find_ffprobe'" class="reference internal" href="#mixing.probe.find_ffprobe"><code class="docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.parse_banner'" class="reference internal" href="#mixing.probe.parse_banner"><code class="docutils literal notranslate"><span class="pre">parse_banner()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.probe'" class="reference internal" href="#mixing.probe.probe"><code class="docutils literal notranslate"><span class="pre">probe()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.snap_rate'" class="reference internal" href="#mixing.probe.snap_rate"><code class="docutils literal notranslate"><span class="pre">snap_rate()</span></code></a></li>
+</ul>
+</div>
+</aside>
+</main>
+</div>
+</div><footer class="py-6 border-t border-border md:py-0">
+<div class="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
+<div class="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
+<p class="text-sm leading-loose text-center text-muted-foreground md:text-left"></p>
+</div>
+</div>
+</footer>
+</div>
+<script src="../_static/documentation_options.js?v=97e62c01"></script>
+<script src="../_static/doctools.js?v=fd6eb6e6"></script>
+<script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+<script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+<script src="../_static/copybutton.js?v=fd10adb8"></script>
+<script defer="defer" src="../_static/theme.js?v=49cc6205"></script>
+</body>
+</html>

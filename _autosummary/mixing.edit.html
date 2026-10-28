@@ -89,6 +89,7 @@
 <li class="toctree-l3 current"><a class="current reference internal" href="#">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.errors.html">mixing.errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.probe.html">mixing.probe</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.util.html">mixing.util</a></li>
@@ -202,7 +203,9 @@ displayed one.</p></li>
 <li><p>The source’s length is its counted video packets (<code class="docutils literal notranslate"><span class="pre">ffprobe</span></code>) or, without
 <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code> or for a variable-rate source, its duration; a span past it is
 refused. Without <code class="docutils literal notranslate"><span class="pre">ffprobe</span></code> the rate is read from ffmpeg’s banner (snapped
-by <a class="reference internal" href="#mixing.edit.as_rate" title="mixing.edit.as_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">as_rate()</span></code></a>) and both streams are taken to start together.</p></li>
+by <a class="reference internal" href="#mixing.edit.as_rate" title="mixing.edit.as_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">as_rate()</span></code></a>) and both streams are taken to start together. The
+source is read by <a class="reference internal" href="mixing.probe.html#module-mixing.probe" title="mixing.probe"><code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.probe</span></code></a> (shared with
+<code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.video.cutaways</span></code>).</p></li>
 <li><p>The PCM sound is handled as little-endian float (every platform ffmpeg
 ships for in practice).</p></li>
 </ul>
@@ -417,7 +420,8 @@ offsets of <code class="docutils literal notranslate"><span class="pre">path</sp
 counted, which reads but does not decode the file) when one is found
 beside ffmpeg or on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, else ffmpeg’s banner (rate snapped by
 <a class="reference internal" href="#mixing.edit.as_rate" title="mixing.edit.as_rate"><code class="xref py py-func docutils literal notranslate"><span class="pre">as_rate()</span></code></a>, frame count from the duration, no stream offsets). Warns
-when the source looks variable-rate.</p>
+when the source looks variable-rate. The reading is
+<a class="reference internal" href="mixing.probe.html#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.probe.probe()</span></code></a>’s; this is its view for a render.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#mixing.edit.SourceInfo" title="mixing.edit.SourceInfo"><code class="xref py py-class docutils literal notranslate"><span class="pre">SourceInfo</span></code></a></span></p>
@@ -533,7 +537,7 @@ refused, and dissolve handles past it hold the last frame
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=339ea818"></script>
+<script src="../_static/documentation_options.js?v=97e62c01"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

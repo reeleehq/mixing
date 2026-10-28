@@ -456,6 +456,7 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 | [`edit`](mixing.edit.html.md#module-mixing.edit)               | Render a re-edit of a finished video from a sound edit list and its picture clips. |
 | [`egress`](mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
 | [`errors`](mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
+| [`probe`](mixing.probe.html.md#module-mixing.probe)             | One light media probe: `ffprobe` first, ffmpeg's banner as the fallback.           |
 | [`srt`](mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
 | [`transcript`](mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                   |
 | [`util`](mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                    |

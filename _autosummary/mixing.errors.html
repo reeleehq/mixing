@@ -35,7 +35,7 @@
 <link href="../_static/epythet.css?v=6b72e7cd" rel="stylesheet" type="text/css"/>
 <link href="../search.html" rel="search" title="Search"/>
 <link href="../genindex.html" rel="index" title="Index"/>
-<link href="mixing.srt.html" rel="next" title="mixing.srt"/>
+<link href="mixing.probe.html" rel="next" title="mixing.probe"/>
 <link href="mixing.egress.html" rel="prev" title="mixing.egress"/>
 </head>
 <body :class="{ 'overflow-hidden': showSidebar }" class="min-h-screen font-sans antialiased bg-background text-foreground" x-data="{ showSidebar: false, showScrollTop: false }">
@@ -89,6 +89,7 @@
 <li class="toctree-l3"><a class="reference internal" href="mixing.edit.html">mixing.edit</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.egress.html">mixing.egress</a></li>
 <li class="toctree-l3 current"><a class="current reference internal" href="#">mixing.errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.probe.html">mixing.probe</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.util.html">mixing.util</a></li>
@@ -140,13 +141,33 @@ than parse prose.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#mixing.errors.WindowTooWideForClip" title="mixing.errors.WindowTooWideForClip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WindowTooWideForClip</span></code></a>(*, clip_index, ...)</p></td>
 <td><p>An explicit analysis window leaves a clip no second, independent look.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.errors.ProbeError" title="mixing.errors.ProbeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ProbeError</span></code></a></p></td>
+<td><p>ffmpeg/ffprobe could not read a media file (see <a class="reference internal" href="mixing.probe.html#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.probe.probe()</span></code></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.errors.MediaNotFoundError" title="mixing.errors.MediaNotFoundError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MediaNotFoundError</span></code></a></p></td>
+<td><p>The media file to probe does not exist (also a <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">FileNotFoundError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>).</p></td>
+</tr>
 </tbody>
 </table>
+<dl class="py exception">
+<dt class="sig sig-object py" id="mixing.errors.MediaNotFoundError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.errors.</span></span><span class="sig-name descname"><span class="pre">MediaNotFoundError</span></span><a class="reference internal" href="../_modules/mixing/errors.html#MediaNotFoundError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.MediaNotFoundError" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.MediaNotFoundError'">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#mixing.errors.ProbeError" title="mixing.errors.ProbeError"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProbeError</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">FileNotFoundError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<p>The media file to probe does not exist (also a <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">FileNotFoundError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>).</p>
+</dd></dl>
 <dl class="py exception">
 <dt class="sig sig-object py" id="mixing.errors.MixingError">
 <span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.errors.</span></span><span class="sig-name descname"><span class="pre">MixingError</span></span><a class="reference internal" href="../_modules/mixing/errors.html#MixingError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.MixingError" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.MixingError'">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#Exception" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
 <p>Base for every error <code class="code docutils literal notranslate"><span class="pre">mixing</span></code> raises on its own behalf.</p>
+</dd></dl>
+<dl class="py exception">
+<dt class="sig sig-object py" id="mixing.errors.ProbeError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.errors.</span></span><span class="sig-name descname"><span class="pre">ProbeError</span></span><a class="reference internal" href="../_modules/mixing/errors.html#ProbeError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.ProbeError" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.ProbeError'">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#mixing.errors.MixingError" title="mixing.errors.MixingError"><code class="xref py py-class docutils literal notranslate"><span class="pre">MixingError</span></code></a>, <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ValueError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<p>ffmpeg/ffprobe could not read a media file (see <a class="reference internal" href="mixing.probe.html#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.probe.probe()</span></code></a>).</p>
+<p>A <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ValueError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>, so the <code class="docutils literal notranslate"><span class="pre">except</span> <span class="pre">ValueError</span></code> handlers that caught the
+probes it replaced keep working.</p>
 </dd></dl>
 <dl class="py exception">
 <dt class="sig sig-object py" id="mixing.errors.WindowTooWideForClip">
@@ -207,7 +228,9 @@ than a promise.</p>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
+<li><a :data-current="activeSection === '#mixing.errors.MediaNotFoundError'" class="reference internal" href="#mixing.errors.MediaNotFoundError"><code class="docutils literal notranslate"><span class="pre">MediaNotFoundError</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.errors.MixingError'" class="reference internal" href="#mixing.errors.MixingError"><code class="docutils literal notranslate"><span class="pre">MixingError</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.errors.ProbeError'" class="reference internal" href="#mixing.errors.ProbeError"><code class="docutils literal notranslate"><span class="pre">ProbeError</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.errors.WindowTooWideForClip'" class="reference internal" href="#mixing.errors.WindowTooWideForClip"><code class="docutils literal notranslate"><span class="pre">WindowTooWideForClip</span></code></a><ul>
 <li><a :data-current="activeSection === '#mixing.errors.WindowTooWideForClip.clip_index'" class="reference internal" href="#mixing.errors.WindowTooWideForClip.clip_index"><code class="docutils literal notranslate"><span class="pre">WindowTooWideForClip.clip_index</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.errors.WindowTooWideForClip.clip_duration_s'" class="reference internal" href="#mixing.errors.WindowTooWideForClip.clip_duration_s"><code class="docutils literal notranslate"><span class="pre">WindowTooWideForClip.clip_duration_s</span></code></a></li>
@@ -229,7 +252,7 @@ than a promise.</p>
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=339ea818"></script>
+<script src="../_static/documentation_options.js?v=97e62c01"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
