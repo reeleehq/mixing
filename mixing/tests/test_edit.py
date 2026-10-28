@@ -9,6 +9,7 @@ punch-in, and a tone to tell silence from sound. Everything is 64x36 and ~3 s.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from fractions import Fraction
@@ -908,6 +909,15 @@ FLASH_FRAME, FLASH_RATE, CLICK_S = 25, 25, 0.02
 SYNC_TOLERANCE_S = 0.003
 
 
+#: First ffmpeg major version whose decoder drops aac/mp3 priming samples.
+PRIMING_TRIMMED_FROM = 9
+
+
+def _major_version(binary) -> str:
+    banner = subprocess.run([binary, "-version"], capture_output=True, text=True).stdout
+    return re.search(r"version\s+[nN]?(\d+)", banner).group(1)
+
+
 @pytest.mark.parametrize(
     "codec, container",
     [("aac", "mkv"), ("libmp3lame", "mkv"), ("libopus", "mkv"), ("libopus", "webm")],
@@ -921,8 +931,14 @@ def test_compressed_sound_starts_where_it_plays(media, codec, container):
 
     from mixing.probe import find_ffprobe
 
-    if find_ffprobe() is None:  # the banner fallback assumes 0 starts (documented)
+    ffprobe = find_ffprobe()
+    if ffprobe is None:  # the banner fallback assumes 0 starts (documented)
         pytest.skip("no ffprobe: the banner fallback cannot read stream starts")
+    trims = [int(_major_version(b)) >= PRIMING_TRIMMED_FROM for b in (ffprobe, _ffmpeg())]
+    if trims[0] != trims[1]:
+        # ffmpeg 9 trims aac/mp3 priming when it decodes (first frame at 0.000);
+        # 7 keeps it (-0.023). The probe cannot know which decoder renders.
+        pytest.skip("ffprobe and ffmpeg disagree on trimming codec priming")
 
     flash_s = FLASH_FRAME / FLASH_RATE
     picture = (
