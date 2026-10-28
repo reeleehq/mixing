@@ -254,7 +254,9 @@ def test_in_place_refuses_a_file_with_a_picture(tmp_path):
     assert clip.read_bytes() == before
     beside = level_file(clip, target_lufs=-20.0).output  # elsewhere: audio only
     assert beside.name == f"clip{LEVELED_SUFFIX}.mp4"
-    assert loudness._other_streams(beside, None) == []
+    from mixing.decode import stream_kinds
+
+    assert stream_kinds(clip) == ["video", "audio"] and stream_kinds(beside) == ["audio"]
 
 
 @needs_ffmpeg

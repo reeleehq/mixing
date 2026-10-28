@@ -63,6 +63,7 @@ from mixing.decode import (  # noqa: E402
     DECODE_CHUNK_S,
     decode_float_chunks,
     encode_float_chunks,
+    stream_kinds,
 )
 from mixing.egress import Output, write_egress  # noqa: E402
 
@@ -328,11 +329,16 @@ def loudness_range_lu(data: np.ndarray, fs: int) -> float:
 
 
 def file_loudness(
-    path, *, chunk_s: float = DECODE_CHUNK_S, ffmpeg: Optional[str] = None
+    path,
+    *,
+    chunk_s: float = DECODE_CHUNK_S,
+    ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> LoudnessReading:
     """Integrated loudness and LRA of a media file's audio, in bounded memory.
 
-    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``) into
+    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``,
+    ``timeout``: see :mod:`mixing.decode`) into
     :func:`stream_loudness`: a 30 min stereo track meters at ~130 MB peak RSS
     (~106 MB of it numpy and scipy), the same as a 5 min one, in about a
     seventh of ffmpeg ``loudnorm``'s time. Against ``loudnorm``'s
@@ -341,7 +347,9 @@ def file_loudness(
     this meter); 5.1 reads ~0.1 LU apart (no surround weights, see
     :func:`numpy_lufs`).
     """
-    rate, chunks = decode_float_chunks(path, chunk_s=chunk_s, ffmpeg=ffmpeg)
+    rate, chunks = decode_float_chunks(
+        path, chunk_s=chunk_s, ffmpeg=ffmpeg, timeout=timeout
+    )
     with closing(chunks):  # stops ffmpeg even if metering raises partway
         return stream_loudness(chunks, rate)
 
@@ -842,22 +850,6 @@ class LeveledFile(NamedTuple):
     output_lufs: float  #: the written file's, measured back from it
 
 
-#: A banner's line for a stream that is not audio (the picture, cover art,
-#: subtitles): ``level_file`` would drop it.
-_OTHER_STREAM = re.compile(r"Stream #\d+:\d+.*?: (Video|Subtitle|Data|Attachment):")
-
-
-def _other_streams(path: Path, ffmpeg: Optional[str]) -> list[str]:
-    """The kinds of ``path``'s streams that are not audio, from ffmpeg's banner."""
-    banner = subprocess.run(
-        [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(path)],
-        capture_output=True,
-        text=True,
-        errors="replace",
-    ).stderr
-    return [m.group(1).lower() for m in _OTHER_STREAM.finditer(banner)]
-
-
 def level_file(
     src,
     output: Output = None,
@@ -873,11 +865,15 @@ def level_file(
     encode_args: Sequence[str] = (),
     chunk_s: float = DECODE_CHUNK_S,
     ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> LeveledFile:
     """Write ``src``'s audio at ``target_lufs`` with one measured gain, peak limited.
 
     Two passes over the file, each decoded in chunks by
-    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``), so
+    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``;
+    ``timeout`` bounds each ffmpeg run, see :mod:`mixing.decode`: four of
+    them, five in place, so the whole call is bounded by about five times
+    it), so
     memory is bounded by the chunk and the limiter's block, not the track:
 
     1. :func:`stream_loudness` measures it; the gain is the one that brings it
@@ -926,6 +922,7 @@ def level_file(
         chunk_s=chunk_s,
         ffmpeg=ffmpeg,
         sample_rate=sample_rate,
+        timeout=timeout,
     )
     rate, chunks = decode()
     with closing(chunks):
@@ -941,7 +938,8 @@ def level_file(
         # samefile, not resolve(): a case-insensitive filesystem (macOS) spells
         # one file two ways
         in_place = path.exists() and os.path.samefile(path, src)
-        if in_place and (others := _other_streams(src, ffmpeg)):
+        kinds = stream_kinds(src, ffmpeg=ffmpeg, timeout=timeout) if in_place else []
+        if others := sorted({kind for kind in kinds if kind != "audio"}):
             raise ValueError(
                 f"leveling {src.name} in place would drop its {', '.join(others)} "
                 "stream(s): level_file writes audio only; give another output"
@@ -956,9 +954,11 @@ def level_file(
                 window=window,
                 **limits,
             )
-            encode_float_chunks(leveled, rate, path, args=encode_args, ffmpeg=ffmpeg)
+            encode_float_chunks(
+                leveled, rate, path, args=encode_args, ffmpeg=ffmpeg, timeout=timeout
+            )
         output_lufs = file_loudness(
-            path, chunk_s=chunk_s, ffmpeg=ffmpeg
+            path, chunk_s=chunk_s, ffmpeg=ffmpeg, timeout=timeout
         ).integrated_lufs
 
     default_path = src.with_name(f"{src.stem}{LEVELED_SUFFIX}{src.suffix}")
