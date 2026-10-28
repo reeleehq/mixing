@@ -304,7 +304,9 @@ def _first_audio_start(binary: str, media, audio: dict, origin: float) -> float:
          "-of", "json", str(media)],
         capture_output=True, text=True,
     )  # fmt: skip
-    frames = json.loads(proc.stdout or "{}").get("frames", []) if not proc.returncode else []
+    frames = (
+        json.loads(proc.stdout or "{}").get("frames", []) if not proc.returncode else []
+    )
     decoded = next((_seconds(f.get("pts_time")) for f in frames), None)
     return _start(audio, origin) if decoded is None else decoded - origin
 
@@ -456,7 +458,11 @@ def parse_banner(text: str) -> MediaProbe:
                 channels=CHANNEL_LAYOUTS.get(sound.group(2), DEFAULT_BANNER_CHANNELS),
             )
     line = next(
-        (m for m in _BANNER_VIDEO.finditer(text) if BANNER_ATTACHED_PIC not in m.group(0)),
+        (
+            m
+            for m in _BANNER_VIDEO.finditer(text)
+            if BANNER_ATTACHED_PIC not in m.group(0)
+        ),
         None,
     )
     size = _BANNER_SIZE.search(line.group(0)) if line else None
