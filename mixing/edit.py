@@ -84,7 +84,9 @@ about 115 MB for five minutes of 48 kHz stereo).
 - The source's length is its counted video packets (``ffprobe``) or, without
   ``ffprobe`` or for a variable-rate source, its duration; a span past it is
   refused. Without ``ffprobe`` the rate is read from ffmpeg's banner (snapped
-  by :func:`as_rate`) and both streams are taken to start together.
+  by :func:`as_rate`) and both streams are taken to start together. The
+  source is read by :mod:`mixing.probe` (shared with
+  :mod:`mixing.video.cutaways`).
 - The PCM sound is handled as little-endian float (every platform ffmpeg
   ships for in practice).
 
@@ -94,11 +96,8 @@ importing this module pulls no media library.
 
 from __future__ import annotations
 
-import json
 import math
 import os
-import re
-import shutil
 import subprocess
 import tempfile
 import warnings
@@ -119,6 +118,17 @@ from typing import (
 )
 
 from mixing.egress import Output, PathLike, write_egress
+from mixing.probe import (  # noqa: F401  (re-exported: they were defined here)
+    CHANNEL_LAYOUTS,
+    MAX_RATE_DENOMINATOR,
+    NTSC_DENOMINATOR,
+    RATE_SNAP_TOLERANCE,
+    VFR_FRAME_SLACK,
+    VFR_TOLERANCE,
+    find_ffprobe,
+    probe,
+    snap_rate,
+)
 from mixing.util import ffmpeg_exe, require_media_extra
 
 __all__ = [
@@ -184,12 +194,6 @@ DEFAULT_STILL_FIT = "fit"
 PAD_COLOR = (0, 0, 0)
 #: Relative difference under which two aspect ratios are the same shape.
 ASPECT_TOLERANCE = 1e-3
-#: Relative disagreement between a stream's ``r_frame_rate`` and its
-#: ``avg_frame_rate`` above which the source is taken to be variable-rate.
-VFR_TOLERANCE = 0.01
-#: Frames by which a stream's packet count may differ from its duration times
-#: its rate before it is taken to be variable-rate (container rounding).
-VFR_FRAME_SLACK = 2
 #: Default closing fade (s) of picture and sound; 0 means none.
 DEFAULT_CLOSING_FADE_S = 0.0
 #: Suffix of the default output name, beside the source.
@@ -198,14 +202,6 @@ DEFAULT_OUTPUT_SUFFIX = "_edit.mp4"
 PCM_FORMAT = "f32le"
 PCM_TYPECODE = "f"
 PCM_BYTES = 4
-#: NTSC rates are ``k * 1000 / 1001``; a float rate this close to one (or to
-#: an integer) is taken to mean it exactly (ffmpeg prints ``29.97``).
-NTSC_DENOMINATOR = 1001
-RATE_SNAP_TOLERANCE = 0.01
-#: Largest denominator a float rate that is neither is approximated with.
-MAX_RATE_DENOMINATOR = 1001
-#: Channel counts of the layouts ffmpeg's banner names.
-CHANNEL_LAYOUTS = {"mono": 1, "stereo": 2, "2.1": 3, "quad": 4, "5.0": 5, "5.1": 6}
 
 Rate = Union[Fraction, int, float, str]
 ClipId = Hashable
@@ -433,20 +429,10 @@ def as_rate(value: Rate) -> Fraction:
     elif isinstance(value, str):
         rate = Fraction(value.strip())
     else:
-        rate = _snap_rate(float(value))
+        rate = snap_rate(float(value))
     if rate <= 0:
         raise ValueError(f"a frame rate must be > 0, got {value!r}")
     return rate
-
-
-def _snap_rate(fps: float) -> Fraction:
-    if abs(fps - round(fps)) < RATE_SNAP_TOLERANCE:
-        return Fraction(round(fps))
-    k = round(fps * NTSC_DENOMINATOR / 1000)
-    ntsc = Fraction(k * 1000, NTSC_DENOMINATOR)
-    if abs(fps - float(ntsc)) < RATE_SNAP_TOLERANCE:
-        return ntsc
-    return Fraction(fps).limit_denominator(MAX_RATE_DENOMINATOR)
 
 
 def _frame_at(seconds: float, fps: Fraction) -> int:
@@ -717,147 +703,30 @@ class SourceInfo:
     variable_rate: bool = False
 
 
-def _ffprobe_exe() -> Optional[str]:
-    sibling = Path(ffmpeg_exe()).with_name("ffprobe")
-    return str(sibling) if sibling.is_file() else shutil.which("ffprobe")
-
-
-def _rotation(stream: dict) -> float:
-    for datum in stream.get("side_data_list", ()):
-        if "rotation" in datum:
-            return float(datum["rotation"])
-    return float(stream.get("tags", {}).get("rotate", 0))
-
-
-def _is_quarter_turn(degrees: float) -> bool:
-    return abs(round(degrees)) % 180 == 90
-
-
-def _ratio(text: Optional[str]) -> Optional[Fraction]:
-    if not text or text.endswith("/0"):
-        return None
-    value = Fraction(text)
-    return value if value > 0 else None
-
-
-def _seconds(text) -> Optional[float]:
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return None
-
-
-def _clock(text) -> Optional[float]:
-    """Seconds of an ``HH:MM:SS.fff`` tag (what mkv stores per stream)."""
-    parts = str(text or "").split(":")
-    if len(parts) != 3:
-        return None
-    hours, minutes, seconds = (_seconds(part) for part in parts)
-    if None in (hours, minutes, seconds):
-        return None
-    return hours * 3600 + minutes * 60 + seconds
-
-
-def _probe_with_ffprobe(binary: str, path) -> SourceInfo:
-    proc = subprocess.run(
-        [binary, "-v", "error", "-count_packets", "-show_streams", "-show_format",
-         "-of", "json", str(path)],
-        capture_output=True, text=True, check=True,
-    )  # fmt: skip
-    probed = json.loads(proc.stdout)
-    streams, fmt = probed.get("streams", []), probed.get("format", {})
-    video = next((s for s in streams if s.get("codec_type") == "video"), None)
-    if video is None:
-        raise ValueError(f"no video stream in {path}")
-    audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
-    nominal, average = (
-        _ratio(video.get("r_frame_rate")),
-        _ratio(video.get("avg_frame_rate")),
-    )
-    fps = nominal or average
-    if fps is None:
-        raise ValueError(f"cannot read the frame rate of {path}")
-    packets = video.get("nb_read_packets")
-    packets = int(packets) if packets and packets.isdigit() else None
-    origin = _seconds(fmt.get("start_time")) or 0.0
-    video_start = (_seconds(video.get("start_time")) or origin) - origin
-    audio_start = (
-        (_seconds(audio.get("start_time")) or origin) - origin if audio else 0.0
-    )
-    # a stream's own duration is its length; mkv's DURATION tag and the
-    # format's duration run from the file's start, so the video's start is
-    # not part of the video
-    end = _clock(video.get("tags", {}).get("DURATION")) or _seconds(fmt.get("duration"))
-    duration = _seconds(video.get("duration")) or (end and end - video_start)
-    timed = _frame_at(duration, fps) if duration else None
-    # avg_frame_rate is barely filled by mkv: the packet count against the
-    # duration is the other witness of a variable rate
-    variable = bool(
-        (nominal and average and abs(average / nominal - 1) > VFR_TOLERANCE)
-        or (packets and timed and abs(packets - timed) > VFR_FRAME_SLACK)
-    )
-    frames = packets if packets and not variable else timed
-    width, height = int(video["width"]), int(video["height"])
-    if _is_quarter_turn(_rotation(video)):
-        width, height = height, width
-    return SourceInfo(
-        width=width,
-        height=height,
-        fps=fps,
-        frames=frames,
-        sample_rate=int(audio["sample_rate"]) if audio else None,
-        channels=int(audio["channels"]) if audio else None,
-        video_start=video_start,
-        audio_offset=audio_start - video_start,
-        variable_rate=variable,
-    )
-
-
-_BANNER_VIDEO = re.compile(r"Stream #.*Video:.*?,\s*(\d{2,5})x(\d{2,5}).*?([\d.]+) fps")
-_BANNER_AUDIO = re.compile(r"Stream #.*Audio:.*?(\d+) Hz, ([\w.]+)")
-_BANNER_DURATION = re.compile(r"Duration: (\d+):(\d+):([\d.]+)")
-_BANNER_ROTATION = re.compile(r"rotation of (-?[\d.]+) degrees")
-
-
-def _probe_with_banner(path) -> SourceInfo:
-    """Fallback when there is no ffprobe: parse ``ffmpeg -i``'s banner.
-
-    The banner has no per-stream start times, so both streams are taken to
-    start with the file, and the frame count is estimated from its duration.
-    """
-    proc = subprocess.run(
-        [ffmpeg_exe(), "-hide_banner", "-i", str(path)], capture_output=True, text=True
-    )
-    video = _BANNER_VIDEO.search(proc.stderr)
-    if not video:
-        raise ValueError(f"no video stream in {path}")
-    fps = as_rate(float(video.group(3)))
-    audio = _BANNER_AUDIO.search(proc.stderr)
-    duration = _BANNER_DURATION.search(proc.stderr)
-    seconds = (
-        int(duration.group(1)) * 3600
-        + int(duration.group(2)) * 60
-        + float(duration.group(3))
-        if duration
-        else None
-    )
-    width, height = int(video.group(1)), int(video.group(2))
-    rotation = _BANNER_ROTATION.search(proc.stderr)
-    if rotation and _is_quarter_turn(float(rotation.group(1))):
-        width, height = height, width
-    return SourceInfo(
-        width=width,
-        height=height,
-        fps=fps,
-        frames=_frame_at(seconds, fps) if seconds else None,
-        sample_rate=int(audio.group(1)) if audio else None,
-        channels=CHANNEL_LAYOUTS.get(audio.group(2), 2) if audio else None,
-    )
+#: Where :func:`render` / :func:`probe_source` find ffprobe (``None``: use the
+#: banner). A module-level name so a test can force the banner fallback.
+_ffprobe_exe = find_ffprobe
 
 
 def _probe(path) -> SourceInfo:
-    binary = _ffprobe_exe()
-    return _probe_with_ffprobe(binary, path) if binary else _probe_with_banner(path)
+    """:class:`SourceInfo` of ``path``, read by :func:`mixing.probe.probe`."""
+    found = probe(path, ffprobe=_ffprobe_exe())
+    if not found.has_video:
+        raise ValueError(f"no video stream in {path}")
+    if found.fps is None:
+        raise ValueError(f"cannot read the frame rate of {path}")
+    audio_start = found.audio_start or 0.0
+    return SourceInfo(
+        width=found.width,
+        height=found.height,
+        fps=found.fps,
+        frames=found.frames,
+        sample_rate=found.sample_rate,
+        channels=found.channels,
+        video_start=found.video_start,
+        audio_offset=audio_start - found.video_start,
+        variable_rate=found.variable_rate,
+    )
 
 
 def _warn_if_variable(info: SourceInfo, path, *, stacklevel: int) -> None:
@@ -878,7 +747,8 @@ def probe_source(path: PathLike) -> SourceInfo:
     counted, which reads but does not decode the file) when one is found
     beside ffmpeg or on ``PATH``, else ffmpeg's banner (rate snapped by
     :func:`as_rate`, frame count from the duration, no stream offsets). Warns
-    when the source looks variable-rate.
+    when the source looks variable-rate. The reading is
+    :func:`mixing.probe.probe`'s; this is its view for a render.
     """
     info = _probe(path)
     _warn_if_variable(info, path, stacklevel=2)

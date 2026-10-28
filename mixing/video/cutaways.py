@@ -31,7 +31,6 @@ True
 
 from __future__ import annotations
 
-import re
 import subprocess
 import warnings
 from dataclasses import dataclass, field
@@ -41,8 +40,8 @@ from typing import Callable, Optional, Sequence
 from looks.geometry import FitMode, Size, ffmpeg_chain, placement
 
 from mixing.egress import Output, write_egress
+from mixing.probe import MediaProbe, parse_banner, probe
 from mixing.util import ffmpeg_exe
-from mixing.video.shot_boundaries import DURATION_RE
 
 #: ``fit`` is a ``looks.geometry.FitMode``: ``fill`` scales to cover the base
 #: frame and crops the excess, ``fit`` letterboxes, ``stretch`` ignores aspect.
@@ -130,53 +129,53 @@ class CutawayPlan:
 
 # --- probing ------------------------------------------------------------------
 
-_VIDEO_LINE = re.compile(r"Stream #.*Video:.*")
-_SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})")
-_FPS = re.compile(r"([\d.]+)\s*fps")
-_ROTATION = re.compile(r"rotation of (-?[\d.]+) degrees")
-_QUARTER_TURNS = (90, 270)
+
+def _media_info(found: MediaProbe, *, no_video: str) -> MediaInfo:
+    """The plan's view of a :class:`~mixing.probe.MediaProbe` (``no_video``: the
+    ``ValueError`` message when it has no picture)."""
+    if not found.has_video:
+        raise ValueError(no_video)
+    return MediaInfo(
+        width=found.width,
+        height=found.height,
+        fps=float(found.fps) if found.fps else 0.0,
+        duration=found.duration or 0.0,
+        has_audio=found.has_audio,
+    )
 
 
 def parse_media_info(ffmpeg_stderr: str) -> MediaInfo:
     """:class:`MediaInfo` from the text ``ffmpeg -i FILE`` prints.
 
     The size is the **displayed** one: ffmpeg rotates a 90/270-degree display
-    matrix on decode, so width and height are swapped for it.
+    matrix on decode, so width and height are swapped for it. The parsing is
+    :func:`mixing.probe.parse_banner`'s: ``fps`` is the banner's ``tbr`` (the
+    nominal rate; its ``fps`` figure when there is no ``tbr``), snapped to the
+    exact rate it stands for (``29.97`` reads as ``30000/1001``).
 
     >>> parse_media_info('''Duration: 00:00:10.50, start: 0.0
     ...   Stream #0:0: Video: h264, yuv420p, 1920x1080 [SAR 1:1], 25 fps
     ...   Stream #0:1: Audio: aac, 48000 Hz''')
     MediaInfo(width=1920, height=1080, fps=25.0, duration=10.5, has_audio=True)
     """
-    line = _VIDEO_LINE.search(ffmpeg_stderr)
-    size = _SIZE.search(line.group(0)) if line else None
-    if not size:
-        raise ValueError("no video stream found in ffmpeg output")
-    width, height = int(size.group(1)), int(size.group(2))
-    rotation = _ROTATION.search(ffmpeg_stderr)
-    if rotation and abs(round(float(rotation.group(1)))) % 360 in _QUARTER_TURNS:
-        width, height = height, width
-    fps = _FPS.search(line.group(0))
-    duration = DURATION_RE.search(ffmpeg_stderr)
-    h, m, s = duration.groups() if duration else (0, 0, 0)
-    return MediaInfo(
-        width=width,
-        height=height,
-        fps=float(fps.group(1)) if fps else 0.0,
-        duration=int(h) * 3600 + int(m) * 60 + float(s),
-        has_audio=bool(re.search(r"Stream #.*Audio:", ffmpeg_stderr)),
-    )
+    found = parse_banner(ffmpeg_stderr)
+    return _media_info(found, no_video="no video stream found in ffmpeg output")
 
 
 def probe_media(path: str | Path) -> MediaInfo:
-    """Probe ``path`` (a video or an image) with ``ffmpeg -i`` (no ffprobe needed)."""
-    proc = subprocess.run(
-        [ffmpeg_exe(), "-hide_banner", "-i", str(path)], capture_output=True, text=True
-    )
-    try:
-        return parse_media_info(proc.stderr)
-    except ValueError as e:
-        raise ValueError(f"cannot probe {path}: {e}") from e
+    """Probe ``path`` (a video or an image) with :func:`mixing.probe.probe`.
+
+    ffprobe when there is one (exact rate), else ``ffmpeg -i``'s banner; the
+    packets are not counted (the plan only needs the container duration).
+
+    ``fps`` is the **nominal** rate (ffprobe's ``r_frame_rate``, the banner's
+    ``tbr``), not the average one the banner's ``fps`` figure states (and
+    that this probe returned before :mod:`mixing.probe`): for a
+    variable-rate file they differ (an mp4 with frames dropped reads 30, not
+    its average 15.52).
+    """
+    found = probe(path, count_packets=False)  # MediaNotFoundError / ProbeError
+    return _media_info(found, no_video=f"cannot probe {path}: no video stream found")
 
 
 # --- planning (pure) ------------------------------------------------------------

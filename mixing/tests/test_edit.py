@@ -9,6 +9,7 @@ punch-in, and a tone to tell silence from sound. Everything is 64x36 and ~3 s.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from fractions import Fraction
@@ -866,3 +867,105 @@ def test_transparent_still_is_flattened_onto_the_bars_colour(media):
     )[-1]
     assert held[2, 2].max() < 30  # transparent: the bars colour, not the hidden white
     assert held[H // 2, W // 2, 0] > 200 and held[H // 2, W // 2, 1] < 60
+
+
+def test_sound_starting_before_the_picture_stays_in_sync(media):
+    """Regression (#122 review): video at exactly 0.0, sound from -0.27 s. A
+    stated 0.0 start was read as unset, losing the 270 ms lead: the sound's
+    loud half would land at 1.0 s instead of 0.73 s."""
+    import numpy as np
+
+    lead, loud_from = 0.27, 1.0  # the sound is silent for its first second
+    source = media["dir"] / "early_sound.mkv"
+    tone = f"sine=f=440:r={SR}:d=3,volume=0:enable='lt(t,{loud_from})'"
+    subprocess.run(
+        [_ffmpeg(), "-v", "error", "-y", "-f", "lavfi",
+         "-i", f"color=black:s={W}x{H}:r=25:d=3",
+         "-itsoffset", str(-lead), "-f", "lavfi", "-i", tone,
+         "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-c:a", "pcm_s16le", "-avoid_negative_ts", "disabled", str(source)],
+        check=True,
+    )  # fmt: skip
+    info = probe_source(source)
+    assert info.video_start == pytest.approx(lead, abs=2e-3)
+    assert info.audio_offset == pytest.approx(-lead, abs=2e-3)
+    out = render(
+        [Span(0.0, 1.5, "a")], {"a": Cam()}, source=source,
+        output=media["dir"] / "early_sound_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    samples = _samples(out).astype(float)
+    onset = loud_from - lead  # 0.73 s into the picture
+    quiet = samples[: int((onset - 0.03) * SR)]
+    loud = samples[int((onset + 0.03) * SR) : int((onset + 0.3) * SR)]
+    assert not quiet.any()
+    assert np.sqrt(np.mean(loud**2)) > 1000
+
+
+#: A white flash on frame FLASH_FRAME and a click at the same instant: the
+#: rendered film keeps them together when the sound's start is read right.
+FLASH_FRAME, FLASH_RATE, CLICK_S = 25, 25, 0.02
+#: A/V tolerance (s) of the measured sync: a quarter of a 1 kHz cycle's slack
+#: either side, far under the 7-23 ms codec offsets the probe must get right.
+SYNC_TOLERANCE_S = 0.003
+
+
+#: First ffmpeg major version whose decoder drops aac/mp3 priming samples.
+PRIMING_TRIMMED_FROM = 9
+
+
+def _major_version(binary) -> str:
+    banner = subprocess.run([binary, "-version"], capture_output=True, text=True).stdout
+    return re.search(r"version\s+[nN]?(\d+)", banner).group(1)
+
+
+@pytest.mark.parametrize(
+    "codec, container",
+    [("aac", "mkv"), ("libmp3lame", "mkv"), ("libopus", "mkv"), ("libopus", "webm")],
+)
+def test_compressed_sound_starts_where_it_plays(media, codec, container):
+    """Regression (#122 re-review): a stream's ``start_time`` is its first
+    packet. aac/mp3 in mkv really play from it (-21/-23 ms); opus drops its
+    pre-skip, so its first packet at -7 ms plays from 0. The probe reads the
+    first decoded frame, so the flash and the click stay together for all."""
+    import numpy as np
+
+    from mixing.probe import find_ffprobe
+
+    ffprobe = find_ffprobe()
+    if ffprobe is None:  # the banner fallback assumes 0 starts (documented)
+        pytest.skip("no ffprobe: the banner fallback cannot read stream starts")
+    trims = [int(_major_version(b)) >= PRIMING_TRIMMED_FROM for b in (ffprobe, _ffmpeg())]
+    if trims[0] != trims[1]:
+        # ffmpeg 9 trims aac/mp3 priming when it decodes (first frame at 0.000);
+        # 7 keeps it (-0.023). The probe cannot know which decoder renders.
+        pytest.skip("ffprobe and ffmpeg disagree on trimming codec priming")
+
+    flash_s = FLASH_FRAME / FLASH_RATE
+    picture = (
+        f"color=black:s={W}x{H}:r={FLASH_RATE}:d=3,"
+        f"drawbox=enable='eq(n,{FLASH_FRAME})':c=white:t=fill"
+    )
+    click = (
+        f"aevalsrc='0.9*sin(2*PI*1000*t)*between(t,{flash_s},{flash_s + CLICK_S})'"
+        f":s={SR}:d=3"
+    )
+    video_codec = "libvpx-vp9" if container == "webm" else "libx264"
+    source = media["dir"] / f"click_{codec}.{container}"
+    proc = subprocess.run(
+        [_ffmpeg(), "-v", "error", "-y", "-f", "lavfi", "-i", picture,
+         "-f", "lavfi", "-i", click, "-c:v", video_codec, "-pix_fmt", "yuv420p",
+         "-c:a", codec, str(source)],
+        capture_output=True, text=True,
+    )  # fmt: skip
+    if proc.returncode:
+        pytest.skip(f"this ffmpeg cannot encode {codec}/{container}: {proc.stderr[-200:]}")
+    out = render(
+        [Span(0.0, 2.0, "a")], {"a": Cam()}, source=source,
+        output=media["dir"] / f"click_{codec}_{container}_out.mkv", encode_args=PCM_MKV,
+    )  # fmt: skip
+    sound = np.abs(_samples(out).astype(float))
+    onset = int(np.argmax(sound > 0.1 * sound.max())) / SR
+    brightness = _frames(out).mean(axis=(1, 2, 3))
+    flash = int(np.argmax(brightness > 128)) / FLASH_RATE
+    assert flash == pytest.approx(flash_s)
+    assert onset == pytest.approx(flash, abs=SYNC_TOLERANCE_S)
