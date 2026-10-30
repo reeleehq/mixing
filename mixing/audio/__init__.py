@@ -90,7 +90,18 @@ from .segmentation import (
 )
 from .tagging import WindowProbabilities, ast_audioset_classifier
 from .talk_edges import TalkEdges, find_talk_edges, talk_edges_from_probs
-from .beats import beat_grid, BeatGrid
+from .sections import (
+    SongSection,
+    register_section_backend,
+    structural_sections,
+)
+from .beats import (
+    beat_grid,
+    BeatGrid,
+    rank_beats,
+    ranked_cut_points,
+    register_beat_backend,
+)
 from .separation import (
     SeparationStrategy,
     SEPARATORS,
@@ -176,6 +187,12 @@ __all__ = [
     "find_talk_edges",
     "talk_edges_from_probs",
     "beat_grid",
+    "SongSection",
+    "register_section_backend",
+    "structural_sections",
+    "rank_beats",
+    "ranked_cut_points",
+    "register_beat_backend",
     "BeatGrid",
     "SeparationStrategy",
     "SEPARATORS",
