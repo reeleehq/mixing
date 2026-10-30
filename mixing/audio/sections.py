@@ -40,7 +40,11 @@ class SongSection:
     label: str
 
     def to_dict(self) -> dict:
-        return {"start": round(self.start, 3), "end": round(self.end, 3), "label": self.label}
+        return {
+            "start": round(self.start, 3),
+            "end": round(self.end, 3),
+            "label": self.label,
+        }
 
 
 SectionBackend = Callable[..., "list[SongSection]"]
@@ -99,7 +103,9 @@ def _librosa_sections(
     feats = np.apply_along_axis(lambda r: np.convolve(r, kernel, mode="same"), 1, feats)
     k = int(min(k, feats.shape[1]))
     frames = librosa.segment.agglomerative(feats, k)  # start frames of k segments
-    bounds = [float(librosa.frames_to_time(f, sr=sample_rate, hop_length=hop)) for f in frames]
+    bounds = [
+        float(librosa.frames_to_time(f, sr=sample_rate, hop_length=hop)) for f in frames
+    ]
     inner = [b for b in bounds if b > 0]
     if len(downbeats):
         inner = snap_to_downbeats(inner, downbeats, duration=duration)
