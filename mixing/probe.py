@@ -645,6 +645,7 @@ def probe_duration(
             (see :func:`mixing.ffmpeg.check_timeout`).
         RuntimeError: no ffmpeg executable can be found (see
             :func:`mixing.util.ffmpeg_exe`).
+        OSError: the ``ffmpeg`` given cannot be run.
     """
     try:
         return probe(media, ffprobe=None, ffmpeg=ffmpeg, timeout=timeout).duration
@@ -679,9 +680,12 @@ def probe(
             (default) for no bound.
 
     Raises:
-        MediaNotFoundError: ``media`` does not exist.
+        MediaNotFoundError: ``media`` does not exist (a ``FileNotFoundError``
+            too, so tell it from a missing ``ffmpeg`` by this class).
         ProbeError: ffmpeg/ffprobe cannot read it, or the named ``ffprobe``
-            (or ``ffmpeg``) cannot be run.
+            cannot be run.
+        OSError: the ``ffmpeg`` read for the banner cannot be run (a missing
+            binary is a ``FileNotFoundError``), as with :mod:`mixing.decode`.
         FfmpegTimeout: the probe ran past ``timeout`` (a ``TimeoutError``).
         ValueError: ``ffprobe=""``, or ``timeout`` is not ``None`` or seconds > 0.
     """

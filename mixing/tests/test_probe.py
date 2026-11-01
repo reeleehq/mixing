@@ -502,7 +502,7 @@ def test_banner_streams_are_one_per_index_in_index_order():
 
 @pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in")
 def test_one_timeout_bounds_the_whole_probe_not_each_run(media, tmp_path):
-    """The streams read takes most of the budget; the first-audio-frame read,
+    """The streams read takes nearly all of the budget; the first-audio-frame read,
     which stalls, gets only what is left."""
     import time
 
@@ -516,7 +516,7 @@ def test_one_timeout_bounds_the_whole_probe_not_each_run(media, tmp_path):
     slow = tmp_path / "ffprobe"
     slow.write_text(
         "#!/bin/sh\n"
-        'case "$*" in *-show_frames*) sleep 30 ;; *) sleep 1.5; cat '
+        'case "$*" in *-show_frames*) sleep 30 ;; *) sleep 1.9; cat '
         + str(answer)
         + " ;; esac\n"
     )
@@ -524,7 +524,8 @@ def test_one_timeout_bounds_the_whole_probe_not_each_run(media, tmp_path):
     began = time.monotonic()
     with pytest.raises(FfmpegTimeout, match="took more than 2 s"):
         probe(media["audio"], ffprobe=str(slow), timeout=2.0)
-    assert time.monotonic() - began < 4  # 2 s in all, not 2 s per run
+    # 2 s in all (~2.0 s), not 2 s per run (~3.9 s)
+    assert time.monotonic() - began < 3
 
 
 def test_find_ffprobe_takes_a_relative_ffmpeg_as_a_location(tmp_path, monkeypatch):
