@@ -1,4 +1,4 @@
-> built 2026-11-01 19:16 UTC from 5d180fe (main) · mixing 0.0.97. Details: build_info.json
+> built 2026-11-01 19:33 UTC from 813de62 (main) · mixing 0.0.97. Details: build_info.json
 
 # index.html.md
 
@@ -1566,8 +1566,19 @@ True
 
 ### Exceptions
 
-| [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout)   | ffmpeg ran past its `timeout` and was killed.   |
-|------------------------------------------------------------------|-------------------------------------------------|
+| [`FfmpegError`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegError)(message, \*, returncode, cmd[, ...])   | ffmpeg exited with an error (`run_ffmpeg(check=True)`).   |
+|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout)                                      | ffmpeg ran past its `timeout` and was killed.             |
+
+### *exception* mixing.ffmpeg.FfmpegError(message, , returncode, cmd, stderr=b'')
+
+Bases: [`RuntimeError`](https://docs.python.org/3/builtins/exceptions.html#RuntimeError), [`CalledProcessError`](https://docs.python.org/3/library/subprocess.html#subprocess.CalledProcessError)
+
+ffmpeg exited with an error (`run_ffmpeg(check=True)`).
+
+A `RuntimeError` like every ffmpeg failure here, and a
+`subprocess.CalledProcessError` (`returncode`, `cmd`, `stderr` as
+bytes) for callers written against `subprocess.run(check=True)`.
 
 ### *exception* mixing.ffmpeg.FfmpegTimeout
 
@@ -2011,7 +2022,7 @@ one entry per cue (its whole text). A word ends where the next one starts
 * **Return type:**
   [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict)]
 
-### mixing.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, keep_intermediate=True, scribe_data=None)
+### mixing.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, extract_audio_kwargs=None, keep_intermediate=True, scribe_data=None)
 
 End-to-end filler removal.
 
@@ -2025,6 +2036,8 @@ End-to-end filler removal.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`transcribe()`](_autosummary/mixing.html.md#mixing.transcribe).
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `apply_keeps()`.
+  * **extract_audio_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `extract_audio()`
+    (`ffmpeg=`, `timeout=`, …).
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
   * **scribe_data** ([`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – If provided, skip the network call and use this dict
     (must match Scribe’s response shape). Useful for tests / replays.
@@ -2928,7 +2941,7 @@ timeline-aware cuts of audio/video. Produces editable transcripts
 
 The HTTP client uses stdlib only (no `requests` or `elevenlabs` SDK
 dependency), so the package adds no required deps. The runtime needs
-ffmpeg on PATH for media operations, and an ElevenLabs API key (env
+an ffmpeg (`mixing.util.ffmpeg_exe`) for media operations, and an ElevenLabs API key (env
 var `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) or explicit `api_key=`) for transcription.
 
 Quick start:
@@ -2978,7 +2991,7 @@ Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers).
 
-### mixing.transcript.apply_keeps(input_path, output_path, keeps, , video_codec='libx264', audio_codec='aac', crf=20, preset='medium', audio_bitrate='160k', faststart=True, overwrite=True)
+### mixing.transcript.apply_keeps(input_path, output_path, keeps, , video_codec='libx264', audio_codec='aac', crf=20, preset='medium', audio_bitrate='160k', faststart=True, overwrite=True, ffmpeg=None, timeout=None)
 
 Re-encode `input_path` keeping only the listed time ranges.
 
@@ -2990,6 +3003,8 @@ Re-encode `input_path` keeping only the listed time ranges.
     knobs forwarded to ffmpeg.
   * **faststart** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Add `-movflags +faststart` (mp4 web-streaming).
   * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Pass `-y` to ffmpeg.
+  * **ffmpeg** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – As in the module docstring.
+  * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – As in the module docstring.
 * **Return type:**
   [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
 * **Returns:**
@@ -3022,11 +3037,11 @@ then `~/.cache/`. Final segment is always `mixing/transcript`.
 * **Return type:**
   [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
 
-### mixing.transcript.extract_audio(input_path, output_path, , sample_rate=16000, channels=1, bitrate='96k', overwrite=True)
+### mixing.transcript.extract_audio(input_path, output_path, , sample_rate=16000, channels=1, bitrate='96k', overwrite=True, ffmpeg=None, timeout=None)
 
 Extract a mono mp3 from `input_path` (suitable for STT).
 
-Returns the output path.
+Returns the output path. `ffmpeg` and `timeout` as in the module docstring.
 
 * **Return type:**
   [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
@@ -3081,7 +3096,7 @@ started in the post-cut timeline.
 * **Return type:**
   [`float`](https://docs.python.org/3/builtins/functions.html#float)
 
-### mixing.transcript.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, keep_intermediate=True, scribe_data=None)
+### mixing.transcript.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, extract_audio_kwargs=None, keep_intermediate=True, scribe_data=None)
 
 End-to-end filler removal.
 
@@ -3095,6 +3110,8 @@ End-to-end filler removal.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`transcribe()`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe).
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`apply_keeps()`](_autosummary/mixing.transcript.html.md#mixing.transcript.apply_keeps).
+  * **extract_audio_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to [`extract_audio()`](_autosummary/mixing.transcript.html.md#mixing.transcript.extract_audio)
+    (`ffmpeg=`, `timeout=`, …).
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
   * **scribe_data** ([`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – If provided, skip the network call and use this dict
     (must match Scribe’s response shape). Useful for tests / replays.
@@ -3207,8 +3224,15 @@ the cleaned media.
 
 ffmpeg-backed audio extraction and timeline-cut application.
 
-These functions shell out to `ffmpeg` (which must be on PATH); they
-have no Python dependencies beyond the stdlib.
+These functions run one ffmpeg each, through [`mixing.ffmpeg.run_ffmpeg()`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.run_ffmpeg);
+they have no Python dependencies beyond the stdlib. Both take `ffmpeg=` (the
+executable; default [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe), which finds a pip-bundled
+build too: `"ffmpeg"` for the one on `PATH`) and `timeout=` (seconds the
+run may take; it is killed, with what it started, and
+[`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout) raised). A failed run raises
+[`FfmpegError`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegError): a `RuntimeError` carrying the tail of
+ffmpeg’s message, and a `subprocess.CalledProcessError` (`returncode`,
+`stderr`) as before this used the shared runner.
 
 ### Functions
 
@@ -3216,7 +3240,7 @@ have no Python dependencies beyond the stdlib.
 |----------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
 | [`extract_audio`](_autosummary/mixing.transcript.media.html.md#mixing.transcript.media.extract_audio)(input_path, output_path, \*[, ...]) | Extract a mono mp3 from `input_path` (suitable for STT).      |
 
-### mixing.transcript.media.apply_keeps(input_path, output_path, keeps, , video_codec='libx264', audio_codec='aac', crf=20, preset='medium', audio_bitrate='160k', faststart=True, overwrite=True)
+### mixing.transcript.media.apply_keeps(input_path, output_path, keeps, , video_codec='libx264', audio_codec='aac', crf=20, preset='medium', audio_bitrate='160k', faststart=True, overwrite=True, ffmpeg=None, timeout=None)
 
 Re-encode `input_path` keeping only the listed time ranges.
 
@@ -3228,16 +3252,18 @@ Re-encode `input_path` keeping only the listed time ranges.
     knobs forwarded to ffmpeg.
   * **faststart** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Add `-movflags +faststart` (mp4 web-streaming).
   * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Pass `-y` to ffmpeg.
+  * **ffmpeg** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – As in the module docstring.
+  * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – As in the module docstring.
 * **Return type:**
   [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
 * **Returns:**
   The output path.
 
-### mixing.transcript.media.extract_audio(input_path, output_path, , sample_rate=16000, channels=1, bitrate='96k', overwrite=True)
+### mixing.transcript.media.extract_audio(input_path, output_path, , sample_rate=16000, channels=1, bitrate='96k', overwrite=True, ffmpeg=None, timeout=None)
 
 Extract a mono mp3 from `input_path` (suitable for STT).
 
-Returns the output path.
+Returns the output path. `ffmpeg` and `timeout` as in the module docstring.
 
 * **Return type:**
   [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)
@@ -3307,7 +3333,7 @@ Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.pipeline.html.md#mixing.transcript.pipeline.remove_fillers).
 
-### mixing.transcript.pipeline.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, keep_intermediate=True, scribe_data=None)
+### mixing.transcript.pipeline.remove_fillers(input_media, output_dir, , output_media=None, fillers=frozenset({'ah', 'eh', 'er', 'erm', 'hmm', 'mhm', 'mm', 'mmm', 'uh', 'uhh', 'uhm', 'um', 'umm'}), audio_events=frozenset({'(coughs)'}), api_key=None, scribe_kwargs=None, apply_keeps_kwargs=None, extract_audio_kwargs=None, keep_intermediate=True, scribe_data=None)
 
 End-to-end filler removal.
 
@@ -3321,6 +3347,8 @@ End-to-end filler removal.
   * **api_key** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – ElevenLabs API key (else env `ELEVENLABS_API_KEY` or `ELEVEN_API_KEY`).
   * **scribe_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `transcribe()`.
   * **apply_keeps_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `apply_keeps()`.
+  * **extract_audio_kwargs** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`object`](https://docs.python.org/3/builtins/functions.html#object)]]) – Extra kwargs forwarded to `extract_audio()`
+    (`ffmpeg=`, `timeout=`, …).
   * **keep_intermediate** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – If `False`, delete the extracted audio file.
   * **scribe_data** ([`dict`](https://docs.python.org/3/builtins/stdtypes.html#dict) | [`None`](https://docs.python.org/3/builtins/constants.html#None)) – If provided, skip the network call and use this dict
     (must match Scribe’s response shape). Useful for tests / replays.
@@ -3618,20 +3646,18 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-01 19:16 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/5d180fed40254c70d1689990e005824618cca7f8"><code>5d180fe</code></a> on branch <code>main</code>, for **mixing 0.0.97** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 19:33 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/813de621a5f4c6fff4ec74e8ad4d1830b71858f3"><code>813de62</code></a> on branch <code>main</code>, for **mixing 0.0.97** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.97) is ahead of the latest release on PyPI (0.0.96): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/5d180fed40254c70d1689990e005824618cca7f8"><code>5d180fed40254c70d1689990e005824618cca7f8</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/813de621a5f4c6fff4ec74e8ad4d1830b71858f3"><code>813de621a5f4c6fff4ec74e8ad4d1830b71858f3</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.97</code>                                                                                                                                    |
+| Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3640,9 +3666,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41338947633">41338947633</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41339393966">41339393966</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>174dc347e3899465dde8e296159a692ff85a2b7a</code> (in the history of the built commit) |
+| Event commit | <code>d39fe6aea5d9baa0f8a630e176e541c8c4acf910</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3667,13 +3693,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.96/">0.0.96</a>, older than the documented version (0.0.97).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.97/">0.0.97</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 5d180fed40254c70d1689990e005824618cca7f8
+git checkout 813de621a5f4c6fff4ec74e8ad4d1830b71858f3
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

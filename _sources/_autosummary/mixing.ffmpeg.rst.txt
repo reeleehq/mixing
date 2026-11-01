@@ -16,5 +16,6 @@ mixing.ffmpeg
 
    .. autosummary::
    
+      FfmpegError
       FfmpegTimeout
    

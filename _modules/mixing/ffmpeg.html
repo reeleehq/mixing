@@ -201,149 +201,181 @@
 </span><span id="line-26"><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
 </span><span id="line-27"><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 </span><span id="line-28"><span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span><span class="p">,</span> <span class="n">suppress</span>
-</span><span id="line-29"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
-</span><span id="line-30">
-</span><span id="line-31"><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="line-32">    <span class="s2">"FfmpegTimeout"</span><span class="p">,</span>
-</span><span id="line-33">    <span class="s2">"run_ffmpeg"</span><span class="p">,</span>
-</span><span id="line-34">    <span class="s2">"check_timeout"</span><span class="p">,</span>
-</span><span id="line-35">    <span class="s2">"ignore_closed_stdin"</span><span class="p">,</span>
-</span><span id="line-36"><span class="p">]</span>
-</span><span id="line-37">
-</span><span id="line-38"><span class="c1">#: How much of ffmpeg's complaint an error carries.</span>
-</span><span id="line-39"><span class="n">_STDERR_TAIL_CHARS</span> <span class="o">=</span> <span class="mi">2000</span>
-</span><span id="line-40">
-</span><span id="line-41">
+</span><span id="line-29"><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+</span><span id="line-30"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+</span><span id="line-31">
+</span><span id="line-32"><span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="line-33">    <span class="s2">"FfmpegError"</span><span class="p">,</span>
+</span><span id="line-34">    <span class="s2">"FfmpegTimeout"</span><span class="p">,</span>
+</span><span id="line-35">    <span class="s2">"run_ffmpeg"</span><span class="p">,</span>
+</span><span id="line-36">    <span class="s2">"check_timeout"</span><span class="p">,</span>
+</span><span id="line-37">    <span class="s2">"ignore_closed_stdin"</span><span class="p">,</span>
+</span><span id="line-38"><span class="p">]</span>
+</span><span id="line-39">
+</span><span id="line-40"><span class="c1">#: How much of ffmpeg's complaint an error carries.</span>
+</span><span id="line-41"><span class="n">_STDERR_TAIL_CHARS</span> <span class="o">=</span> <span class="mi">2000</span>
+</span><span id="line-42">
+</span><span id="line-43">
+<div class="viewcode-block" id="FfmpegError">
+<a class="viewcode-back" href="../../_autosummary/mixing.ffmpeg.html#mixing.ffmpeg.FfmpegError">[docs]</a>
+</span><span id="line-44"><span class="k">class</span><span class="w"> </span><span class="nc">FfmpegError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">,</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span><span class="p">):</span>
+</span><span id="line-45"><span class="w">    </span><span class="sd">"""ffmpeg exited with an error (``run_ffmpeg(check=True)``).</span>
+</span><span id="line-46">
+</span><span id="line-47"><span class="sd">    A ``RuntimeError`` like every ffmpeg failure here, and a</span>
+</span><span id="line-48"><span class="sd">    ``subprocess.CalledProcessError`` (``returncode``, ``cmd``, ``stderr`` as</span>
+</span><span id="line-49"><span class="sd">    bytes) for callers written against ``subprocess.run(check=True)``.</span>
+</span><span id="line-50"><span class="sd">    """</span>
+</span><span id="line-51">
+</span><span id="line-52">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">returncode</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">cmd</span><span class="p">,</span> <span class="n">stderr</span><span class="p">:</span> <span class="nb">bytes</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">""</span><span class="p">):</span>
+</span><span id="line-53">        <span class="ne">RuntimeError</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</span><span id="line-54">        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+</span><span id="line-55">        <span class="bp">self</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cmd</span> <span class="o">=</span> <span class="n">returncode</span><span class="p">,</span> <span class="n">cmd</span>
+</span><span id="line-56">        <span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">stderr</span>
+</span><span id="line-57">
+</span><span id="line-58">    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="line-59">        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">message</span>
+</span><span id="line-60">
+</span><span id="line-61">    <span class="k">def</span><span class="w"> </span><span class="nf">__reduce__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="line-62">        <span class="n">fields</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">returncode</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+</span><span id="line-63">        <span class="k">return</span> <span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="o">**</span><span class="n">fields</span><span class="p">),</span> <span class="p">())</span></div>
+
+</span><span id="line-64">
+</span><span id="line-65">
 <div class="viewcode-block" id="FfmpegTimeout">
 <a class="viewcode-back" href="../../_autosummary/mixing.ffmpeg.html#mixing.ffmpeg.FfmpegTimeout">[docs]</a>
-</span><span id="line-42"><span class="k">class</span><span class="w"> </span><span class="nc">FfmpegTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
-</span><span id="line-43"><span class="w">    </span><span class="sd">"""ffmpeg ran past its ``timeout`` and was killed.</span>
-</span><span id="line-44">
-</span><span id="line-45"><span class="sd">    A ``TimeoutError``, and a ``RuntimeError`` like every other ffmpeg failure</span>
-</span><span id="line-46"><span class="sd">    here, so a caller catching either sees it.</span>
-</span><span id="line-47"><span class="sd">    """</span></div>
+</span><span id="line-66"><span class="k">class</span><span class="w"> </span><span class="nc">FfmpegTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+</span><span id="line-67"><span class="w">    </span><span class="sd">"""ffmpeg ran past its ``timeout`` and was killed.</span>
+</span><span id="line-68">
+</span><span id="line-69"><span class="sd">    A ``TimeoutError``, and a ``RuntimeError`` like every other ffmpeg failure</span>
+</span><span id="line-70"><span class="sd">    here, so a caller catching either sees it.</span>
+</span><span id="line-71"><span class="sd">    """</span></div>
 
-</span><span id="line-48">
-</span><span id="line-49">
+</span><span id="line-72">
+</span><span id="line-73">
 <div class="viewcode-block" id="check_timeout">
 <a class="viewcode-back" href="../../_autosummary/mixing.ffmpeg.html#mixing.ffmpeg.check_timeout">[docs]</a>
-</span><span id="line-50"><span class="k">def</span><span class="w"> </span><span class="nf">check_timeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
-</span><span id="line-51"><span class="w">    </span><span class="sd">"""``timeout`` checked: ``None`` (or ``inf``) for no bound, else seconds &gt; 0."""</span>
-</span><span id="line-52">    <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-53">        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="line-54">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">timeout</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">timeout</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
-</span><span id="line-55">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is a number of seconds (or None); got </span><span class="si">{</span><span class="n">timeout</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
-</span><span id="line-56">    <span class="k">if</span> <span class="ow">not</span> <span class="n">timeout</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="line-57">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is in seconds, &gt; 0 (or None); got </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</span><span id="line-58">    <span class="k">if</span> <span class="n">timeout</span> <span class="o">==</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span><span class="p">:</span>
-</span><span id="line-59">        <span class="k">return</span> <span class="kc">None</span>
-</span><span id="line-60">    <span class="k">if</span> <span class="n">timeout</span> <span class="o">&gt;</span> <span class="n">threading</span><span class="o">.</span><span class="n">TIMEOUT_MAX</span><span class="p">:</span>
-</span><span id="line-61">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is too long for a timer (</span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2"> s); use None"</span><span class="p">)</span>
-</span><span id="line-62">    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span></div>
+</span><span id="line-74"><span class="k">def</span><span class="w"> </span><span class="nf">check_timeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+</span><span id="line-75"><span class="w">    </span><span class="sd">"""``timeout`` checked: ``None`` (or ``inf``) for no bound, else seconds &gt; 0."""</span>
+</span><span id="line-76">    <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-77">        <span class="k">return</span> <span class="kc">None</span>
+</span><span id="line-78">    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">timeout</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">timeout</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+</span><span id="line-79">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is a number of seconds (or None); got </span><span class="si">{</span><span class="n">timeout</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="line-80">    <span class="k">if</span> <span class="ow">not</span> <span class="n">timeout</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="line-81">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is in seconds, &gt; 0 (or None); got </span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="line-82">    <span class="k">if</span> <span class="n">timeout</span> <span class="o">==</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span><span class="p">:</span>
+</span><span id="line-83">        <span class="k">return</span> <span class="kc">None</span>
+</span><span id="line-84">    <span class="k">if</span> <span class="n">timeout</span> <span class="o">&gt;</span> <span class="n">threading</span><span class="o">.</span><span class="n">TIMEOUT_MAX</span><span class="p">:</span>
+</span><span id="line-85">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"timeout is too long for a timer (</span><span class="si">{</span><span class="n">timeout</span><span class="si">}</span><span class="s2"> s); use None"</span><span class="p">)</span>
+</span><span id="line-86">    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span></div>
 
-</span><span id="line-63">
-</span><span id="line-64">
-</span><span id="line-65"><span class="k">def</span><span class="w"> </span><span class="nf">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">:</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-66"><span class="w">    </span><span class="sd">"""Kill ``proc`` and what it started: an ``ffmpeg=`` wrapper that does not</span>
-</span><span id="line-67"><span class="sd">    exec (a shell script, a Windows shim) would otherwise leave the real</span>
-</span><span id="line-68"><span class="sd">    ffmpeg running, holding the pipes open."""</span>
-</span><span id="line-69">    <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-70">        <span class="k">return</span>  <span class="c1"># reaped: its pid (and group id) may already be someone else's</span>
-</span><span id="line-71">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"posix"</span><span class="p">:</span>  <span class="c1"># it leads its own process group (start_new_session)</span>
-</span><span id="line-72">        <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
-</span><span id="line-73">            <span class="n">os</span><span class="o">.</span><span class="n">killpg</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
-</span><span id="line-74">    <span class="k">else</span><span class="p">:</span>
-</span><span id="line-75">        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-</span><span id="line-76">            <span class="p">[</span><span class="s2">"taskkill"</span><span class="p">,</span> <span class="s2">"/T"</span><span class="p">,</span> <span class="s2">"/F"</span><span class="p">,</span> <span class="s2">"/PID"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">pid</span><span class="p">)],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span>
-</span><span id="line-77">        <span class="p">)</span>
-</span><span id="line-78">    <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">):</span>
-</span><span id="line-79">        <span class="n">proc</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
-</span><span id="line-80">
-</span><span id="line-81">
+</span><span id="line-87">
+</span><span id="line-88">
+</span><span id="line-89"><span class="k">def</span><span class="w"> </span><span class="nf">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">:</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-90"><span class="w">    </span><span class="sd">"""Kill ``proc`` and what it started: an ``ffmpeg=`` wrapper that does not</span>
+</span><span id="line-91"><span class="sd">    exec (a shell script, a Windows shim) would otherwise leave the real</span>
+</span><span id="line-92"><span class="sd">    ffmpeg running, holding the pipes open."""</span>
+</span><span id="line-93">    <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-94">        <span class="k">return</span>  <span class="c1"># reaped: its pid (and group id) may already be someone else's</span>
+</span><span id="line-95">    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"posix"</span><span class="p">:</span>  <span class="c1"># it leads its own process group (start_new_session)</span>
+</span><span id="line-96">        <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+</span><span id="line-97">            <span class="n">os</span><span class="o">.</span><span class="n">killpg</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
+</span><span id="line-98">    <span class="k">else</span><span class="p">:</span>
+</span><span id="line-99">        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+</span><span id="line-100">            <span class="p">[</span><span class="s2">"taskkill"</span><span class="p">,</span> <span class="s2">"/T"</span><span class="p">,</span> <span class="s2">"/F"</span><span class="p">,</span> <span class="s2">"/PID"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">pid</span><span class="p">)],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span>
+</span><span id="line-101">        <span class="p">)</span>
+</span><span id="line-102">    <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">):</span>
+</span><span id="line-103">        <span class="n">proc</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+</span><span id="line-104">
+</span><span id="line-105">
 <div class="viewcode-block" id="ignore_closed_stdin">
 <a class="viewcode-back" href="../../_autosummary/mixing.ffmpeg.html#mixing.ffmpeg.ignore_closed_stdin">[docs]</a>
-</span><span id="line-82"><span class="nd">@contextmanager</span>
-</span><span id="line-83"><span class="k">def</span><span class="w"> </span><span class="nf">ignore_closed_stdin</span><span class="p">():</span>
-</span><span id="line-84"><span class="w">    </span><span class="sd">"""Ignore writing to (or closing) the stdin of an ffmpeg that stopped</span>
-</span><span id="line-85"><span class="sd">    reading: a broken pipe, or ``EINVAL`` on Windows; its exit code says why."""</span>
-</span><span id="line-86">    <span class="k">try</span><span class="p">:</span>
-</span><span id="line-87">        <span class="k">yield</span>
-</span><span id="line-88">    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-</span><span id="line-89">        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="ne">BrokenPipeError</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">!=</span> <span class="n">errno</span><span class="o">.</span><span class="n">EINVAL</span><span class="p">:</span>
-</span><span id="line-90">            <span class="k">raise</span></div>
+</span><span id="line-106"><span class="nd">@contextmanager</span>
+</span><span id="line-107"><span class="k">def</span><span class="w"> </span><span class="nf">ignore_closed_stdin</span><span class="p">():</span>
+</span><span id="line-108"><span class="w">    </span><span class="sd">"""Ignore writing to (or closing) the stdin of an ffmpeg that stopped</span>
+</span><span id="line-109"><span class="sd">    reading: a broken pipe, or ``EINVAL`` on Windows; its exit code says why."""</span>
+</span><span id="line-110">    <span class="k">try</span><span class="p">:</span>
+</span><span id="line-111">        <span class="k">yield</span>
+</span><span id="line-112">    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span><span id="line-113">        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="ne">BrokenPipeError</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">!=</span> <span class="n">errno</span><span class="o">.</span><span class="n">EINVAL</span><span class="p">:</span>
+</span><span id="line-114">            <span class="k">raise</span></div>
 
-</span><span id="line-91">
-</span><span id="line-92">
+</span><span id="line-115">
+</span><span id="line-116">
 <div class="viewcode-block" id="run_ffmpeg">
 <a class="viewcode-back" href="../../_autosummary/mixing.ffmpeg.html#mixing.ffmpeg.run_ffmpeg">[docs]</a>
-</span><span id="line-93"><span class="nd">@contextmanager</span>
-</span><span id="line-94"><span class="k">def</span><span class="w"> </span><span class="nf">run_ffmpeg</span><span class="p">(</span>
-</span><span id="line-95">    <span class="n">cmd</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-</span><span id="line-96">    <span class="o">*</span><span class="p">,</span>
-</span><span id="line-97">    <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="line-98">    <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
-</span><span id="line-99">    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
-</span><span id="line-100">    <span class="n">timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-101">    <span class="n">check</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="line-102"><span class="p">):</span>
-</span><span id="line-103"><span class="w">    </span><span class="sd">"""Run the ffmpeg ``cmd`` for the block; yield the process.</span>
-</span><span id="line-104">
-</span><span id="line-105"><span class="sd">    Its stderr goes to a temporary file (a pipe nobody reads fills up and</span>
-</span><span id="line-106"><span class="sd">    blocks ffmpeg); once it is done the text is ``proc.message``. Any</span>
-</span><span id="line-107"><span class="sd">    exception in the block (a generator closed early included) kills it. On</span>
-</span><span id="line-108"><span class="sd">    the way out its pipes are closed, a broken stdin pipe ignored (ffmpeg</span>
-</span><span id="line-109"><span class="sd">    stopped reading: its exit code says why), and it is waited for. With</span>
-</span><span id="line-110"><span class="sd">    ``check`` a non-zero exit raises ``RuntimeError("ffmpeg could not {what}:</span>
-</span><span id="line-111"><span class="sd">    ...")`` with the tail of its message. With ``timeout`` (seconds, see</span>
-</span><span id="line-112"><span class="sd">    :func:`check_timeout`) a watchdog kills it, and what it started, that long</span>
-</span><span id="line-113"><span class="sd">    after it started, waiting included, and :class:`FfmpegTimeout` is raised</span>
-</span><span id="line-114"><span class="sd">    (the block sees an ordinary end of stream or broken pipe); an ffmpeg that</span>
-</span><span id="line-115"><span class="sd">    finished in time is never reported as timed out.</span>
-</span><span id="line-116"><span class="sd">    """</span>
-</span><span id="line-117">    <span class="n">timeout</span> <span class="o">=</span> <span class="n">check_timeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
-</span><span id="line-118">    <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryFile</span><span class="p">()</span> <span class="k">as</span> <span class="n">errors</span><span class="p">:</span>
-</span><span id="line-119">        <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span>
-</span><span id="line-120">            <span class="n">cmd</span><span class="p">,</span>
-</span><span id="line-121">            <span class="n">stdin</span><span class="o">=</span><span class="n">stdin</span><span class="p">,</span>
-</span><span id="line-122">            <span class="n">stdout</span><span class="o">=</span><span class="n">stdout</span><span class="p">,</span>
-</span><span id="line-123">            <span class="n">stderr</span><span class="o">=</span><span class="n">errors</span><span class="p">,</span>
-</span><span id="line-124">            <span class="n">start_new_session</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"posix"</span><span class="p">,</span>
-</span><span id="line-125">        <span class="p">)</span>
-</span><span id="line-126">        <span class="n">fired</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
-</span><span id="line-127">        <span class="n">watchdog</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Timer</span><span class="p">(</span>
-</span><span id="line-128">            <span class="n">timeout</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="p">(</span><span class="n">fired</span><span class="o">.</span><span class="n">set</span><span class="p">(),</span> <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">))</span>
-</span><span id="line-129">        <span class="p">)</span>
-</span><span id="line-130">        <span class="n">watchdog</span><span class="o">.</span><span class="n">daemon</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span id="line-131">        <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-132">            <span class="n">watchdog</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
-</span><span id="line-133">        <span class="k">try</span><span class="p">:</span>
-</span><span id="line-134">            <span class="k">try</span><span class="p">:</span>
-</span><span id="line-135">                <span class="k">yield</span> <span class="n">proc</span>
-</span><span id="line-136">            <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>
-</span><span id="line-137">                <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">)</span>
-</span><span id="line-138">                <span class="k">raise</span>
-</span><span id="line-139">            <span class="k">finally</span><span class="p">:</span>
-</span><span id="line-140">                <span class="k">for</span> <span class="n">pipe</span> <span class="ow">in</span> <span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stdin</span><span class="p">,</span> <span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">):</span>
-</span><span id="line-141">                    <span class="k">if</span> <span class="n">pipe</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="line-142">                        <span class="k">with</span> <span class="n">ignore_closed_stdin</span><span class="p">():</span>
-</span><span id="line-143">                            <span class="n">pipe</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</span><span id="line-144">                <span class="k">try</span><span class="p">:</span>
-</span><span id="line-145">                    <span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>  <span class="c1"># still bounded: the watchdog runs until it returns</span>
-</span><span id="line-146">                <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>  <span class="c1"># Ctrl-C no longer reaches its own session</span>
-</span><span id="line-147">                    <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">)</span>
-</span><span id="line-148">                    <span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
-</span><span id="line-149">                    <span class="k">raise</span>
-</span><span id="line-150">        <span class="k">finally</span><span class="p">:</span>
-</span><span id="line-151">            <span class="n">watchdog</span><span class="o">.</span><span class="n">cancel</span><span class="p">()</span>
-</span><span id="line-152">        <span class="n">errors</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="line-153">        <span class="n">proc</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">errors</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-</span><span id="line-154">        <span class="k">if</span> <span class="n">fired</span><span class="o">.</span><span class="n">is_set</span><span class="p">()</span> <span class="ow">and</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="line-155">            <span class="k">raise</span> <span class="n">FfmpegTimeout</span><span class="p">(</span>
-</span><span id="line-156">                <span class="sa">f</span><span class="s2">"ffmpeg took more than </span><span class="si">{</span><span class="n">timeout</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2"> s to </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2">; it was killed"</span>
-</span><span id="line-157">            <span class="p">)</span>
-</span><span id="line-158">        <span class="k">if</span> <span class="n">check</span> <span class="ow">and</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="line-159">            <span class="n">tail</span> <span class="o">=</span> <span class="n">proc</span><span class="o">.</span><span class="n">message</span><span class="p">[</span><span class="o">-</span><span class="n">_STDERR_TAIL_CHARS</span><span class="p">:]</span>
-</span><span id="line-160">            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ffmpeg could not </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">tail</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+</span><span id="line-117"><span class="nd">@contextmanager</span>
+</span><span id="line-118"><span class="k">def</span><span class="w"> </span><span class="nf">run_ffmpeg</span><span class="p">(</span>
+</span><span id="line-119">    <span class="n">cmd</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+</span><span id="line-120">    <span class="o">*</span><span class="p">,</span>
+</span><span id="line-121">    <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="line-122">    <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
+</span><span id="line-123">    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
+</span><span id="line-124">    <span class="n">timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-125">    <span class="n">check</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="line-126"><span class="p">):</span>
+</span><span id="line-127"><span class="w">    </span><span class="sd">"""Run the ffmpeg ``cmd`` for the block; yield the process.</span>
+</span><span id="line-128">
+</span><span id="line-129"><span class="sd">    Its stderr goes to a temporary file (a pipe nobody reads fills up and</span>
+</span><span id="line-130"><span class="sd">    blocks ffmpeg); once it is done the text is ``proc.message``. Any</span>
+</span><span id="line-131"><span class="sd">    exception in the block (a generator closed early included) kills it. On</span>
+</span><span id="line-132"><span class="sd">    the way out its pipes are closed, a broken stdin pipe ignored (ffmpeg</span>
+</span><span id="line-133"><span class="sd">    stopped reading: its exit code says why), and it is waited for. With</span>
+</span><span id="line-134"><span class="sd">    ``check`` a non-zero exit raises ``RuntimeError("ffmpeg could not {what}:</span>
+</span><span id="line-135"><span class="sd">    ...")`` with the tail of its message. With ``timeout`` (seconds, see</span>
+</span><span id="line-136"><span class="sd">    :func:`check_timeout`) a watchdog kills it, and what it started, that long</span>
+</span><span id="line-137"><span class="sd">    after it started, waiting included, and :class:`FfmpegTimeout` is raised</span>
+</span><span id="line-138"><span class="sd">    (the block sees an ordinary end of stream or broken pipe); an ffmpeg that</span>
+</span><span id="line-139"><span class="sd">    finished in time is never reported as timed out.</span>
+</span><span id="line-140"><span class="sd">    """</span>
+</span><span id="line-141">    <span class="n">timeout</span> <span class="o">=</span> <span class="n">check_timeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+</span><span id="line-142">    <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryFile</span><span class="p">()</span> <span class="k">as</span> <span class="n">errors</span><span class="p">:</span>
+</span><span id="line-143">        <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span>
+</span><span id="line-144">            <span class="n">cmd</span><span class="p">,</span>
+</span><span id="line-145">            <span class="n">stdin</span><span class="o">=</span><span class="n">stdin</span><span class="p">,</span>
+</span><span id="line-146">            <span class="n">stdout</span><span class="o">=</span><span class="n">stdout</span><span class="p">,</span>
+</span><span id="line-147">            <span class="n">stderr</span><span class="o">=</span><span class="n">errors</span><span class="p">,</span>
+</span><span id="line-148">            <span class="n">start_new_session</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"posix"</span><span class="p">,</span>
+</span><span id="line-149">        <span class="p">)</span>
+</span><span id="line-150">        <span class="n">fired</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+</span><span id="line-151">        <span class="n">watchdog</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Timer</span><span class="p">(</span>
+</span><span id="line-152">            <span class="n">timeout</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="p">(</span><span class="n">fired</span><span class="o">.</span><span class="n">set</span><span class="p">(),</span> <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">))</span>
+</span><span id="line-153">        <span class="p">)</span>
+</span><span id="line-154">        <span class="n">watchdog</span><span class="o">.</span><span class="n">daemon</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="line-155">        <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-156">            <span class="n">watchdog</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</span><span id="line-157">        <span class="k">try</span><span class="p">:</span>
+</span><span id="line-158">            <span class="k">try</span><span class="p">:</span>
+</span><span id="line-159">                <span class="k">yield</span> <span class="n">proc</span>
+</span><span id="line-160">            <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>
+</span><span id="line-161">                <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">)</span>
+</span><span id="line-162">                <span class="k">raise</span>
+</span><span id="line-163">            <span class="k">finally</span><span class="p">:</span>
+</span><span id="line-164">                <span class="k">for</span> <span class="n">pipe</span> <span class="ow">in</span> <span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">stdin</span><span class="p">,</span> <span class="n">proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">):</span>
+</span><span id="line-165">                    <span class="k">if</span> <span class="n">pipe</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="line-166">                        <span class="k">with</span> <span class="n">ignore_closed_stdin</span><span class="p">():</span>
+</span><span id="line-167">                            <span class="n">pipe</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span id="line-168">                <span class="k">try</span><span class="p">:</span>
+</span><span id="line-169">                    <span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>  <span class="c1"># still bounded: the watchdog runs until it returns</span>
+</span><span id="line-170">                <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>  <span class="c1"># Ctrl-C no longer reaches its own session</span>
+</span><span id="line-171">                    <span class="n">_kill_tree</span><span class="p">(</span><span class="n">proc</span><span class="p">)</span>
+</span><span id="line-172">                    <span class="n">proc</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+</span><span id="line-173">                    <span class="k">raise</span>
+</span><span id="line-174">        <span class="k">finally</span><span class="p">:</span>
+</span><span id="line-175">            <span class="n">watchdog</span><span class="o">.</span><span class="n">cancel</span><span class="p">()</span>
+</span><span id="line-176">        <span class="n">errors</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="line-177">        <span class="n">proc</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">errors</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+</span><span id="line-178">        <span class="k">if</span> <span class="n">fired</span><span class="o">.</span><span class="n">is_set</span><span class="p">()</span> <span class="ow">and</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="line-179">            <span class="k">raise</span> <span class="n">FfmpegTimeout</span><span class="p">(</span>
+</span><span id="line-180">                <span class="sa">f</span><span class="s2">"ffmpeg took more than </span><span class="si">{</span><span class="n">timeout</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2"> s to </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2">; it was killed"</span>
+</span><span id="line-181">            <span class="p">)</span>
+</span><span id="line-182">        <span class="k">if</span> <span class="n">check</span> <span class="ow">and</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="line-183">            <span class="n">tail</span> <span class="o">=</span> <span class="n">proc</span><span class="o">.</span><span class="n">message</span><span class="p">[</span><span class="o">-</span><span class="n">_STDERR_TAIL_CHARS</span><span class="p">:]</span>
+</span><span id="line-184">            <span class="k">raise</span> <span class="n">FfmpegError</span><span class="p">(</span>
+</span><span id="line-185">                <span class="sa">f</span><span class="s2">"ffmpeg could not </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">tail</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+</span><span id="line-186">                <span class="n">returncode</span><span class="o">=</span><span class="n">proc</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span>
+</span><span id="line-187">                <span class="n">cmd</span><span class="o">=</span><span class="n">cmd</span><span class="p">,</span>
+</span><span id="line-188">                <span class="n">stderr</span><span class="o">=</span><span class="n">proc</span><span class="o">.</span><span class="n">message</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span>
+</span><span id="line-189">            <span class="p">)</span></div>
 
 </span></code></pre></div>
     </div></div>

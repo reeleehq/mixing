@@ -27,8 +27,19 @@ True
 
 ### Exceptions
 
-| [`FfmpegTimeout`](#mixing.ffmpeg.FfmpegTimeout)   | ffmpeg ran past its `timeout` and was killed.   |
-|------------------------------------------------------------------|-------------------------------------------------|
+| [`FfmpegError`](#mixing.ffmpeg.FfmpegError)(message, \*, returncode, cmd[, ...])   | ffmpeg exited with an error (`run_ffmpeg(check=True)`).   |
+|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| [`FfmpegTimeout`](#mixing.ffmpeg.FfmpegTimeout)                                      | ffmpeg ran past its `timeout` and was killed.             |
+
+### *exception* mixing.ffmpeg.FfmpegError(message, , returncode, cmd, stderr=b'')
+
+Bases: [`RuntimeError`](https://docs.python.org/3/builtins/exceptions.html#RuntimeError), [`CalledProcessError`](https://docs.python.org/3/library/subprocess.html#subprocess.CalledProcessError)
+
+ffmpeg exited with an error (`run_ffmpeg(check=True)`).
+
+A `RuntimeError` like every ffmpeg failure here, and a
+`subprocess.CalledProcessError` (`returncode`, `cmd`, `stderr` as
+bytes) for callers written against `subprocess.run(check=True)`.
 
 ### *exception* mixing.ffmpeg.FfmpegTimeout
 

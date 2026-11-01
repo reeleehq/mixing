@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T19:16:33Z",
+  "built_at": "2026-11-01T19:33:28Z",
   "package": {
     "name": "mixing",
     "version": "0.0.97",
@@ -9,26 +9,24 @@
   },
   "git": {
     "available": true,
-    "commit": "5d180fed40254c70d1689990e005824618cca7f8",
-    "short_commit": "5d180fe",
+    "commit": "813de621a5f4c6fff4ec74e8ad4d1830b71858f3",
+    "short_commit": "813de62",
     "branch": "main",
-    "tags": [
-      "0.0.97"
-    ],
+    "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/5d180fed40254c70d1689990e005824618cca7f8",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/813de621a5f4c6fff4ec74e8ad4d1830b71858f3",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "174dc347e3899465dde8e296159a692ff85a2b7a",
+    "sha": "d39fe6aea5d9baa0f8a630e176e541c8c4acf910",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41338947633",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41338947633",
+    "run_id": "41339393966",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41339393966",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -58,20 +56,18 @@
   },
   "site": {
     "modules_documented": 21,
-    "objects_documented": 217
+    "objects_documented": 218
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.96",
-    "relation": "ahead",
+    "latest": "0.0.97",
+    "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 5d180fed40254c70d1689990e005824618cca7f8\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 813de621a5f4c6fff4ec74e8ad4d1830b71858f3\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
-    "aligned": false,
-    "notes": [
-      "The documented version (0.0.97) is ahead of the latest release on PyPI (0.0.96): these docs describe unreleased code."
-    ]
+    "aligned": true,
+    "notes": []
   }
 }
