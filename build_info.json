@@ -1,34 +1,34 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T19:42:13Z",
+  "built_at": "2026-11-01T19:53:30Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.99",
+    "version": "0.0.100",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "b48e12528bcfd43523fd94e3ff608db3edf0c17a",
-    "short_commit": "b48e125",
+    "commit": "ca22936404d09f23f4d4381409519fe4204f60a2",
+    "short_commit": "ca22936",
     "branch": "main",
     "tags": [
-      "0.0.99"
+      "0.0.100"
     ],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/b48e12528bcfd43523fd94e3ff608db3edf0c17a",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/ca22936404d09f23f4d4381409519fe4204f60a2",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "f2674aea7f84d436a5ebc9401a9f268bd620fe41",
+    "sha": "0e75bcd6b706b939085542392dff7a328b8bf825",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41340127401",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41340127401",
+    "run_id": "41341633232",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41341633232",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -62,11 +62,11 @@
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.99",
+    "latest": "0.0.100",
     "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout b48e12528bcfd43523fd94e3ff608db3edf0c17a\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout ca22936404d09f23f4d4381409519fe4204f60a2\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": true,
