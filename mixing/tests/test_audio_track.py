@@ -1,4 +1,4 @@
-"""``mixing.ffmpeg.audio_track``: a muxed file's sound as lossless WAV.
+"""``mixing.demux.audio_track``: a muxed file's sound as PCM WAV, own rate and channels.
 
 The media is made with ffmpeg ``lavfi`` sources: a video with a 48 kHz stereo
 aac track, the same video with no sound, and a 22.05 kHz mono wav.
@@ -13,7 +13,8 @@ import wave
 import pytest
 
 from mixing.errors import MediaNotFoundError
-from mixing.ffmpeg import FfmpegTimeout, audio_track
+from mixing.demux import audio_track
+from mixing.ffmpeg import FfmpegTimeout
 from mixing.util import ffmpeg_exe, has_ffmpeg
 
 SECONDS = 2
@@ -44,6 +45,17 @@ def media(tmp_path_factory):
     return files
 
 
+def _chunk(data: bytes, name: bytes) -> bytes:
+    """The body of a RIFF chunk (``-rf64 auto`` reserves a JUNK chunk before fmt)."""
+    at = 12
+    while at + 8 <= len(data):
+        tag, size = data[at : at + 4], struct.unpack_from("<I", data, at + 4)[0]
+        if tag == name:
+            return data[at + 8 : at + 8 + size]
+        at += 8 + size + size % 2
+    raise AssertionError(f"no {name!r} chunk")
+
+
 def _wav(data: bytes):
     with wave.open(io.BytesIO(data)) as w:
         return w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()
@@ -65,14 +77,18 @@ def test_a_mono_file_stays_mono_and_codec_picks_the_sample_format(media):
     assert _wav(audio_track(media["mono"]))[:3] == (22050, 1, 2)
     as_float = audio_track(media["mono"], codec="pcm_f32le")
     # the fmt chunk (stdlib ``wave`` reads integer PCM only): format 3 is float
-    fmt, channels, rate = struct.unpack_from("<HHI", as_float, 20)
-    bits = struct.unpack_from("<H", as_float, 34)[0]
+    fmt, channels, rate, _, _, bits = struct.unpack_from(
+        "<HHIIHH", _chunk(as_float, b"fmt ")
+    )
     assert (fmt, channels, rate, bits) == (3, 1, 22050, 32)
 
 
 def test_output_follows_the_egress_protocol(media, tmp_path):
     to_dir = audio_track(media["muxed"], output=tmp_path)
-    assert to_dir == tmp_path / "audio.wav" and to_dir.read_bytes()[:4] == b"RIFF"
+    assert to_dir == tmp_path / "answer.wav" and to_dir.read_bytes()[:4] == b"RIFF"
+    from_bytes = audio_track(media["muxed"].read_bytes(), output=tmp_path)
+    assert from_bytes == tmp_path / "audio.wav"
+    assert audio_track(media["mono"], output=tmp_path) == tmp_path / "mono.wav"
     to_file = audio_track(media["muxed"], output=tmp_path / "x.wav")
     assert to_file.read_bytes() == to_dir.read_bytes()
     assert audio_track(media["muxed"], output=len) == len(to_dir.read_bytes())
@@ -88,7 +104,9 @@ def test_a_missing_file_is_media_not_found(tmp_path):
         audio_track(tmp_path / "missing.mp4")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in for ffmpeg")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="a shell-script stand-in for ffmpeg"
+)
 def test_a_stalled_ffmpeg_is_killed_at_the_timeout(tmp_path):
     stalled = tmp_path / "ffmpeg"
     stalled.write_text("#!/bin/sh\nsleep 30\n")
@@ -98,14 +116,38 @@ def test_a_stalled_ffmpeg_is_killed_at_the_timeout(tmp_path):
 
 
 @pytest.mark.parametrize("timeout", [0, -1, "5"])
-def test_a_bad_timeout_is_refused_before_anything_runs(timeout):
+def test_a_bad_timeout_is_refused_before_anything_runs(tmp_path, timeout):
+    ran = tmp_path / "ran"
+    recorder = tmp_path / "ffmpeg"
+    recorder.write_text(f"#!/bin/sh\ntouch {ran}\n")
+    recorder.chmod(0o755)
     with pytest.raises(ValueError, match="timeout"):
-        audio_track(b"", timeout=timeout)
+        audio_track(b"x", ffmpeg=str(recorder), timeout=timeout)
+    assert not ran.exists()
 
 
-def test_import_mixing_ffmpeg_loads_no_media_library():
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="a shell-script stand-in for ffmpeg"
+)
+def test_an_ffmpeg_that_writes_nothing_is_a_runtime_error(tmp_path):
+    silent = tmp_path / "ffmpeg"
+    silent.write_text("#!/bin/sh\nexit 0\n")
+    silent.chmod(0o755)
+    with pytest.raises(RuntimeError, match="wrote no WAV") as caught:
+        audio_track(b"x", ffmpeg=str(silent))
+    assert not isinstance(caught.value, FileNotFoundError)
+
+
+def test_bytearray_and_memoryview_are_bytes_too(media):
+    raw = media["mono"].read_bytes()
+    assert (
+        audio_track(bytearray(raw)) == audio_track(memoryview(raw)) == audio_track(raw)
+    )
+
+
+def test_import_mixing_demux_loads_no_media_library():
     code = (
-        "import json, sys, mixing.ffmpeg; "
+        "import json, sys, mixing.demux; "
         "print(json.dumps([n for n in ('numpy', 'moviepy', 'cv2', 'PIL', 'pydub', 'scipy')"
         " if n in sys.modules]))"
     )

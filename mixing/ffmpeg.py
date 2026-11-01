@@ -1,5 +1,5 @@
 """Run one ffmpeg process with a watchdog: the runner :mod:`mixing.decode` and
-:mod:`mixing.probe` share, and the light operations built on it.
+:mod:`mixing.probe` share.
 
 :func:`run_ffmpeg` is a context manager around ``subprocess.Popen``: ffmpeg's
 stderr goes to a temporary file (a pipe nobody reads fills up and blocks it),
@@ -7,10 +7,6 @@ stderr goes to a temporary file (a pipe nobody reads fills up and blocks it),
 wrapper script or a Windows shim would otherwise leave the real ffmpeg running,
 holding the pipes open) and raises :class:`FfmpegTimeout`, and any exception in
 the block kills it. Pure stdlib, so importing it pulls no media library.
-
-:func:`audio_track` takes the sound out of a muxed file (a video that a
-video-to-audio model answers with, say) as lossless WAV bytes at the stream's
-own rate and channel count.
 
 >>> from mixing.ffmpeg import run_ffmpeg  # doctest: +SKIP
 >>> with run_ffmpeg([exe, "-i", "talk.mp4"], what="read", timeout=5, check=False) as p:  # doctest: +SKIP
@@ -30,34 +26,17 @@ import subprocess
 import tempfile
 import threading
 from contextlib import contextmanager, suppress
-from pathlib import Path
-from typing import Optional, Union
-
-from mixing.egress import Output, PathLike, deliver
-from mixing.errors import MediaNotFoundError
-from mixing.util import ffmpeg_exe
+from typing import Optional
 
 __all__ = [
     "FfmpegTimeout",
     "run_ffmpeg",
     "check_timeout",
     "ignore_closed_stdin",
-    "audio_track",
-    "DEFAULT_AUDIO_TRACK_CODEC",
-    "DEFAULT_AUDIO_TRACK_TIMEOUT",
 ]
 
 #: How much of ffmpeg's complaint an error carries.
 _STDERR_TAIL_CHARS = 2000
-#: :func:`audio_track`'s WAV sample format: 16-bit PCM (``"pcm_f32le"`` keeps a
-#: float decoder's samples unquantized, at twice the size).
-DEFAULT_AUDIO_TRACK_CODEC = "pcm_s16le"
-#: Seconds :func:`audio_track` lets ffmpeg run before killing it.
-DEFAULT_AUDIO_TRACK_TIMEOUT = 120.0
-#: :func:`audio_track`'s file name when ``output`` is a directory.
-_AUDIO_TRACK_NAME = "audio.wav"
-#: What marks a location ffmpeg opens that is not a local file (``https://``…).
-_URL_MARKER = "://"
 
 
 class FfmpegTimeout(TimeoutError, RuntimeError):
@@ -179,75 +158,3 @@ def run_ffmpeg(
         if check and proc.returncode != 0:
             tail = proc.message[-_STDERR_TAIL_CHARS:]
             raise RuntimeError(f"ffmpeg could not {what}: {tail}")
-
-
-@contextmanager
-def _local_media(media: Union[bytes, bytearray, PathLike]):
-    """A local path for ``media``: bytes are written to a temporary file (a
-    seekable file, which an mp4 with its index at the end needs); a path or
-    URL is yielded as is."""
-    if not isinstance(media, (bytes, bytearray)):
-        text = os.fspath(media)
-        if _URL_MARKER not in text and not Path(text).exists():
-            raise MediaNotFoundError(f"no such media file: {media}")
-        yield text
-        return
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "media"
-        path.write_bytes(media)
-        yield str(path)
-
-
-def audio_track(
-    media: Union[bytes, bytearray, PathLike],
-    *,
-    output: Output = None,
-    codec: str = DEFAULT_AUDIO_TRACK_CODEC,
-    ffmpeg: Optional[str] = None,
-    timeout: Optional[float] = DEFAULT_AUDIO_TRACK_TIMEOUT,
-):
-    """The first audio stream of ``media`` as WAV, at its own rate and channels.
-
-    For a muxed answer (a video-to-audio model that returns a video): the sound
-    taken out, decoded to PCM (``codec``, default 16-bit) with no resampling and
-    no downmix, unlike :func:`mixing.transcript.media.extract_audio` (16 kHz
-    mono mp3, for speech-to-text). ffmpeg writes a file, not a pipe, so the WAV
-    header carries the final size.
-
-    Args:
-        media: the container, as bytes or a path (or any location ffmpeg opens).
-        output: the ``output`` protocol (:mod:`mixing.egress`): ``None``
-            (default) returns the WAV bytes; a file or directory path writes
-            them there and returns the ``Path``; a callable gets the bytes.
-        codec: the WAV sample format, an ffmpeg PCM encoder
-            (:data:`DEFAULT_AUDIO_TRACK_CODEC`; ``"pcm_f32le"`` for float).
-        ffmpeg: the executable (default :func:`mixing.util.ffmpeg_exe`).
-        timeout: seconds ffmpeg may run before it is killed
-            (:data:`DEFAULT_AUDIO_TRACK_TIMEOUT`; ``None`` for no bound).
-
-    Raises:
-        MediaNotFoundError: ``media`` is a path that does not exist.
-        FfmpegTimeout: ffmpeg ran past ``timeout`` (a ``RuntimeError``).
-        RuntimeError: ffmpeg cannot read it, or it has no audio stream.
-        ValueError: ``timeout`` is not ``None`` or a number of seconds > 0.
-
-    >>> wav = audio_track(answer_mp4_bytes)  # doctest: +SKIP
-    >>> wav[:4], wav[8:12]  # doctest: +SKIP
-    (b'RIFF', b'WAVE')
-    """
-    check_timeout(timeout)
-    exe = ffmpeg or ffmpeg_exe()
-    with _local_media(media) as source, tempfile.TemporaryDirectory() as tmp:
-        wav = Path(tmp) / _AUDIO_TRACK_NAME
-        cmd = [exe, "-hide_banner", "-nostdin", "-loglevel", "error", "-i", source,
-               "-map", "0:a:0", "-c:a", codec, str(wav)]  # fmt: skip
-        with run_ffmpeg(cmd, what="take the audio track out", timeout=timeout):
-            pass
-        data = wav.read_bytes()
-    return deliver(
-        data,
-        output,
-        write=lambda b, path: Path(path).write_bytes(b),
-        default_name=_AUDIO_TRACK_NAME,
-    )
-
