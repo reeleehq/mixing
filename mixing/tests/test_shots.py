@@ -314,7 +314,11 @@ def test_auto_picks_by_frames_per_minute(tmp_path, monkeypatch):
     thumb.grab_frames(video, [30.0], duration_s=60)  # 1 per minute: seek
     assert used == ["seek"]
     used.clear()
-    thumb.grab_frames(video, [0.5 * k for k in range(1, 10)], duration_s=6)  # 90/min
+    dense = [0.5 * k for k in range(1, 10)]  # 90 per minute
+    thumb.grab_frames(video, dense, duration_s=6)  # unscaled: held in memory, seek
+    assert used == ["seek"] * len(dense)
+    used.clear()
+    thumb.grab_frames(video, dense, width=40, duration_s=6)
     assert used == ["pass"]
     with pytest.raises(ValueError, match="unknown method"):
         thumb.grab_frames(video, [1.0], method="fast")
@@ -327,3 +331,56 @@ def test_contact_sheet_is_the_same_either_way(tmp_path):
     a = contact_sheet(video, spans, method="seek")
     b = contact_sheet(video, spans, method="pass")
     assert a.size == b.size and np.array_equal(np.asarray(a), np.asarray(b))
+
+
+def test_one_pass_is_on_the_files_clock_when_the_video_starts_late(tmp_path):
+    """Sound from 0 s, picture from 0.5 s: both methods count from the file."""
+    from mixing.util import ffmpeg_exe
+    from mixing.video.thumbnail import grab_frames
+
+    late = tmp_path / "late.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-itsoffset", "0.5", "-f", "lavfi", "-i",
+         "testsrc=s=160x90:r=10:d=4", "-f", "lavfi", "-i", "sine=d=4.5",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(late)],
+        check=True,
+    )  # fmt: skip
+    times = [1.0, 2.05, 3.3]
+    seeked = grab_frames(late, times, width=80, method="seek")
+    passed = grab_frames(late, times, width=80, method="pass")
+    assert [np.asarray(a).tolist() for a in passed] == [
+        np.asarray(b).tolist() for b in seeked
+    ]
+
+
+def test_a_time_on_a_frame_picks_that_frame_not_the_next(tmp_path):
+    from mixing.util import ffmpeg_exe
+    from mixing.video.thumbnail import grab_frames
+
+    ntsc = tmp_path / "ntsc.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i",
+         "testsrc=s=160x90:r=30000/1001:d=2", "-c:v", "libx264", "-pix_fmt",
+         "yuv420p", str(ntsc)],
+        check=True,
+    )  # fmt: skip
+    on = [k * 1001 / 30000 for k in range(3, 40, 4)]
+    just_before = [t - 0.3 * 1001 / 30000 for t in on]  # first frame at/after: same
+    a = grab_frames(ntsc, on, width=80, method="pass")
+    b = grab_frames(ntsc, just_before, width=80, method="pass")
+    assert [np.asarray(x).tolist() for x in a] == [np.asarray(x).tolist() for x in b]
+
+
+def test_a_truncated_frame_stream_is_a_runtime_error():
+    import io
+
+    from PIL import Image
+
+    from mixing.video.thumbnail import _split_pngs
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8)).save(buffer, format="PNG")
+    png = buffer.getvalue()
+    assert _split_pngs(png + png) == [png, png]
+    with pytest.raises(RuntimeError, match="truncated"):
+        _split_pngs(png + png[:-5])
