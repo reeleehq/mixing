@@ -274,6 +274,8 @@ def test_an_entrance_xfades_the_screen_into_the_item_then_cuts_to_it():
     plan = _plan([Cutaway("a.mp4", 0, 1, 3, transition_in=Transition(0.5, "wipeleft"))])
     fc = plan.filter_complex
     assert "xfade=transition=wipeleft:duration=0.5:offset=0" in fc
+    assert "color=c=black@0:s=320x240" in fc  # blended from transparency...
+    assert "[b0]split" not in fc and "[b1]split" not in fc  # ...never the main picture
     assert "enable='gte(t,1)*lt(t,1.5)'" in fc  # the blend over the entrance
     assert "enable='gte(t,1.5)*lt(t,3)'" in fc  # the item itself after it
     with pytest.raises(ValueError, match="shorter than the window"):
@@ -290,7 +292,11 @@ def test_an_items_own_overlay_replaces_the_plans_on_its_window():
     )
     fc, inputs = plan.filter_complex, plan.inputs
     assert "small.png" in inputs and "big.png" in inputs
-    assert "overlay='0':'0':shortest=1:enable='gte(t,1)*lt(t,2)'" in fc
+    # the plan's caption steps aside wherever an item shows its own
+    assert (
+        "overlay='0':'0':shortest=1:"
+        "enable='(gte(t,1)*lt(t,2))*not(gte(t,2)*lt(t,3))'" in fc
+    )
     assert "overlay='(W-w)/2':'0':shortest=1:enable='gte(t,2)*lt(t,3)'" in fc
     assert plan.maps[0] == "[vout]"
 
@@ -366,3 +372,48 @@ def test_real_render_per_item_captions_and_post(make_color_video, tmp_path):
     assert not (second[5, 5] < 60).all()  # ...not on the second window
     assert second[-5, -5, 1] > 200  # big magenta caption bottom right, negated green
     assert outside[50, 50, 0] > 200 and outside[50, 50, 2] < 60  # red base negated
+
+
+def test_an_entrance_running_past_the_base_warns():
+    from looks import Transition
+
+    with pytest.warns(UserWarning, match="cut short"):
+        _plan([Cutaway("a.mp4", 0, 2.8, 3.5, transition_in=Transition(0.5))])
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_cutaway_into_cutaway_and_caption_overlap(
+    make_color_video, tmp_path
+):
+    import cv2
+    import numpy as np
+    from looks import Transition
+
+    base = make_color_video(4.0, color=(255, 0, 0))  # red
+    green = make_color_video(4.0, color=(0, 255, 0))
+    blue = make_color_video(4.0, color=(0, 0, 255))
+    small, big = tmp_path / "small.png", tmp_path / "big.png"
+    cv2.imwrite(str(small), np.full((20, 20, 4), (255, 255, 255, 255), np.uint8))
+    cv2.imwrite(str(big), np.full((40, 40, 4), (255, 0, 255, 255), np.uint8))
+    out = cutaways(
+        base,
+        [
+            # the first stays up through the second's entrance
+            Cutaway(green, 0.0, 1.0, 3.0),
+            Cutaway(
+                blue, 0.0, 2.0, 3.5, transition_in=Transition(1.0, "fade"),
+                overlay=big, overlay_xy=("W-w", "H-h"),
+            ),
+        ],
+        overlay=small,
+        output=tmp_path / "out.mp4",
+    )  # fmt: skip
+    mid = _frame_bgr(out, 2.5)  # half way from green to blue: no red
+    assert mid[2] < 60 and 60 < mid[1] < 200 and 60 < mid[0] < 200
+    cap = cv2.VideoCapture(str(out))
+    cap.set(cv2.CAP_PROP_POS_MSEC, 2700)
+    ok, frame = cap.read()
+    cap.release()
+    assert ok
+    assert not (frame[5, 5] > 200).all()  # the plan's caption steps aside...
+    assert frame[-5, -5, 0] > 200 and frame[-5, -5, 2] > 200  # ...for the item's

@@ -79,10 +79,13 @@ class Cutaway:
     ``audio_gain`` is the linear gain of the insert's own audio mixed under the
     base; ``None`` (default) drops it. A still image is held for the window.
 
-    ``transition_in`` (a ``looks.Transition``, any of its curves) makes the item
-    *enter*: what is on screen at ``t0`` (the base, or an earlier cutaway)
-    turns into the item over ``[t0, t0 + duration_s)``, the item playing from
-    ``src_in`` at ``t0`` as with a cut. ``overlay`` is an image shown during
+    ``transition_in`` (a ``looks.Transition``) makes the item *enter*: it is
+    revealed over ``[t0, t0 + duration_s)`` on top of whatever shows under it
+    then, playing from ``src_in`` at ``t0`` as with a cut. Under it is the base,
+    or an earlier cutaway whose window still covers the entrance (to go from
+    one cutaway into the next, end the first at ``t0 + duration_s``, not at
+    ``t0``). A transition centred on a cut at ``c`` (``lead`` before it,
+    ``tail`` after) is ``t0=c - lead``, ``src_in - lead``, ``duration_s=lead + tail``. ``overlay`` is an image shown during
     this item's window instead of :func:`plan_cutaways`' ``overlay`` (a big
     caption on one window, the small one elsewhere), at ``overlay_xy`` (default:
     the plan's).
@@ -277,27 +280,37 @@ def _base_audio(info: MediaInfo) -> str:
 
 
 def _entrance(
-    i: int, item: Cutaway, last: str, *, fps: float
-) -> tuple[list[str], str, str]:
-    """``(filters, item label, screen label)`` making item ``i`` enter by its
-    ``transition_in``: the screen (``last``) and the item are each split, their
-    ``[t0, t0 + d)`` spans ``xfade``d (``offset=0``: the blend is the whole
-    span), and the blend put back at ``t0`` as ``[x{i}]``; the screen keeps
-    flowing as the returned label, the item as the other."""
-    t0, d = _num(item.t0), _num(item.transition_in.duration_s)
-    # xfade needs a stated constant rate, which overlay outputs do not carry
-    segment = f"trim=start={t0}:duration={d},setpts=PTS-STARTPTS,fps={_num(fps)}"
+    i: int, item: Cutaway, *, base: MediaInfo, fps: float
+) -> tuple[list[str], str]:
+    """``(filters, item label)`` making item ``i`` enter by its ``transition_in``.
+
+    The item is split; its first ``duration_s`` is ``xfade``d from a fully
+    transparent picture (``offset=0``: the blend is the whole span) and put
+    back at ``t0`` as ``[x{i}]``, to be overlaid on whatever is on screen then.
+    Blending from transparency rather than from the main picture keeps the main
+    stream unsplit: a split of it would hold every frame up to ``t0`` in memory
+    (gigabytes for a late cutaway on a long base). Curves that only reveal the
+    item (fades, dissolve, wipes, circles) are exact; curves that also move or
+    darken the outgoing picture (slides, ``fadeblack``) move only the incoming one.
+    """
+    t0, d, rate = _num(item.t0), _num(item.transition_in.duration_s), _num(fps)
+    clear = (
+        f"color=c=black@0:s={base.width}x{base.height}:r={rate}:d={d},"
+        f"format=yuva420p[z{i}]"
+    )
+    # xfade needs a stated constant rate on both inputs
+    head = (
+        f"trim=start={t0}:duration={d},setpts=PTS-STARTPTS,fps={rate},format=yuva420p"
+    )
     return (
         [
-            f"[{last}]split[s{i}][sx{i}]",
+            clear,
             f"[v{i}]split[w{i}][wx{i}]",
-            f"[sx{i}]{segment}[sf{i}]",
-            f"[wx{i}]{segment}[wf{i}]",
-            f"[sf{i}][wf{i}]xfade=transition={item.transition_in.curve}:"
+            f"[wx{i}]{head}[wf{i}]",
+            f"[z{i}][wf{i}]xfade=transition={item.transition_in.curve}:"
             f"duration={d}:offset=0,setpts=PTS+{t0}/TB[x{i}]",
         ],
         f"w{i}",
-        f"s{i}",
     )
 
 
@@ -405,6 +418,15 @@ def plan_cutaways(
                 f"({base_info.duration:.2f}s): it will not show",
                 stacklevel=3,
             )
+        entrance_end = item.t0 + (
+            item.transition_in.duration_s if item.transition_in else 0.0
+        )
+        if base_info.duration and item.t0 < base_info.duration < entrance_end:
+            warnings.warn(
+                f"cutaway entrance runs to {entrance_end:g}s, past the base's end "
+                f"({base_info.duration:.2f}s): it is cut short there",
+                stacklevel=3,
+            )
         inputs += _input_args(item, fps)
         fc.append(
             _item_video(
@@ -419,7 +441,7 @@ def plan_cutaways(
         )
         shown = f"v{i}"
         if item.transition_in is not None:
-            entrance, shown, last = _entrance(i, item, last, fps=fps)
+            entrance, shown = _entrance(i, item, base=base_info, fps=fps)
             fc += entrance
             fc.append(
                 f"[{last}][x{i}]overlay=eof_action=pass:"
@@ -445,9 +467,13 @@ def plan_cutaways(
         if image is not None:
             xy = tuple(item.overlay_xy or overlay_xy)
             captions.setdefault((str(image), xy), []).append(item)
+    own = [item for item in items if item.overlay is not None]
     for k, ((image, (x, y)), shown_on) in enumerate(captions.items()):
         inputs += ["-loop", "1", "-i", image]
         windows = "+".join(_window(item) for item in shown_on)
+        if overlay is not None and shown_on[0].overlay is None and own:
+            # the plan's caption steps aside wherever an item shows its own
+            windows = f"({windows})*not({'+'.join(_window(i) for i in own)})"
         # the finished picture is ``[vout]`` (after the last overlay, or ``post``)
         label = "vout" if k == len(captions) - 1 and not post else f"c{k}"
         fc.append(f"[{len(items) + 1 + k}:v]format=rgba[cap{k}]")
