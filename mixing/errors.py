@@ -11,7 +11,15 @@ than parse prose.
 
 import math
 
-__all__ = ["MixingError", "WindowTooWideForClip", "ProbeError", "MediaNotFoundError"]
+from typing import Optional
+
+__all__ = [
+    "MixingError",
+    "WindowTooWideForClip",
+    "ProbeError",
+    "MediaNotFoundError",
+    "GainCappedWarning",
+]
 
 #: Decimal places the remedy in a :class:`WindowTooWideForClip` message is stated to.
 #: The number is rounded DOWN to them, so what the message tells a caller to pass is
@@ -103,3 +111,38 @@ class WindowTooWideForClip(MixingError, ValueError):
             f"always ends with a window one window's length from the clip's end, "
             f"whatever the hop.)"
         )
+
+
+class GainCappedWarning(UserWarning):
+    """A leveling gain was capped at ``max_gain_db`` (it would mostly amplify noise).
+
+    Raised (as a warning) by :func:`mixing.loudness.level_group` and
+    :func:`mixing.loudness.level_file`. A ``UserWarning`` subclass, so a caller
+    can tell it from any other warning
+    (``warnings.catch_warnings`` + ``issubclass``, or a ``"error"`` filter on
+    this class alone), with the numbers as attributes.
+
+    Attributes:
+        subject: what was leveled (``"group"``, or a file's name).
+        measured_lufs: its measured loudness.
+        target_lufs: the loudness asked for.
+        requested_gain_db: the gain that would have reached it.
+        max_gain_db: the cap the gain was held to.
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        subject: Optional[str] = None,
+        measured_lufs: Optional[float] = None,
+        target_lufs: Optional[float] = None,
+        requested_gain_db: Optional[float] = None,
+        max_gain_db: Optional[float] = None,
+    ):  # defaults, so pickle and copy (which rebuild from ``args``) work
+        super().__init__(message)
+        self.subject = subject
+        self.measured_lufs = measured_lufs
+        self.target_lufs = target_lufs
+        self.requested_gain_db = requested_gain_db
+        self.max_gain_db = max_gain_db

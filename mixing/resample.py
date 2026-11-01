@@ -6,7 +6,7 @@ array-only :mod:`mixing.loudness` share it without the loudness layer importing
 the media stack.
 
 >>> import numpy as np
->>> resample(np.zeros((480, 2)), 48000, 16000).shape  # doctest: +SKIP
+>>> resample(np.zeros((480, 2)), 48000, 16000).shape
 (160, 2)
 """
 

@@ -80,7 +80,7 @@ def test_level_group_reaches_the_target_and_keeps_relative_dynamics():
 
 
 def test_a_capped_gain_warns_with_a_typed_warning_carrying_the_numbers():
-    from mixing.loudness import GainCappedWarning
+    from mixing.errors import GainCappedWarning
 
     with pytest.warns(GainCappedWarning) as caught:
         gain, measured = level_group(
@@ -90,9 +90,38 @@ def test_a_capped_gain_warns_with_a_typed_warning_carrying_the_numbers():
     assert isinstance(w, UserWarning) and w.subject == "group"
     assert (w.max_gain_db, w.target_lufs, w.measured_lufs) == (6.0, -10.0, measured)
     assert w.requested_gain_db == pytest.approx(-10.0 - measured) and gain == 6.0
-    with warnings.catch_warnings():  # filterable on its own
+    with warnings.catch_warnings():  # filterable on its own: an error, others not
         warnings.simplefilter("error", GainCappedWarning)
-        level_group([_voice(2, 0.3)], FS, target_lufs=-20.0)
+        level_group([_voice(2, 0.3)], FS, target_lufs=-20.0)  # uncapped: silent
+        with pytest.raises(GainCappedWarning):
+            level_group([_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0)
+
+
+def test_the_cap_warning_survives_pickle_and_copy():
+    import copy
+    import pickle
+
+    import mixing
+    from mixing.errors import GainCappedWarning
+
+    assert mixing.GainCappedWarning is GainCappedWarning
+    w = GainCappedWarning("capped", subject="v1", measured_lufs=-50.0, max_gain_db=6.0)
+    for twin in (pickle.loads(pickle.dumps(w)), copy.copy(w), copy.deepcopy(w)):
+        assert (str(twin), twin.subject, twin.measured_lufs) == ("capped", "v1", -50.0)
+
+
+@pytest.mark.parametrize("fs", [FS, float(FS), np.int64(FS), np.float64(FS)])
+def test_one_rate_may_be_any_whole_number(fs):
+    group = [_voice(1, 0.2)]
+    assert level_group(group, fs, target_lufs=-20.0) == level_group(
+        group, FS, target_lufs=-20.0
+    )
+
+
+@pytest.mark.parametrize("fs", [44100.5, [44100.5], 0, -FS, True])
+def test_a_rate_that_is_not_a_whole_positive_number_is_refused(fs):
+    with pytest.raises(ValueError, match="sample rate"):
+        level_group([_voice(1, 0.2)], fs, target_lufs=-20.0)
 
 
 def test_group_lufs_is_what_level_group_measures():

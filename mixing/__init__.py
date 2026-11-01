@@ -112,6 +112,7 @@ _LAZY: dict[str, str] = {
     # typed errors (pure)
     "MixingError": "mixing.errors",
     "WindowTooWideForClip": "mixing.errors",
+    "GainCappedWarning": "mixing.errors",
     # srt / timeline (pure)
     "Cue": "mixing.srt",
     "parse_srt": "mixing.srt",
@@ -195,7 +196,7 @@ if TYPE_CHECKING:  # help static analyzers see the lazy names
         transcribe,
     )
     from mixing.dubbing import dub_video_from_srt, text_to_speech, translate_srt  # noqa: F401
-    from mixing.errors import MixingError, WindowTooWideForClip  # noqa: F401
+    from mixing.errors import GainCappedWarning, MixingError, WindowTooWideForClip  # noqa: F401
 
 
 def __getattr__(name: str):

@@ -49,6 +49,7 @@ from typing import (
     Union,
 )
 
+from mixing.errors import GainCappedWarning  # noqa: F401  (re-exported)
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
 
 try:  # numpy only: scipy is imported where used, so the ffmpeg meter works without it
@@ -552,6 +553,19 @@ def true_peak_db(
 # --- group leveling -------------------------------------------------------------
 
 
+def _whole_rate(rate) -> int:
+    """``rate`` (Hz) as an int; a rate that is not a whole number is refused."""
+    if (
+        isinstance(rate, bool)
+        or not isinstance(rate, numbers.Real)
+        or rate != int(rate)
+    ):
+        raise ValueError(f"a sample rate is a whole number of Hz, got {rate!r}")
+    if rate <= 0:
+        raise ValueError(f"a sample rate is > 0, got {rate!r}")
+    return int(rate)
+
+
 def _at_one_rate(
     segments: Sequence[np.ndarray], fs: Union[int, Sequence[int]]
 ) -> tuple[list[np.ndarray], int]:
@@ -559,9 +573,9 @@ def _at_one_rate(
     rate for all, or one per segment (each resampled to the highest of them, so
     nothing is filtered away)."""
     arrays = [_as_2d(np.asarray(s, dtype=np.float64)) for s in segments]
-    if isinstance(fs, numbers.Integral):
-        return arrays, int(fs)
-    rates = [int(r) for r in fs]
+    if isinstance(fs, numbers.Real):  # one rate (int, whole float, numpy scalar)
+        return arrays, _whole_rate(fs)
+    rates = [_whole_rate(r) for r in fs]
     if len(rates) != len(arrays):
         raise ValueError(
             f"fs gives {len(rates)} rates for {len(arrays)} segments: one rate, "
@@ -636,39 +650,6 @@ def level_group(
         measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject="group"
     )
     return gain, measured
-
-
-class GainCappedWarning(UserWarning):
-    """A leveling gain was capped at ``max_gain_db`` (it would mostly amplify noise).
-
-    A ``UserWarning`` subclass, so a caller can tell it from any other warning
-    (``warnings.catch_warnings`` + ``issubclass``, or a ``"error"`` filter on
-    this class alone), with the numbers as attributes.
-
-    Attributes:
-        subject: what was leveled (``"group"``, or a file's name).
-        measured_lufs: its measured loudness.
-        target_lufs: the loudness asked for.
-        requested_gain_db: the gain that would have reached it.
-        max_gain_db: the cap the gain was held to.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        subject: str,
-        measured_lufs: float,
-        target_lufs: float,
-        requested_gain_db: float,
-        max_gain_db: float,
-    ):
-        super().__init__(message)
-        self.subject = subject
-        self.measured_lufs = measured_lufs
-        self.target_lufs = target_lufs
-        self.requested_gain_db = requested_gain_db
-        self.max_gain_db = max_gain_db
 
 
 def _target_gain(
