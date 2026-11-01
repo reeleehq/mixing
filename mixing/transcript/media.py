@@ -6,7 +6,9 @@ executable; default :func:`mixing.util.ffmpeg_exe`, which finds a pip-bundled
 build too: ``"ffmpeg"`` for the one on ``PATH``) and ``timeout=`` (seconds the
 run may take; it is killed, with what it started, and
 :class:`~mixing.ffmpeg.FfmpegTimeout` raised). A failed run raises
-``RuntimeError`` with the tail of ffmpeg's message.
+:class:`~mixing.ffmpeg.FfmpegError`: a ``RuntimeError`` carrying the tail of
+ffmpeg's message, and a ``subprocess.CalledProcessError`` (``returncode``,
+``stderr``) as before this used the shared runner.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ def extract_audio(
     """
     cmd = [
         ffmpeg or ffmpeg_exe(),
+        "-hide_banner",
         "-y" if overwrite else "-n",
         "-i",
         str(input_path),
@@ -93,6 +96,7 @@ def apply_keeps(
     af = f"aselect='{expr}',asetpts=N/SR/TB"
     cmd = [
         ffmpeg or ffmpeg_exe(),
+        "-hide_banner",
         "-y" if overwrite else "-n",
         "-i",
         str(input_path),

@@ -42,9 +42,33 @@ def test_apply_keeps_keeps_only_the_ranges(clip, tmp_path):
         apply_keeps(clip, tmp_path / "none.mp4", [])
 
 
-def test_a_failed_run_is_a_runtime_error_naming_ffmpegs_complaint(tmp_path):
-    with pytest.raises(RuntimeError, match="could not extract the audio"):
-        extract_audio(tmp_path / "missing.mp4", tmp_path / "x.mp3")
+def test_a_failed_run_is_a_runtime_error_and_a_called_process_error(clip, tmp_path):
+    import pickle
+
+    from mixing.ffmpeg import FfmpegError
+
+    silent = tmp_path / "silent.mp4"  # a picture and no sound: nothing to extract
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-i", str(clip), "-an", "-c", "copy",
+         str(silent)],
+        check=True,
+    )  # fmt: skip
+    with pytest.raises(FfmpegError) as caught:
+        extract_audio(silent, tmp_path / "x.mp3")
+    error = caught.value
+    assert isinstance(error, RuntimeError)
+    assert isinstance(error, subprocess.CalledProcessError)  # callers of the old API
+    assert error.returncode != 0 and b"does not contain any stream" in error.stderr
+    assert "could not extract the audio" in str(error)
+    assert "ffmpeg version" not in str(
+        error
+    )  # -hide_banner: the complaint, not the build
+    again = pickle.loads(pickle.dumps(error))
+    assert (str(again), again.returncode, again.stderr) == (
+        str(error),
+        error.returncode,
+        error.stderr,
+    )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in")

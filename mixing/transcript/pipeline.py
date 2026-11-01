@@ -55,6 +55,7 @@ def remove_fillers(
     api_key: str | None = None,
     scribe_kwargs: Mapping[str, object] | None = None,
     apply_keeps_kwargs: Mapping[str, object] | None = None,
+    extract_audio_kwargs: Mapping[str, object] | None = None,
     keep_intermediate: bool = True,
     scribe_data: dict | None = None,
 ) -> FillerRemovalResult:
@@ -70,6 +71,8 @@ def remove_fillers(
         api_key: ElevenLabs API key (else env ``ELEVENLABS_API_KEY`` or ``ELEVEN_API_KEY``).
         scribe_kwargs: Extra kwargs forwarded to :func:`transcribe`.
         apply_keeps_kwargs: Extra kwargs forwarded to :func:`apply_keeps`.
+        extract_audio_kwargs: Extra kwargs forwarded to :func:`extract_audio`
+            (``ffmpeg=``, ``timeout=``, ...).
         keep_intermediate: If ``False``, delete the extracted audio file.
         scribe_data: If provided, skip the network call and use this dict
             (must match Scribe's response shape). Useful for tests / replays.
@@ -86,7 +89,7 @@ def remove_fillers(
 
     if scribe_data is None:
         audio_path = output_dir / f"{input_media.stem}.mp3"
-        extract_audio(input_media, audio_path)
+        extract_audio(input_media, audio_path, **dict(extract_audio_kwargs or {}))
         scribe_kw = dict(scribe_kwargs or {})
         if api_key is not None:
             scribe_kw["api_key"] = api_key
