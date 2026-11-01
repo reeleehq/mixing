@@ -10,6 +10,7 @@ than parse prose.
 """
 
 import math
+from functools import partial
 
 from typing import Optional
 
@@ -111,6 +112,18 @@ class WindowTooWideForClip(MixingError, ValueError):
             f"always ends with a window one window's length from the clip's end, "
             f"whatever the hop.)"
         )
+
+    def __reduce__(self):
+        """Rebuilt from its measured numbers (its ``args`` hold only the message,
+        which its keyword-only ``__init__`` cannot take), so pickle and copy work."""
+        fields = dict(
+            clip_index=self.clip_index,
+            clip_duration_s=self.clip_duration_s,
+            window_s=self.window_s,
+            hop_s=self.hop_s,
+            max_window_s=self.max_window_s,
+        )
+        return (partial(type(self), **fields), ())
 
 
 class GainCappedWarning(UserWarning):
