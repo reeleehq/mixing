@@ -8,13 +8,17 @@ ffmpeg has) and runs it in a single pass:
 
 - each :class:`Cutaway` is seeked to ``src_in`` at the input, scaled to the base
   frame (``fit``, default ``"fill"``: cover and crop), shifted to its start
-  ``t0`` and overlaid on the base only while ``t0 <= t < t1`` (a hard cut; a
-  window outlasting the clip falls back to the base);
+  ``t0`` and overlaid on the base only while ``t0 <= t < t1`` (a hard cut, or,
+  with ``transition_in`` (a ``looks.Transition``), an ``xfade`` from what is
+  on screen into the item over ``[t0, t0 + duration_s)``; a window outlasting
+  the clip falls back to the base);
 - the base audio keeps playing at full level; a cutaway's own audio is mixed in
   only when it has an ``audio_gain`` (linear), with short fades at its edges;
   ``amix normalize=0`` so mixing does not halve the base level;
 - an optional ``overlay`` image (a caption, a bug) is shown only while some
-  cutaway is showing.
+  cutaway is showing; an item's own ``overlay`` replaces it during that item;
+- an optional ``post`` filter fragment runs on the finished picture (letterbox,
+  grain: ``looks.vf(...)``), so the whole edit stays one pass.
 
 Plan, then execute: :func:`plan_cutaways` returns a :class:`CutawayPlan` (the
 filter string and ffmpeg arguments) after probing the files, and
@@ -37,6 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
+from looks import Transition
 from looks.geometry import FitMode, Size, ffmpeg_chain, placement
 
 from mixing.egress import Output, write_egress
@@ -73,6 +78,14 @@ class Cutaway:
 
     ``audio_gain`` is the linear gain of the insert's own audio mixed under the
     base; ``None`` (default) drops it. A still image is held for the window.
+
+    ``transition_in`` (a ``looks.Transition``, any of its curves) makes the item
+    *enter*: what is on screen at ``t0`` (the base, or an earlier cutaway)
+    turns into the item over ``[t0, t0 + duration_s)``, the item playing from
+    ``src_in`` at ``t0`` as with a cut. ``overlay`` is an image shown during
+    this item's window instead of :func:`plan_cutaways`' ``overlay`` (a big
+    caption on one window, the small one elsewhere), at ``overlay_xy`` (default:
+    the plan's).
     """
 
     src: str | Path
@@ -80,6 +93,9 @@ class Cutaway:
     t0: float
     t1: float
     audio_gain: Optional[float] = None
+    transition_in: Optional[Transition] = None
+    overlay: str | Path | None = None
+    overlay_xy: Optional[tuple[str, str]] = None
 
     def __post_init__(self):
         if not 0 <= self.t0 < self.t1:
@@ -88,6 +104,13 @@ class Cutaway:
             raise ValueError(f"src_in must be >= 0: {self}")
         if self.audio_gain is not None and self.audio_gain < 0:
             raise ValueError(f"audio_gain must be >= 0: {self}")
+        if self.transition_in is not None and not (
+            self.transition_in.duration_s < self.t1 - self.t0
+        ):
+            raise ValueError(
+                f"transition_in ({self.transition_in.duration_s}s) must be shorter "
+                f"than the window ({self.t1 - self.t0:g}s): {self}"
+            )
 
     @property
     def duration(self) -> float:
@@ -253,8 +276,41 @@ def _base_audio(info: MediaInfo) -> str:
     )
 
 
-def _window(item: Cutaway) -> str:
+def _entrance(
+    i: int, item: Cutaway, last: str, *, fps: float
+) -> tuple[list[str], str, str]:
+    """``(filters, item label, screen label)`` making item ``i`` enter by its
+    ``transition_in``: the screen (``last``) and the item are each split, their
+    ``[t0, t0 + d)`` spans ``xfade``d (``offset=0``: the blend is the whole
+    span), and the blend put back at ``t0`` as ``[x{i}]``; the screen keeps
+    flowing as the returned label, the item as the other."""
+    t0, d = _num(item.t0), _num(item.transition_in.duration_s)
+    # xfade needs a stated constant rate, which overlay outputs do not carry
+    segment = f"trim=start={t0}:duration={d},setpts=PTS-STARTPTS,fps={_num(fps)}"
+    return (
+        [
+            f"[{last}]split[s{i}][sx{i}]",
+            f"[v{i}]split[w{i}][wx{i}]",
+            f"[sx{i}]{segment}[sf{i}]",
+            f"[wx{i}]{segment}[wf{i}]",
+            f"[sf{i}][wf{i}]xfade=transition={item.transition_in.curve}:"
+            f"duration={d}:offset=0,setpts=PTS+{t0}/TB[x{i}]",
+        ],
+        f"w{i}",
+        f"s{i}",
+    )
+
+
+def _window(item: Cutaway, *, after_entrance: bool = False) -> str:
+    if after_entrance and item.transition_in is not None:
+        start = _num(item.t0 + item.transition_in.duration_s)
+        return f"gte(t,{start})*lt(t,{_num(item.t1)})"
     return f"gte(t,{_num(item.t0)})*lt(t,{_num(item.t1)})"
+
+
+def _entrance_window(item: Cutaway) -> str:
+    end = _num(item.t0 + item.transition_in.duration_s)
+    return f"gte(t,{_num(item.t0)})*lt(t,{end})"
 
 
 def _check_source(item: Cutaway, info: MediaInfo) -> None:
@@ -281,6 +337,7 @@ def plan_cutaways(
     *,
     overlay: str | Path | None = None,
     overlay_xy: tuple[str, str] = DEFAULT_OVERLAY_XY,
+    post: Optional[str] = None,
     fit: FitMode = DEFAULT_FIT,
     base_grade: Optional[str] = None,
     insert_grade: Optional[str] = None,
@@ -297,13 +354,19 @@ def plan_cutaways(
     letterboxes, ``"stretch"``) and graded by ``insert_grade`` only. An item
     with an ``audio_gain`` has its audio mixed under the base at that linear
     gain. ``overlay`` (an image, e.g. a caption) shows only while an item does,
-    at ``overlay_xy`` (ffmpeg expressions). Items are drawn in order, so a later
-    one wins where windows overlap.
+    at ``overlay_xy`` (ffmpeg expressions); an item with its own ``overlay``
+    shows that one instead. An item with a ``transition_in`` enters by it.
+    ``post`` (a filter fragment, e.g. ``looks.vf(...)``) runs on the finished
+    picture, after every overlay. Items are drawn in order, so a later one wins
+    where windows overlap.
 
     Args:
         base: The base video.
         items: The cutaways, at least one.
-        overlay: Optional image shown during cutaway windows only.
+        overlay: Optional image shown during cutaway windows only (an item's
+            own ``overlay`` replaces it during that item).
+        overlay_xy: Where ``overlay`` sits (ffmpeg ``overlay`` x, y).
+        post: Optional filter fragment on the finished picture.
         fit: ``"fill"`` (default), ``"fit"`` or ``"stretch"``.
         base_grade, insert_grade: ffmpeg filter fragments (e.g. from
             ``looks.vf``) for the base / for the cutaways only.
@@ -354,9 +417,17 @@ def plan_cutaways(
                 grade=insert_grade,
             )  # fmt: skip
         )
-        fc.append(
-            f"[{last}][v{i}]overlay=eof_action=pass:enable='{_window(item)}'[b{i}]"
-        )
+        shown = f"v{i}"
+        if item.transition_in is not None:
+            entrance, shown, last = _entrance(i, item, last, fps=fps)
+            fc += entrance
+            fc.append(
+                f"[{last}][x{i}]overlay=eof_action=pass:"
+                f"enable='{_entrance_window(item)}'[e{i}]"
+            )
+            last = f"e{i}"
+        window = _window(item, after_entrance=True)
+        fc.append(f"[{last}][{shown}]overlay=eof_action=pass:enable='{window}'[b{i}]")
         last = f"b{i}"
         if item.audio_gain is not None and not item.is_image and info.has_audio:
             fc.append(
@@ -366,14 +437,27 @@ def plan_cutaways(
             )
             mixed.append(f"[a{i}]")
 
-    if overlay is not None:
-        inputs += ["-loop", "1", "-i", str(overlay)]
-        windows = "+".join(_window(item) for item in items)
-        fc.append(f"[{1 + len(items)}:v]format=rgba[cap]")
-        x, y = overlay_xy
+    # one overlay per (image, position): the plan's on the items without their
+    # own, each item's own on its window
+    captions: dict[tuple[str, tuple[str, str]], list[Cutaway]] = {}
+    for item in items:
+        image = item.overlay if item.overlay is not None else overlay
+        if image is not None:
+            xy = tuple(item.overlay_xy or overlay_xy)
+            captions.setdefault((str(image), xy), []).append(item)
+    for k, ((image, (x, y)), shown_on) in enumerate(captions.items()):
+        inputs += ["-loop", "1", "-i", image]
+        windows = "+".join(_window(item) for item in shown_on)
+        # the finished picture is ``[vout]`` (after the last overlay, or ``post``)
+        label = "vout" if k == len(captions) - 1 and not post else f"c{k}"
+        fc.append(f"[{len(items) + 1 + k}:v]format=rgba[cap{k}]")
         fc.append(
-            f"[{last}][cap]overlay='{x}':'{y}':shortest=1:enable='{windows}'[vout]"
+            f"[{last}][cap{k}]overlay='{x}':'{y}':shortest=1:enable='{windows}'"
+            f"[{label}]"
         )
+        last = label
+    if post:
+        fc.append(f"[{last}]{post}[vout]")
         last = "vout"
 
     maps = [f"[{last}]"]

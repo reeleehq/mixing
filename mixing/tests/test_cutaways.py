@@ -263,3 +263,106 @@ def test_cutaway_audio_is_downmixed_before_amix():
 def test_cutaway_starting_after_the_base_warns():
     with pytest.warns(UserWarning, match="after the base ends"):
         _plan([Cutaway("a.mp4", 0, 10, 12)])
+
+
+# --- entrances, per-item overlays, post (reeleehq/mixing#115) ---------------------
+
+
+def test_an_entrance_xfades_the_screen_into_the_item_then_cuts_to_it():
+    from looks import Transition
+
+    plan = _plan([Cutaway("a.mp4", 0, 1, 3, transition_in=Transition(0.5, "wipeleft"))])
+    fc = plan.filter_complex
+    assert "xfade=transition=wipeleft:duration=0.5:offset=0" in fc
+    assert "enable='gte(t,1)*lt(t,1.5)'" in fc  # the blend over the entrance
+    assert "enable='gte(t,1.5)*lt(t,3)'" in fc  # the item itself after it
+    with pytest.raises(ValueError, match="shorter than the window"):
+        Cutaway("a.mp4", 0, 1, 1.5, transition_in=Transition(0.5))
+
+
+def test_an_items_own_overlay_replaces_the_plans_on_its_window():
+    plan = _plan(
+        [
+            Cutaway("a.mp4", 0, 1, 2),
+            Cutaway("b.mp4", 0, 2, 3, overlay="big.png", overlay_xy=("(W-w)/2", "0")),
+        ],
+        overlay="small.png",
+    )
+    fc, inputs = plan.filter_complex, plan.inputs
+    assert "small.png" in inputs and "big.png" in inputs
+    assert "overlay='0':'0':shortest=1:enable='gte(t,1)*lt(t,2)'" in fc
+    assert "overlay='(W-w)/2':'0':shortest=1:enable='gte(t,2)*lt(t,3)'" in fc
+    assert plan.maps[0] == "[vout]"
+
+
+def test_post_runs_last_on_the_finished_picture():
+    plan = _plan([Cutaway("a.mp4", 0, 1, 2)], overlay="c.png", post="negate")
+    assert plan.filter_complex.endswith("[c0]negate[vout]")
+    assert _plan([Cutaway("a.mp4", 0, 1, 2)]).maps[0] == "[b1]"  # no post: as before
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_dissolves_and_wipes_in(make_color_video, tmp_path):
+    from looks import Transition
+
+    base = make_color_video(4.0, color=(255, 0, 0))  # red (BGR: channel 2)
+    item = make_color_video(4.0, color=(0, 255, 0))  # green (BGR: channel 1)
+    fade = cutaways(
+        base,
+        [Cutaway(item, 0.0, 1.0, 3.0, transition_in=Transition(1.0, "fade"))],
+        output=tmp_path / "fade.mp4",
+    )
+    before, middle, after = (_frame_bgr(fade, t) for t in (0.5, 1.5, 2.5))
+    assert before[2] > 200 and before[1] < 60
+    assert 60 < middle[1] < 200 and 60 < middle[2] < 200  # half way: both
+    assert after[1] > 200 and after[2] < 60
+    wipe = cutaways(
+        base,
+        [Cutaway(item, 0.0, 1.0, 3.0, transition_in=Transition(1.0, "wipeleft"))],
+        output=tmp_path / "wipe.mp4",
+    )
+    import cv2
+
+    cap = cv2.VideoCapture(str(wipe))
+    cap.set(cv2.CAP_PROP_POS_MSEC, 1500)
+    ok, frame = cap.read()
+    cap.release()
+    assert ok
+    left, right = frame[:, : frame.shape[1] // 4], frame[:, -frame.shape[1] // 4 :]
+    assert left[..., 1].mean() != pytest.approx(right[..., 1].mean(), abs=60)
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_per_item_captions_and_post(make_color_video, tmp_path):
+    import cv2
+    import numpy as np
+
+    base = make_color_video(3.0, color=(255, 0, 0))
+    item = make_color_video(3.0, color=(0, 255, 0))
+    small, big = tmp_path / "small.png", tmp_path / "big.png"
+    cv2.imwrite(str(small), np.full((20, 20, 4), (255, 255, 255, 255), np.uint8))
+    cv2.imwrite(str(big), np.full((40, 40, 4), (255, 0, 255, 255), np.uint8))
+    out = cutaways(
+        base,
+        [
+            Cutaway(item, 0.0, 0.5, 1.5),
+            Cutaway(item, 0.0, 1.5, 2.5, overlay=big, overlay_xy=("W-w", "H-h")),
+        ],
+        overlay=small,
+        post="negate",
+        output=tmp_path / "out.mp4",
+    )
+
+    def frame(t):
+        cap = cv2.VideoCapture(str(out))
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, f = cap.read()
+        cap.release()
+        assert ok
+        return f
+
+    first, second, outside = frame(1.0), frame(2.0), frame(2.8)
+    assert (first[5, 5] < 60).all()  # small white caption, negated to black
+    assert not (second[5, 5] < 60).all()  # ...not on the second window
+    assert second[-5, -5, 1] > 200  # big magenta caption bottom right, negated green
+    assert outside[50, 50, 0] > 200 and outside[50, 50, 2] < 60  # red base negated
