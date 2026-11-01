@@ -29,7 +29,7 @@
 - [mixing.ffmpeg](_autosummary/mixing.ffmpeg.html.md): Run one ffmpeg process with a watchdog: the runner &#96;mixing.decode&#96; and
 - [mixing.filtergraph](_autosummary/mixing.filtergraph.html.md): Pure ffmpeg filter-string builders: no media dependency, no I/O.
 - [For AI agents](ai-agents.html.md): &#96;mixing&#96; ships artifacts for coding agents alongside its code. This page lists
-- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-11-01 20:00 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
+- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-11-01 20:15 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
 
 ## Optional
 
