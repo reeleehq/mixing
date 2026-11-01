@@ -1143,11 +1143,15 @@ def save_audio_clip(
     return segment.save(output, format=format)
 
 
+#: The analysis rate (Hz, mono) the alignment functions decode to by default.
+DEFAULT_ALIGNMENT_RATE = 16000
+
+
 def find_audio_offset(
     reference_audio: AudioSource,
     query_audio: AudioSource,
     *,
-    sample_rate: int = 16000,
+    sample_rate: int = DEFAULT_ALIGNMENT_RATE,
 ) -> float:
     """Find the time offset where query_audio best aligns within reference_audio.
 
@@ -1788,7 +1792,7 @@ def find_audio_offset_detailed(
     reference_audio: AudioSource,
     query_audio: AudioSource,
     *,
-    sample_rate: int = 16000,
+    sample_rate: int = DEFAULT_ALIGNMENT_RATE,
     min_overlap_ratio: float = 0.5,
     feature: str = "waveform",
 ) -> AudioOffset:
@@ -2266,11 +2270,11 @@ def _clip_window_and_hop(
 
 
 def align_clips_to_reference(
-    reference_audio: AudioSource,
+    reference_audio: "AudioSource | AlignmentReference",
     clips: "Sequence[AudioSource]",
     *,
     reference_duration: float | None = None,
-    sample_rate: int = 16000,
+    sample_rate: int | None = None,
     min_overlap_ratio: float = 0.5,
     feature: str = "envelope",
     consensus: bool = True,
@@ -2297,11 +2301,13 @@ def align_clips_to_reference(
     ``overlaps``; callers reporting to a human show all of them, with the reason.
 
     Args:
-        reference_audio: The signal every clip is aligned to (the song).
+        reference_audio: The signal every clip is aligned to (the song), or an
+            :class:`AlignmentReference` from :func:`prepare_reference`.
         clips: The clip audio sources (paths, arrays, or ``AudioSegment``\\ s).
         reference_duration: The reference timeline length (seconds); computed from
             ``reference_audio`` when omitted.
-        sample_rate: Analysis sample rate (mono).
+        sample_rate: Analysis sample rate (mono). ``None`` (default):
+            :data:`DEFAULT_ALIGNMENT_RATE`, or a prepared reference's own rate.
         min_overlap_ratio: Passed through to the alignment (see
             :func:`find_audio_offset_detailed`).
         feature: Similarity feature the alignment is measured on — see
@@ -2394,12 +2400,14 @@ def align_clips_to_reference(
         )
     if near_tie_ratio < 0:
         raise ValueError(f"near_tie_ratio must not be negative, got {near_tie_ratio}")
-    ref = _load_mono_samples(reference_audio, sample_rate)
+    # Decoded, and its envelope computed, once: neither changes between clips, let
+    # alone between windows (or between calls, given an AlignmentReference).
+    reference = _alignment_reference(reference_audio, sample_rate, feature)
+    ref, sample_rate = reference.samples, reference.sample_rate
     ref_dur = (
         reference_duration if reference_duration is not None else len(ref) / sample_rate
     )
-    # The reference's envelope does not change between clips, let alone between windows.
-    ref_env = onset_envelope(ref, sample_rate) if feature == "envelope" else None
+    ref_env = reference.envelope if feature == "envelope" else None
     out: list[ClipAlignment] = []
     for i, clip in enumerate(clips):
         query = _load_mono_samples(clip, sample_rate)
@@ -2826,12 +2834,94 @@ class AlignedSpan:
         return (self.clip_start_s + self.offset_s, self.clip_end_s + self.offset_s)
 
 
-def aligned_spans(
+@dataclass(frozen=True, eq=False)
+class AlignmentReference:
+    """A reference decoded once, for aligning many clips against it.
+
+    What :func:`prepare_reference` returns and :func:`aligned_spans` accepts in place
+    of the reference audio: the mono analysis samples, their rate, and the onset
+    envelope (:func:`onset_envelope`) the ``'envelope'`` feature correlates (``None``
+    when prepared for ``'waveform'`` only). It saves what :func:`aligned_spans` and
+    :func:`align_clips_to_reference` otherwise redo per call: decoding the song and
+    computing its envelope. That is a small part of a call (a few percent, measured):
+    most of it is the windows' correlations against the reference.
+
+    Compared by identity (``eq=False``: its arrays have no single truth value), so it
+    hashes and can key a cache. :func:`prepare_reference` makes its arrays read-only,
+    since one prepared reference is shared by every call.
+    """
+
+    samples: np.ndarray
+    sample_rate: int
+    envelope: "tuple[np.ndarray, float] | None" = None
+
+    @property
+    def duration_s(self) -> float:
+        """The reference's length in seconds."""
+        return len(self.samples) / self.sample_rate
+
+
+def prepare_reference(
     reference_audio: AudioSource,
+    *,
+    sample_rate: int = DEFAULT_ALIGNMENT_RATE,
+    feature: str = "envelope",
+) -> AlignmentReference:
+    """``reference_audio`` decoded once, for :func:`aligned_spans` over many clips.
+
+    Decodes it the way :func:`aligned_spans` does (native rate, mono, anti-aliased
+    resample to ``sample_rate``) and, for ``feature='envelope'``, computes its onset
+    envelope. Pass the result as ``reference_audio`` to every call: the song is then
+    decoded and analysed once instead of once per clip.
+
+    >>> song = prepare_reference("song.wav")                            # doctest: +SKIP
+    >>> spans = {c: aligned_spans(song, c) for c in clips}              # doctest: +SKIP
+    """
+    if feature not in ALIGNMENT_FEATURES:
+        raise ValueError(
+            f"unknown feature {feature!r}; expected one of {ALIGNMENT_FEATURES}"
+        )
+    samples = _load_mono_samples(reference_audio, sample_rate)
+    envelope = onset_envelope(samples, sample_rate) if feature == "envelope" else None
+    for array in (samples, *(envelope[:1] if envelope else ())):
+        array.setflags(write=False)  # shared by every call it is passed to
+    return AlignmentReference(samples, sample_rate, envelope)
+
+
+def _alignment_reference(
+    reference_audio: "AudioSource | AlignmentReference",
+    sample_rate: "int | None",
+    feature: str,
+) -> AlignmentReference:
+    """``reference_audio`` as an :class:`AlignmentReference` at the analysis rate:
+    prepared now, or checked against ``sample_rate`` and completed for ``feature``."""
+    if not isinstance(reference_audio, AlignmentReference):
+        return prepare_reference(
+            reference_audio,
+            sample_rate=DEFAULT_ALIGNMENT_RATE if sample_rate is None else sample_rate,
+            feature=feature,
+        )
+    ref = reference_audio
+    if sample_rate is not None and sample_rate != ref.sample_rate:
+        raise ValueError(
+            f"sample_rate={sample_rate} but the prepared reference is at "
+            f"{ref.sample_rate} Hz; prepare it at {sample_rate} or omit sample_rate"
+        )
+    if feature == "envelope" and ref.envelope is None:
+        # prepared for 'waveform': the envelope is still computed once per call,
+        # as it was before references could be prepared
+        ref = AlignmentReference(
+            ref.samples, ref.sample_rate, onset_envelope(ref.samples, ref.sample_rate)
+        )
+    return ref
+
+
+def aligned_spans(
+    reference_audio: "AudioSource | AlignmentReference",
     clip_audio: AudioSource,
     *,
     reference_duration: float | None = None,
-    sample_rate: int = 16000,
+    sample_rate: int | None = None,
     window_s: float = SPAN_WINDOW_S,
     hop_s: float = SPAN_HOP_S,
     min_confidence: float = SPAN_MIN_CONFIDENCE,
@@ -2911,9 +3001,14 @@ def aligned_spans(
     confidence.
 
     Args:
-        reference_audio: The signal to align within (e.g. the clean song).
+        reference_audio: The signal to align within (e.g. the clean song), or an
+            :class:`AlignmentReference` from :func:`prepare_reference`, which decodes
+            and analyses it once for many clips (8 clips against one song otherwise
+            decode the song 8 times).
         clip_audio: The recording to dissect.
-        sample_rate: Analysis sample rate (mono).
+        sample_rate: Analysis sample rate (mono). ``None`` (default):
+            :data:`DEFAULT_ALIGNMENT_RATE`, or a prepared reference's own rate; a rate
+            that disagrees with a prepared reference's raises ``ValueError``.
         window_s: Analysis window — see the resolution note above.
         hop_s: Step between windows. Defaults to half a window, so every instant is
             covered twice and a boundary cannot hide between windows.
@@ -2969,7 +3064,8 @@ def aligned_spans(
         )
     if near_tie_ratio < 0:
         raise ValueError(f"near_tie_ratio must not be negative, got {near_tie_ratio}")
-    ref = _load_mono_samples(reference_audio, sample_rate)
+    reference = _alignment_reference(reference_audio, sample_rate, feature)
+    ref, sample_rate = reference.samples, reference.sample_rate
     clip = _load_mono_samples(clip_audio, sample_rate)
     measured = _consensus_choice(
         _window_offsets(
@@ -2982,6 +3078,7 @@ def aligned_spans(
             min_overlap_ratio=min_overlap_ratio,
             near_tie_ratio=near_tie_ratio,
             offset_tolerance_s=offset_tolerance_s,
+            ref_envelope=reference.envelope if feature == "envelope" else None,
         ),
         offset_tolerance_s=offset_tolerance_s,
     )

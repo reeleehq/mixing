@@ -19,6 +19,8 @@ from scipy.io import wavfile
 
 from mixing.audio import (
     AlignedSpan,
+    AlignmentReference,
+    prepare_reference,
     align_clips_to_reference,
     aligned_spans,
     find_audio_offset_detailed,
@@ -296,6 +298,99 @@ def test_the_signals_are_decoded_once_not_once_per_window(
     clip = _write(tmp_path, "count.wav", _take(ref, 10, 60, rng))
     ops.aligned_spans(song, clip, sample_rate=SR, window_s=WIN, hop_s=HOP)
     assert len(calls) == 2, "one decode for the reference, one for the clip — no more"
+
+
+# --------------------------------------------------------------------------
+# A prepared reference: the song decoded once for many clips (issue #111)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("feature", ["envelope", "waveform"])
+def test_a_prepared_reference_gives_the_same_spans(song, ref, tmp_path, feature):
+    rng = np.random.default_rng(11)
+    clip = _write(
+        tmp_path,
+        "two_prep.wav",
+        np.concatenate([_take(ref, 5, 30, rng), _take(ref, 60, 85, rng)]),
+    )
+    prepared = prepare_reference(song, sample_rate=SR, feature=feature)
+    assert isinstance(prepared, AlignmentReference)
+    assert prepared.sample_rate == SR
+    assert prepared.duration_s == pytest.approx(len(ref) / SR)
+    assert (prepared.envelope is None) == (feature == "waveform")
+    kw = dict(window_s=WIN, hop_s=HOP, feature=feature)
+    assert aligned_spans(prepared, clip, **kw) == _spans(song, clip, feature=feature)
+
+
+def test_a_waveform_prepared_reference_still_serves_the_envelope_feature(
+    song, ref, tmp_path
+):
+    rng = np.random.default_rng(12)
+    clip = _write(tmp_path, "one_prep.wav", _take(ref, 10, 50, rng))
+    prepared = prepare_reference(song, sample_rate=SR, feature="waveform")
+    assert aligned_spans(prepared, clip, window_s=WIN, hop_s=HOP) == _spans(song, clip)
+
+
+def test_many_clips_against_a_prepared_reference_decode_the_song_once(
+    song, ref, tmp_path, monkeypatch
+):
+    import mixing.audio.audio_ops as ops
+
+    decoded, analysed = [], []
+    real_load, real_env = ops._load_mono_samples, ops.onset_envelope
+    monkeypatch.setattr(
+        ops,
+        "_load_mono_samples",
+        lambda src, sr: decoded.append(src) or real_load(src, sr),
+    )
+    monkeypatch.setattr(
+        ops,
+        "onset_envelope",
+        lambda x, sr, **kw: analysed.append(len(x)) or real_env(x, sr, **kw),
+    )
+    prepared = ops.prepare_reference(song, sample_rate=SR)
+    rng = np.random.default_rng(13)
+    clips = [
+        _write(tmp_path, f"c{i}.wav", _take(ref, 10 * i, 10 * i + 25, rng))
+        for i in range(3)
+    ]
+    for clip in clips:
+        ops.aligned_spans(prepared, clip, window_s=WIN, hop_s=HOP)
+    assert decoded.count(song) == 1, "the song is decoded once, by prepare_reference"
+    assert analysed.count(len(ref)) == 1, "and its envelope computed once"
+
+
+def test_a_rate_that_disagrees_with_the_prepared_reference_is_refused(song, tmp_path):
+    prepared = prepare_reference(song, sample_rate=SR)
+    with pytest.raises(ValueError, match="prepared reference is at 16000"):
+        aligned_spans(prepared, song, sample_rate=8000)
+
+
+def test_an_unknown_feature_is_refused_when_preparing(song):
+    with pytest.raises(ValueError, match="unknown feature"):
+        prepare_reference(song, feature="mfcc")
+
+
+def test_a_prepared_reference_is_shared_safely(song, tmp_path, ref):
+    prepared = prepare_reference(song, sample_rate=SR)
+    assert {prepared: 1}[prepared] == 1  # hashable, by identity: it can key a cache
+    assert prepared != prepare_reference(song, sample_rate=SR)
+    with pytest.raises(ValueError, match="read-only"):
+        prepared.samples[0] = 0.0
+    with pytest.raises(ValueError, match="read-only"):
+        prepared.envelope[0][0] = 0.0
+
+
+def test_align_clips_to_reference_takes_a_prepared_reference(song, ref, tmp_path):
+    rng = np.random.default_rng(14)
+    clips = [
+        _write(tmp_path, f"a{i}.wav", _take(ref, 10 + 20 * i, 30 + 20 * i, rng))
+        for i in range(2)
+    ]
+    prepared = prepare_reference(song, sample_rate=SR)
+    assert align_clips_to_reference(prepared, clips) == align_clips_to_reference(
+        song, clips, sample_rate=SR
+    )
 
 
 # --------------------------------------------------------------------------
