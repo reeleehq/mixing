@@ -31,7 +31,6 @@ source, and ``sampler`` lets a caller swap the diff strategy's frame source.
 
 from __future__ import annotations
 
-import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -40,6 +39,7 @@ from typing import Callable, Iterable, Iterator, Union
 import numpy as np
 
 from mixing.egress import Output, deliver
+from mixing.probe import probe_duration  # re-exported: it lives in the light probe
 from mixing.util import ffmpeg_exe, require_package
 
 Span = tuple[float, float]
@@ -163,19 +163,6 @@ def spans_from_changes(
     cuts = [(i + 1) / fps for i in np.flatnonzero(changes > threshold)]
     edges = [0.0, *(c for c in cuts if c < end), end]
     return [(float(a), float(b)) for a, b in zip(edges[:-1], edges[1:])]
-
-
-DURATION_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
-
-
-def probe_duration(video) -> float | None:
-    """Container duration in seconds via ``ffmpeg -i``, or ``None`` if unknown."""
-    proc = subprocess.run([ffmpeg_exe(), "-i", str(video)], capture_output=True)
-    match = DURATION_RE.search(proc.stderr.decode(errors="replace"))
-    if match is None:
-        return None
-    h, m, sec = match.groups()
-    return int(h) * 3600 + int(m) * 60 + float(sec)
 
 
 def merge_short_spans(spans: list[Span], *, min_s: float) -> list[Span]:

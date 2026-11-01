@@ -23,6 +23,7 @@ from mixing.probe import (
     find_ffprobe,
     parse_banner,
     probe,
+    probe_duration,
     snap_rate,
 )
 from mixing.util import has_ffmpeg
@@ -406,6 +407,61 @@ def test_get_video_dimensions_agrees_with_the_probe(media, name):
 
     found = probe(media[name], ffprobe=None)
     assert get_video_dimensions(str(media[name])) == (found.width, found.height)
+
+
+# --- probe_duration ------------------------------------------------------------------------
+
+
+def test_probe_duration_reads_the_container_duration(media):
+    assert probe_duration(media["ntsc"]) == pytest.approx(SECONDS, abs=0.1)
+    assert probe_duration(media["audio"], timeout=None) == pytest.approx(1.5, abs=0.05)
+    assert probe_duration(media["audio"], timeout=float("inf")) == pytest.approx(1.5, abs=0.05)
+
+
+def test_probe_duration_is_none_when_there_is_none(media, tmp_path):
+    assert probe_duration(tmp_path / "missing.mp4") is None
+    junk = tmp_path / "junk.mp4"
+    junk.write_bytes(b"not a media file")
+    assert probe_duration(junk) is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in for ffmpeg")
+def test_probe_duration_gives_up_on_a_stalled_ffmpeg_and_kills_what_it_started(
+    tmp_path, monkeypatch
+):
+    import os
+    import time
+
+    pid_file = tmp_path / "child.pid"
+    stalled = tmp_path / "ffmpeg"  # a wrapper that does not exec: its child stalls
+    stalled.write_text(f"#!/bin/sh\nsleep 30 &\necho $! > {pid_file}\nwait\n")
+    stalled.chmod(0o755)
+    monkeypatch.setattr("mixing.probe.ffmpeg_exe", lambda: str(stalled))
+    began = time.monotonic()
+    assert probe_duration(tmp_path / "any.mp4", timeout=0.5) is None
+    assert time.monotonic() - began < 10
+    child = int(pid_file.read_text())
+    for _ in range(50):  # the kill is delivered; the reaping is init's
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(child, 9)
+        pytest.fail("probe_duration left the stalled ffmpeg's child running")
+
+
+@pytest.mark.parametrize("timeout", [0, -1, "30", True, float("nan"), 1e300])
+def test_probe_duration_rejects_a_bad_timeout(timeout):
+    with pytest.raises(ValueError, match="timeout"):
+        probe_duration("any.mp4", timeout=timeout)
+
+
+def test_shot_boundaries_reexports_probe_duration():
+    from mixing.video import shot_boundaries
+
+    assert shot_boundaries.probe_duration is probe_duration
 
 
 # --- stays light -------------------------------------------------------------------------
