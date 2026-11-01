@@ -131,7 +131,6 @@ _SUBMODULES = (
     "chapters",
     "edit",
     "probe",
-    "ffmpeg",
     "srt",
     "egress",
     "errors",

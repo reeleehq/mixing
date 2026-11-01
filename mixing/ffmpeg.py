@@ -32,13 +32,11 @@ __all__ = [
     "FfmpegTimeout",
     "run_ffmpeg",
     "check_timeout",
-    "kill_tree",
     "ignore_closed_stdin",
-    "STDERR_TAIL_CHARS",
 ]
 
 #: How much of ffmpeg's complaint an error carries.
-STDERR_TAIL_CHARS = 2000
+_STDERR_TAIL_CHARS = 2000
 
 
 class FfmpegTimeout(TimeoutError, RuntimeError):
@@ -64,7 +62,7 @@ def check_timeout(timeout) -> Optional[float]:
     return float(timeout)
 
 
-def kill_tree(proc: subprocess.Popen) -> None:
+def _kill_tree(proc: subprocess.Popen) -> None:
     """Kill ``proc`` and what it started: an ``ffmpeg=`` wrapper that does not
     exec (a shell script, a Windows shim) would otherwise leave the real
     ffmpeg running, holding the pipes open."""
@@ -126,7 +124,9 @@ def run_ffmpeg(
             start_new_session=os.name == "posix",
         )
         fired = threading.Event()
-        watchdog = threading.Timer(timeout or 0, lambda: (fired.set(), kill_tree(proc)))
+        watchdog = threading.Timer(
+            timeout or 0, lambda: (fired.set(), _kill_tree(proc))
+        )
         watchdog.daemon = True
         if timeout is not None:
             watchdog.start()
@@ -134,7 +134,7 @@ def run_ffmpeg(
             try:
                 yield proc
             except BaseException:
-                kill_tree(proc)
+                _kill_tree(proc)
                 raise
             finally:
                 for pipe in (proc.stdin, proc.stdout):
@@ -144,7 +144,7 @@ def run_ffmpeg(
                 try:
                     proc.wait()  # still bounded: the watchdog runs until it returns
                 except BaseException:  # Ctrl-C no longer reaches its own session
-                    kill_tree(proc)
+                    _kill_tree(proc)
                     proc.wait()
                     raise
         finally:
@@ -156,5 +156,5 @@ def run_ffmpeg(
                 f"ffmpeg took more than {timeout:g} s to {what}; it was killed"
             )
         if check and proc.returncode != 0:
-            tail = proc.message[-STDERR_TAIL_CHARS:]
+            tail = proc.message[-_STDERR_TAIL_CHARS:]
             raise RuntimeError(f"ffmpeg could not {what}: {tail}")

@@ -50,7 +50,7 @@ from typing import Optional, Tuple
 
 from mixing.egress import PathLike
 from mixing.errors import MediaNotFoundError, ProbeError
-from mixing.ffmpeg import FfmpegTimeout, run_ffmpeg
+from mixing.ffmpeg import FfmpegTimeout, check_timeout, run_ffmpeg
 from mixing.util import ffmpeg_exe
 
 __all__ = [
@@ -536,6 +536,7 @@ def probe_duration(
         RuntimeError: no ffmpeg executable can be found (see
             :func:`mixing.util.ffmpeg_exe`).
     """
+    check_timeout(timeout)  # before the ffmpeg lookup, so a bad one is a ValueError
     cmd = [ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(media)]
     try:
         with run_ffmpeg(
