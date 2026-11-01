@@ -73,6 +73,14 @@ def make_thumbnail(
     return write_egress(output, default_path=default_path, write=_write)
 
 
+def _seek_time(at_time: float) -> str:
+    """``at_time`` for ``-ss``: to the nanosecond (rounding to milliseconds moved
+    a time computed to land on a 29.97 fps frame past it, onto the next one),
+    minus :data:`_TIME_EPS_S` so it sits on that frame, as the one pass does;
+    plain decimals, which ffmpeg's time parser reads (it refuses ``1e-06``)."""
+    return f"{max(0.0, at_time - _TIME_EPS_S):.9f}"
+
+
 def grab_frame(video: PathLike, at_time: float, *, width: int | None = None):
     """The frame of ``video`` at ``at_time`` seconds as an RGB PIL image.
 
@@ -85,7 +93,7 @@ def grab_frame(video: PathLike, at_time: float, *, width: int | None = None):
 
     scale = ["-vf", f"scale={width}:-2"] if width else []
     cmd = [
-        ffmpeg_exe(), "-v", "error", "-ss", f"{at_time:.3f}", "-i", str(video),
+        ffmpeg_exe(), "-v", "error", "-ss", _seek_time(at_time), "-i", str(video),
         "-frames:v", "1", *scale, "-f", "image2pipe", "-vcodec", "png", "-",
     ]  # fmt: skip
     proc = subprocess.run(cmd, capture_output=True)

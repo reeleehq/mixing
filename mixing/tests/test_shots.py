@@ -444,3 +444,23 @@ def test_nothing_to_probe_keeps_the_sampled_length(monkeypatch):
     monkeypatch.setattr(sb, "probe_duration", lambda v: None)
     frames = np.zeros((6, 4, 4), np.uint8)
     assert sb.diff_shots("x", fps=1, sampler=lambda v, fps: frames) == [(0.0, 6.0)]
+
+
+def test_seek_and_pass_agree_on_exact_ntsc_frame_times(tmp_path):
+    """reeleehq/mixing#152: a millisecond-rounded seek picked the next frame."""
+    from mixing.util import ffmpeg_exe
+    from mixing.video.thumbnail import grab_frames
+
+    ntsc = tmp_path / "ntsc.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i",
+         "testsrc=s=160x90:r=30000/1001:d=2", "-c:v", "libx264", "-pix_fmt",
+         "yuv420p", str(ntsc)],
+        check=True,
+    )  # fmt: skip
+    on = [k * 1001 / 30000 for k in range(0, 50, 3)]
+    seeked = grab_frames(ntsc, on, width=80, method="seek")
+    passed = grab_frames(ntsc, on, width=80, method="pass")
+    assert [np.asarray(a).tolist() for a in seeked] == [
+        np.asarray(b).tolist() for b in passed
+    ]
