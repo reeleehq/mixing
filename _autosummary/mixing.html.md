@@ -53,9 +53,10 @@ it directly (`from mixing.audio import ...`).
 
 ### Exceptions
 
-| [`MixingError`](#mixing.MixingError)                               | Base for every error `mixing` raises on its own behalf.                |
-|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](#mixing.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look. |
+| [`GainCappedWarning`](#mixing.GainCappedWarning)([message, subject, ...])   | A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).   |
+|-----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| [`MixingError`](#mixing.MixingError)                                  | Base for every error `mixing` raises on its own behalf.                        |
+| [`WindowTooWideForClip`](#mixing.WindowTooWideForClip)(\*, clip_index, ...)    | An explicit analysis window leaves a clip no second, independent look.         |
 
 ### *class* mixing.Chapter(start, title)
 
@@ -106,6 +107,38 @@ Cue duration in seconds (never negative).
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Paths and computed ranges produced by [`remove_fillers()`](#mixing.remove_fillers).
+
+### *exception* mixing.GainCappedWarning(message='', , subject=None, measured_lufs=None, target_lufs=None, requested_gain_db=None, max_gain_db=None)
+
+Bases: [`UserWarning`](https://docs.python.org/3/builtins/exceptions.html#UserWarning)
+
+A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).
+
+Raised (as a warning) by `mixing.loudness.level_group()` and
+`mixing.loudness.level_file()`. A `UserWarning` subclass, so a caller
+can tell it from any other warning
+(`warnings.catch_warnings` + `issubclass`, or a `"error"` filter on
+this class alone), with the numbers as attributes.
+
+#### subject
+
+what was leveled (`"group"`, or a file’s name).
+
+#### measured_lufs
+
+its measured loudness.
+
+#### target_lufs
+
+the loudness asked for.
+
+#### requested_gain_db
+
+the gain that would have reached it.
+
+#### max_gain_db
+
+the cap the gain was held to.
 
 ### *exception* mixing.MixingError
 

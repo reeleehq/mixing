@@ -34,6 +34,7 @@
 
    .. autosummary::
    
+      GainCappedWarning
       MixingError
       WindowTooWideForClip
    
@@ -58,4 +59,5 @@
    ffmpeg
    filtergraph
    loudness
+   resample
    video

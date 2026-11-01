@@ -12,11 +12,44 @@ than parse prose.
 
 ### Exceptions
 
-| [`MixingError`](#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                                                                                      |
-|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look.                                                                       |
-| [`ProbeError`](#mixing.errors.ProbeError)                                | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](mixing.probe.html.md#mixing.probe.probe)).   |
-| [`MediaNotFoundError`](#mixing.errors.MediaNotFoundError)                        | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+| [`MixingError`](#mixing.errors.MixingError)                                | Base for every error `mixing` raises on its own behalf.                                                                                      |
+|---------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| [`WindowTooWideForClip`](#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...)  | An explicit analysis window leaves a clip no second, independent look.                                                                       |
+| [`ProbeError`](#mixing.errors.ProbeError)                                 | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](mixing.probe.html.md#mixing.probe.probe)).   |
+| [`MediaNotFoundError`](#mixing.errors.MediaNotFoundError)                         | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+| [`GainCappedWarning`](#mixing.errors.GainCappedWarning)([message, subject, ...]) | A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).                                                                 |
+
+### *exception* mixing.errors.GainCappedWarning(message='', , subject=None, measured_lufs=None, target_lufs=None, requested_gain_db=None, max_gain_db=None)
+
+Bases: [`UserWarning`](https://docs.python.org/3/builtins/exceptions.html#UserWarning)
+
+A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).
+
+Raised (as a warning) by `mixing.loudness.level_group()` and
+`mixing.loudness.level_file()`. A `UserWarning` subclass, so a caller
+can tell it from any other warning
+(`warnings.catch_warnings` + `issubclass`, or a `"error"` filter on
+this class alone), with the numbers as attributes.
+
+#### subject
+
+what was leveled (`"group"`, or a file’s name).
+
+#### measured_lufs
+
+its measured loudness.
+
+#### target_lufs
+
+the loudness asked for.
+
+#### requested_gain_db
+
+the gain that would have reached it.
+
+#### max_gain_db
+
+the cap the gain was held to.
 
 ### *exception* mixing.errors.MediaNotFoundError
 

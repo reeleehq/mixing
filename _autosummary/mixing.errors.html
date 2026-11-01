@@ -149,8 +149,49 @@ than parse prose.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#mixing.errors.MediaNotFoundError" title="mixing.errors.MediaNotFoundError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MediaNotFoundError</span></code></a></p></td>
 <td><p>The media file to probe does not exist (also a <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">FileNotFoundError</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>).</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.errors.GainCappedWarning" title="mixing.errors.GainCappedWarning"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GainCappedWarning</span></code></a>([message, subject, ...])</p></td>
+<td><p>A leveling gain was capped at <code class="docutils literal notranslate"><span class="pre">max_gain_db</span></code> (it would mostly amplify noise).</p></td>
+</tr>
 </tbody>
 </table>
+<dl class="py exception">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.errors.</span></span><span class="sig-name descname"><span class="pre">GainCappedWarning</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">subject</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measured_lufs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_lufs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">requested_gain_db</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gain_db</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/errors.html#GainCappedWarning"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning'">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#UserWarning" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">UserWarning</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<p>A leveling gain was capped at <code class="docutils literal notranslate"><span class="pre">max_gain_db</span></code> (it would mostly amplify noise).</p>
+<p>Raised (as a warning) by <code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.loudness.level_group()</span></code> and
+<code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.loudness.level_file()</span></code>. A <code class="docutils literal notranslate"><span class="pre">UserWarning</span></code> subclass, so a caller
+can tell it from any other warning
+(<code class="docutils literal notranslate"><span class="pre">warnings.catch_warnings</span></code> + <code class="docutils literal notranslate"><span class="pre">issubclass</span></code>, or a <code class="docutils literal notranslate"><span class="pre">"error"</span></code> filter on
+this class alone), with the numbers as attributes.</p>
+<dl class="field-list simple">
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning.subject">
+<span class="sig-name descname"><span class="pre">subject</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning.subject" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning.subject'">¶</a></dt>
+<dd><p>what was leveled (<code class="docutils literal notranslate"><span class="pre">"group"</span></code>, or a file’s name).</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning.measured_lufs">
+<span class="sig-name descname"><span class="pre">measured_lufs</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning.measured_lufs" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning.measured_lufs'">¶</a></dt>
+<dd><p>its measured loudness.</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning.target_lufs">
+<span class="sig-name descname"><span class="pre">target_lufs</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning.target_lufs" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning.target_lufs'">¶</a></dt>
+<dd><p>the loudness asked for.</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning.requested_gain_db">
+<span class="sig-name descname"><span class="pre">requested_gain_db</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning.requested_gain_db" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning.requested_gain_db'">¶</a></dt>
+<dd><p>the gain that would have reached it.</p>
+</dd></dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mixing.errors.GainCappedWarning.max_gain_db">
+<span class="sig-name descname"><span class="pre">max_gain_db</span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.GainCappedWarning.max_gain_db" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.GainCappedWarning.max_gain_db'">¶</a></dt>
+<dd><p>the cap the gain was held to.</p>
+</dd></dl>
+</dd></dl>
 <dl class="py exception">
 <dt class="sig sig-object py" id="mixing.errors.MediaNotFoundError">
 <span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.errors.</span></span><span class="sig-name descname"><span class="pre">MediaNotFoundError</span></span><a class="reference internal" href="../_modules/mixing/errors.html#MediaNotFoundError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.errors.MediaNotFoundError" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.errors.MediaNotFoundError'">¶</a></dt>
@@ -230,6 +271,14 @@ than a promise.</p>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning'" class="reference internal" href="#mixing.errors.GainCappedWarning"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning</span></code></a><ul>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning.subject'" class="reference internal" href="#mixing.errors.GainCappedWarning.subject"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning.subject</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning.measured_lufs'" class="reference internal" href="#mixing.errors.GainCappedWarning.measured_lufs"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning.measured_lufs</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning.target_lufs'" class="reference internal" href="#mixing.errors.GainCappedWarning.target_lufs"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning.target_lufs</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning.requested_gain_db'" class="reference internal" href="#mixing.errors.GainCappedWarning.requested_gain_db"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning.requested_gain_db</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.errors.GainCappedWarning.max_gain_db'" class="reference internal" href="#mixing.errors.GainCappedWarning.max_gain_db"><code class="docutils literal notranslate"><span class="pre">GainCappedWarning.max_gain_db</span></code></a></li>
+</ul>
+</li>
 <li><a :data-current="activeSection === '#mixing.errors.MediaNotFoundError'" class="reference internal" href="#mixing.errors.MediaNotFoundError"><code class="docutils literal notranslate"><span class="pre">MediaNotFoundError</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.errors.MixingError'" class="reference internal" href="#mixing.errors.MixingError"><code class="docutils literal notranslate"><span class="pre">MixingError</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.errors.ProbeError'" class="reference internal" href="#mixing.errors.ProbeError"><code class="docutils literal notranslate"><span class="pre">ProbeError</span></code></a></li>
@@ -254,7 +303,7 @@ than a promise.</p>
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=c4d1762f"></script>
+<script src="../_static/documentation_options.js?v=5751785c"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

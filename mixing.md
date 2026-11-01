@@ -1,4 +1,4 @@
-> built 2026-11-01 18:21 UTC from 1577768 (main) · mixing 0.0.94. Details: build_info.json
+> built 2026-11-01 18:44 UTC from a1e4d62 (main) · mixing 0.0.96. Details: build_info.json
 
 # index.html.md
 
@@ -1423,11 +1423,44 @@ than parse prose.
 
 ### Exceptions
 
-| [`MixingError`](_autosummary/mixing.errors.html.md#mixing.errors.MixingError)                               | Base for every error `mixing` raises on its own behalf.                                                                                      |
-|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](_autosummary/mixing.errors.html.md#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look.                                                                       |
-| [`ProbeError`](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError)                                | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe)).   |
-| [`MediaNotFoundError`](_autosummary/mixing.errors.html.md#mixing.errors.MediaNotFoundError)                        | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+| [`MixingError`](_autosummary/mixing.errors.html.md#mixing.errors.MixingError)                                | Base for every error `mixing` raises on its own behalf.                                                                                      |
+|---------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| [`WindowTooWideForClip`](_autosummary/mixing.errors.html.md#mixing.errors.WindowTooWideForClip)(\*, clip_index, ...)  | An explicit analysis window leaves a clip no second, independent look.                                                                       |
+| [`ProbeError`](_autosummary/mixing.errors.html.md#mixing.errors.ProbeError)                                 | ffmpeg/ffprobe could not read a media file (see [`mixing.probe.probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe)).   |
+| [`MediaNotFoundError`](_autosummary/mixing.errors.html.md#mixing.errors.MediaNotFoundError)                         | The media file to probe does not exist (also a [`FileNotFoundError`](https://docs.python.org/3/builtins/exceptions.html#FileNotFoundError)). |
+| [`GainCappedWarning`](_autosummary/mixing.errors.html.md#mixing.errors.GainCappedWarning)([message, subject, ...]) | A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).                                                                 |
+
+### *exception* mixing.errors.GainCappedWarning(message='', , subject=None, measured_lufs=None, target_lufs=None, requested_gain_db=None, max_gain_db=None)
+
+Bases: [`UserWarning`](https://docs.python.org/3/builtins/exceptions.html#UserWarning)
+
+A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).
+
+Raised (as a warning) by `mixing.loudness.level_group()` and
+`mixing.loudness.level_file()`. A `UserWarning` subclass, so a caller
+can tell it from any other warning
+(`warnings.catch_warnings` + `issubclass`, or a `"error"` filter on
+this class alone), with the numbers as attributes.
+
+#### subject
+
+what was leveled (`"group"`, or a file’s name).
+
+#### measured_lufs
+
+its measured loudness.
+
+#### target_lufs
+
+the loudness asked for.
+
+#### requested_gain_db
+
+the gain that would have reached it.
+
+#### max_gain_db
+
+the cap the gain was held to.
 
 ### *exception* mixing.errors.MediaNotFoundError
 
@@ -1716,9 +1749,10 @@ it directly (`from mixing.audio import ...`).
 
 ### Exceptions
 
-| [`MixingError`](_autosummary/mixing.html.md#mixing.MixingError)                               | Base for every error `mixing` raises on its own behalf.                |
-|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| [`WindowTooWideForClip`](_autosummary/mixing.html.md#mixing.WindowTooWideForClip)(\*, clip_index, ...) | An explicit analysis window leaves a clip no second, independent look. |
+| [`GainCappedWarning`](_autosummary/mixing.html.md#mixing.GainCappedWarning)([message, subject, ...])   | A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).   |
+|-----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| [`MixingError`](_autosummary/mixing.html.md#mixing.MixingError)                                  | Base for every error `mixing` raises on its own behalf.                        |
+| [`WindowTooWideForClip`](_autosummary/mixing.html.md#mixing.WindowTooWideForClip)(\*, clip_index, ...)    | An explicit analysis window leaves a clip no second, independent look.         |
 
 ### *class* mixing.Chapter(start, title)
 
@@ -1769,6 +1803,38 @@ Cue duration in seconds (never negative).
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.html.md#mixing.remove_fillers).
+
+### *exception* mixing.GainCappedWarning(message='', , subject=None, measured_lufs=None, target_lufs=None, requested_gain_db=None, max_gain_db=None)
+
+Bases: [`UserWarning`](https://docs.python.org/3/builtins/exceptions.html#UserWarning)
+
+A leveling gain was capped at `max_gain_db` (it would mostly amplify noise).
+
+Raised (as a warning) by `mixing.loudness.level_group()` and
+`mixing.loudness.level_file()`. A `UserWarning` subclass, so a caller
+can tell it from any other warning
+(`warnings.catch_warnings` + `issubclass`, or a `"error"` filter on
+this class alone), with the numbers as attributes.
+
+#### subject
+
+what was leveled (`"group"`, or a file’s name).
+
+#### measured_lufs
+
+its measured loudness.
+
+#### target_lufs
+
+the loudness asked for.
+
+#### requested_gain_db
+
+the gain that would have reached it.
+
+#### max_gain_db
+
+the cap the gain was held to.
 
 ### *exception* mixing.MixingError
 
@@ -3552,20 +3618,18 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-01 18:21 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/15777680c6c49e27b534cb33e0798b971b8473e8"><code>1577768</code></a> on branch <code>main</code>, for **mixing 0.0.94** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 18:44 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/a1e4d623c16eab19de7ba1fa3536e306b70207ce"><code>a1e4d62</code></a> on branch <code>main</code>, for **mixing 0.0.96** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.94) is ahead of the latest release on PyPI (0.0.93): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/15777680c6c49e27b534cb33e0798b971b8473e8"><code>15777680c6c49e27b534cb33e0798b971b8473e8</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/a1e4d623c16eab19de7ba1fa3536e306b70207ce"><code>a1e4d623c16eab19de7ba1fa3536e306b70207ce</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.94</code>                                                                                                                                    |
+| Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3574,9 +3638,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41334859083">41334859083</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41337267085">41337267085</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>db7cc17d11b57a5c2ba489bf73c059dd2bb84d66</code> (in the history of the built commit) |
+| Event commit | <code>c0fa98d3289a73ac4f460c8fb1a694264e7e7a63</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3601,13 +3665,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.93/">0.0.93</a>, older than the documented version (0.0.94).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.96/">0.0.96</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 15777680c6c49e27b534cb33e0798b971b8473e8
+git checkout a1e4d623c16eab19de7ba1fa3536e306b70207ce
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

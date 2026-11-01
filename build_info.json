@@ -1,34 +1,32 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T18:21:35Z",
+  "built_at": "2026-11-01T18:44:59Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.94",
+    "version": "0.0.96",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "15777680c6c49e27b534cb33e0798b971b8473e8",
-    "short_commit": "1577768",
+    "commit": "a1e4d623c16eab19de7ba1fa3536e306b70207ce",
+    "short_commit": "a1e4d62",
     "branch": "main",
-    "tags": [
-      "0.0.94"
-    ],
+    "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/15777680c6c49e27b534cb33e0798b971b8473e8",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/a1e4d623c16eab19de7ba1fa3536e306b70207ce",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "db7cc17d11b57a5c2ba489bf73c059dd2bb84d66",
+    "sha": "c0fa98d3289a73ac4f460c8fb1a694264e7e7a63",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41334859083",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41334859083",
+    "run_id": "41337267085",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41337267085",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -58,20 +56,18 @@
   },
   "site": {
     "modules_documented": 21,
-    "objects_documented": 205
+    "objects_documented": 217
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.93",
-    "relation": "ahead",
+    "latest": "0.0.96",
+    "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 15777680c6c49e27b534cb33e0798b971b8473e8\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout a1e4d623c16eab19de7ba1fa3536e306b70207ce\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
-    "aligned": false,
-    "notes": [
-      "The documented version (0.0.94) is ahead of the latest release on PyPI (0.0.93): these docs describe unreleased code."
-    ]
+    "aligned": true,
+    "notes": []
   }
 }
