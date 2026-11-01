@@ -364,8 +364,33 @@ def test_a_rate_that_disagrees_with_the_prepared_reference_is_refused(song, tmp_
     prepared = prepare_reference(song, sample_rate=SR)
     with pytest.raises(ValueError, match="prepared reference is at 16000"):
         aligned_spans(prepared, song, sample_rate=8000)
+
+
+def test_an_unknown_feature_is_refused_when_preparing(song):
     with pytest.raises(ValueError, match="unknown feature"):
         prepare_reference(song, feature="mfcc")
+
+
+def test_a_prepared_reference_is_shared_safely(song, tmp_path, ref):
+    prepared = prepare_reference(song, sample_rate=SR)
+    assert {prepared: 1}[prepared] == 1  # hashable, by identity: it can key a cache
+    assert prepared != prepare_reference(song, sample_rate=SR)
+    with pytest.raises(ValueError, match="read-only"):
+        prepared.samples[0] = 0.0
+    with pytest.raises(ValueError, match="read-only"):
+        prepared.envelope[0][0] = 0.0
+
+
+def test_align_clips_to_reference_takes_a_prepared_reference(song, ref, tmp_path):
+    rng = np.random.default_rng(14)
+    clips = [
+        _write(tmp_path, f"a{i}.wav", _take(ref, 10 + 20 * i, 30 + 20 * i, rng))
+        for i in range(2)
+    ]
+    prepared = prepare_reference(song, sample_rate=SR)
+    assert align_clips_to_reference(prepared, clips) == align_clips_to_reference(
+        song, clips, sample_rate=SR
+    )
 
 
 # --------------------------------------------------------------------------
