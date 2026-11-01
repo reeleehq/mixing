@@ -1,34 +1,34 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T20:16:14Z",
+  "built_at": "2026-11-01T20:34:15Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.103",
+    "version": "0.0.104",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "91d1b5d9a201a708aaaffc2408ccd5f6c848edfc",
-    "short_commit": "91d1b5d",
+    "commit": "68b640357a1a73b18849f2e418317cb7354c7506",
+    "short_commit": "68b6403",
     "branch": "main",
     "tags": [
-      "0.0.103"
+      "0.0.104"
     ],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/91d1b5d9a201a708aaaffc2408ccd5f6c848edfc",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/68b640357a1a73b18849f2e418317cb7354c7506",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "0642b63d08c3429f98b2844f7361559f69af347f",
+    "sha": "de39f7fa5d74bf6c79b0ac6fd39cec1e6803b807",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41344535163",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41344535163",
+    "run_id": "41346621200",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41346621200",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -63,13 +63,15 @@
   "pypi": {
     "checked": true,
     "latest": "0.0.103",
-    "relation": "same",
+    "relation": "ahead",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 91d1b5d9a201a708aaaffc2408ccd5f6c848edfc\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 68b640357a1a73b18849f2e418317cb7354c7506\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
-    "aligned": true,
-    "notes": []
+    "aligned": false,
+    "notes": [
+      "The documented version (0.0.104) is ahead of the latest release on PyPI (0.0.103): these docs describe unreleased code."
+    ]
   }
 }

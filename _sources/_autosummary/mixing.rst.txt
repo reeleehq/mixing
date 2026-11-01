@@ -60,4 +60,5 @@
    filtergraph
    loudness
    resample
+   shot_changes
    video
