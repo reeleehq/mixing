@@ -31,6 +31,8 @@ source, and ``sampler`` lets a caller swap the diff strategy's frame source.
 
 from __future__ import annotations
 
+import math
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -43,6 +45,9 @@ from mixing.probe import probe_duration  # re-exported: it lives in the light pr
 from mixing.util import ffmpeg_exe, require_package
 
 Span = tuple[float, float]
+
+#: ``diff_shots(duration=SAMPLED_DURATION)``: no probe; spans tile the sampled length.
+SAMPLED_DURATION = 0.0
 
 DEFAULT_SHOT_FPS = 2.0
 #: Frames are shrunk to this (width, height) before differencing: cheap and
@@ -189,6 +194,7 @@ def diff_shots(
     fps: float = DEFAULT_SHOT_FPS,
     threshold: float | None = None,
     sampler: Sampler = iter_frames,
+    duration: float | None = None,
 ) -> list[Span]:
     """The ``"diff"`` strategy: frame differences of a low-rate grayscale stream.
 
@@ -200,18 +206,34 @@ def diff_shots(
         sampler: ``sampler(video, fps=fps)`` -> grayscale frames: one ``(n, h,
             w)`` array, or an iterable of frames or chunks (the default
             streams chunks).
+        duration: the length (s) the spans tile. ``None`` (default) probes it
+            (:func:`mixing.probe.probe_duration`) when ``video`` is a path,
+            whatever the ``sampler``; a number is used as is;
+            :data:`SAMPLED_DURATION` (``0``) skips the probe and keeps the
+            sampled length.
 
     Returns:
-        Spans tiling the video's duration (the sampled length for a custom
-        ``sampler``); one span if there is no cut; ``[]`` if nothing decoded.
+        Spans tiling ``duration`` (the sampled length when there is none, or the
+        probe finds none); one span if there is no cut; ``[]`` if nothing
+        decoded and there is no duration.
     """
     if fps <= 0:
         raise ValueError(f"fps must be > 0, got {fps}")
+    if duration is not None and (
+        isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
+    ):
+        raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
     frames = sampler(video, fps=fps)
     chunks = [frames] if isinstance(frames, np.ndarray) else frames
     changes, count = _streamed_changes(chunks)
-    own_sampler = sampler in (iter_frames, sample_frames)
-    duration = probe_duration(video) if own_sampler else None
+    if duration is None and isinstance(video, (str, os.PathLike)):
+        probed = probe_duration(video)
+        # a container shorter than what the sampler read is not this video's
+        # length (an image-sequence pattern probes as a short clip): keep the
+        # sampled one rather than drop the cuts past it
+        if probed is not None and probed >= count / fps - 1 / fps:
+            duration = probed
+    duration = duration or None  # SAMPLED_DURATION: the sampled length
     if count == 0:
         return [] if not duration else [(0.0, float(duration))]
     if threshold is None:
