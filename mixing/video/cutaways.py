@@ -279,14 +279,14 @@ def _base_audio(info: MediaInfo) -> str:
     )
 
 
-def _entrance(
-    i: int, item: Cutaway, *, base: MediaInfo, fps: float
-) -> tuple[list[str], str]:
+def _entrance(i: int, item: Cutaway, *, fps: float) -> tuple[list[str], str]:
     """``(filters, item label)`` making item ``i`` enter by its ``transition_in``.
 
     The item is split; its first ``duration_s`` is ``xfade``d from a fully
-    transparent picture (``offset=0``: the blend is the whole span) and put
-    back at ``t0`` as ``[x{i}]``, to be overlaid on whatever is on screen then.
+    transparent copy of itself (``offset=0``: the blend is the whole span) and
+    put back at ``t0`` as ``[x{i}]``, to be overlaid on whatever is on screen
+    then. Only the opacity rises: from a transparent *black* picture the colour
+    would rise too, and a fade would dip ~26 % darker at its middle.
     Blending from transparency rather than from the main picture keeps the main
     stream unsplit: a split of it would hold every frame up to ``t0`` in memory
     (gigabytes for a late cutaway on a long base). Curves that only reveal the
@@ -294,19 +294,15 @@ def _entrance(
     darken the outgoing picture (slides, ``fadeblack``) move only the incoming one.
     """
     t0, d, rate = _num(item.t0), _num(item.transition_in.duration_s), _num(fps)
-    clear = (
-        f"color=c=black@0:s={base.width}x{base.height}:r={rate}:d={d},"
-        f"format=yuva420p[z{i}]"
-    )
     # xfade needs a stated constant rate on both inputs
     head = (
         f"trim=start={t0}:duration={d},setpts=PTS-STARTPTS,fps={rate},format=yuva420p"
     )
     return (
         [
-            clear,
             f"[v{i}]split[w{i}][wx{i}]",
-            f"[wx{i}]{head}[wf{i}]",
+            f"[wx{i}]{head},split[wf{i}][wz{i}]",
+            f"[wz{i}]lutyuv=a=0[z{i}]",  # the same picture, fully transparent
             f"[z{i}][wf{i}]xfade=transition={item.transition_in.curve}:"
             f"duration={d}:offset=0,setpts=PTS+{t0}/TB[x{i}]",
         ],
@@ -441,7 +437,7 @@ def plan_cutaways(
         )
         shown = f"v{i}"
         if item.transition_in is not None:
-            entrance, shown = _entrance(i, item, base=base_info, fps=fps)
+            entrance, shown = _entrance(i, item, fps=fps)
             fc += entrance
             fc.append(
                 f"[{last}][x{i}]overlay=eof_action=pass:"
@@ -461,17 +457,18 @@ def plan_cutaways(
 
     # one overlay per (image, position): the plan's on the items without their
     # own, each item's own on its window
-    captions: dict[tuple[str, tuple[str, str]], list[Cutaway]] = {}
+    captions: dict[tuple[str, tuple[str, str], bool], list[Cutaway]] = {}
     for item in items:
-        image = item.overlay if item.overlay is not None else overlay
+        mine = item.overlay is not None
+        image = item.overlay if mine else overlay
         if image is not None:
             xy = tuple(item.overlay_xy or overlay_xy)
-            captions.setdefault((str(image), xy), []).append(item)
+            captions.setdefault((str(image), xy, mine), []).append(item)
     own = [item for item in items if item.overlay is not None]
-    for k, ((image, (x, y)), shown_on) in enumerate(captions.items()):
+    for k, ((image, (x, y), mine), shown_on) in enumerate(captions.items()):
         inputs += ["-loop", "1", "-i", image]
         windows = "+".join(_window(item) for item in shown_on)
-        if overlay is not None and shown_on[0].overlay is None and own:
+        if not mine and own:
             # the plan's caption steps aside wherever an item shows its own
             windows = f"({windows})*not({'+'.join(_window(i) for i in own)})"
         # the finished picture is ``[vout]`` (after the last overlay, or ``post``)

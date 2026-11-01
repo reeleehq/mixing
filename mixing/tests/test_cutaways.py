@@ -274,7 +274,7 @@ def test_an_entrance_xfades_the_screen_into_the_item_then_cuts_to_it():
     plan = _plan([Cutaway("a.mp4", 0, 1, 3, transition_in=Transition(0.5, "wipeleft"))])
     fc = plan.filter_complex
     assert "xfade=transition=wipeleft:duration=0.5:offset=0" in fc
-    assert "color=c=black@0:s=320x240" in fc  # blended from transparency...
+    assert "lutyuv=a=0" in fc  # blended from a transparent copy of the item...
     assert "[b0]split" not in fc and "[b1]split" not in fc  # ...never the main picture
     assert "enable='gte(t,1)*lt(t,1.5)'" in fc  # the blend over the entrance
     assert "enable='gte(t,1.5)*lt(t,3)'" in fc  # the item itself after it
@@ -321,6 +321,7 @@ def test_real_render_dissolves_and_wipes_in(make_color_video, tmp_path):
     before, middle, after = (_frame_bgr(fade, t) for t in (0.5, 1.5, 2.5))
     assert before[2] > 200 and before[1] < 60
     assert 60 < middle[1] < 200 and 60 < middle[2] < 200  # half way: both
+    assert middle[1] + middle[2] == pytest.approx(255, abs=25)  # linear: no dip
     assert after[1] > 200 and after[2] < 60
     wipe = cutaways(
         base,
@@ -408,8 +409,9 @@ def test_real_render_cutaway_into_cutaway_and_caption_overlap(
         overlay=small,
         output=tmp_path / "out.mp4",
     )  # fmt: skip
-    mid = _frame_bgr(out, 2.5)  # half way from green to blue: no red
+    mid = _frame_bgr(out, 2.5)  # half way from green to blue: no red, no dip
     assert mid[2] < 60 and 60 < mid[1] < 200 and 60 < mid[0] < 200
+    assert mid[0] + mid[1] == pytest.approx(255, abs=25)
     cap = cv2.VideoCapture(str(out))
     cap.set(cv2.CAP_PROP_POS_MSEC, 2700)
     ok, frame = cap.read()
@@ -417,3 +419,13 @@ def test_real_render_cutaway_into_cutaway_and_caption_overlap(
     assert ok
     assert not (frame[5, 5] > 200).all()  # the plan's caption steps aside...
     assert frame[-5, -5, 0] > 200 and frame[-5, -5, 2] > 200  # ...for the item's
+
+
+def test_an_items_own_caption_equal_to_the_plans_is_still_shown():
+    plan = _plan(
+        [Cutaway("a.mp4", 0, 1, 2), Cutaway("b.mp4", 0, 2, 3, overlay="cap.png")],
+        overlay="cap.png",
+    )
+    fc = plan.filter_complex
+    assert "enable='(gte(t,1)*lt(t,2))*not(gte(t,2)*lt(t,3))'" in fc  # the plan's
+    assert "enable='gte(t,2)*lt(t,3)'[vout]" in fc  # the item's own, its window
