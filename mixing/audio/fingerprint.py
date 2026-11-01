@@ -194,7 +194,10 @@ _EPS = 1e-12  # keeps log10 finite on digital silence
 #: defaults): memory is one block's spectrogram and filters, however long the
 #: signal, instead of the whole recording's (~1.3 GB for 30 min).
 CONSTELLATION_BLOCK_FRAMES = 4096
-_CONSTELLATION_SLACK_FRAMES = 2
+#: Frames added to :func:`_constellation_margin` beyond its exact reach, as
+#: insurance only: the reach itself is exact (a margin two frames short
+#: changes the peaks of dense noise; one frame short, rarer layouts).
+_CONSTELLATION_SLACK_FRAMES = 1
 
 
 @dataclass(frozen=True)
@@ -524,9 +527,9 @@ def _constellation_margin(params: LandmarkParams) -> int:
     A peak is a local maximum over half the max-filter neighbourhood, ranked by
     a prominence over half the prominence window, and kept by comparing it with
     the peaks up to the density radius away, whose own maxima and prominences
-    reach as far again. So: the radius plus the wider of the two half windows,
-    plus :data:`_CONSTELLATION_SLACK_FRAMES` (a ``uniform_filter`` of even size
-    is off-centre by one).
+    reach as far again. So: the radius plus the wider of the two half windows
+    (``size // 2`` covers the longer side of an even ``uniform_filter``), plus
+    :data:`_CONSTELLATION_SLACK_FRAMES`.
     """
     half_max = _odd(params.frames(params.peak_neighborhood_s)) // 2
     half_mean = params.frames(params.prominence_window_s) // 2
@@ -544,8 +547,11 @@ def _constellation(
 
     Each block is analysed with :func:`_constellation_margin` frames of context
     on either side and keeps only the peaks in its own frames, so the result is
-    the whole-signal one (up to the last bit of the filters' running sums) in
-    the memory of one block.
+    the whole-signal one in the memory of one block, with one exception: the
+    prominence filter is a running sum, so its last bits depend on where the
+    block starts, and two peaks of *exactly* equal prominence (audio looped on
+    hop boundaries) may be ranked the other way. The whole-signal pass breaks
+    such ties by rounding noise too, so matching is not affected.
     """
     n_fft, hop = params.n_fft, params.hop_length
     if len(y) < n_fft:

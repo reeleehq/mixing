@@ -420,16 +420,50 @@ def test_constellation_density_follows_the_param(song, pps):
     assert len(frames) / SONG_S == pytest.approx(pps, rel=0.2)
 
 
-@pytest.mark.parametrize("block_frames", [97, 400, 4096])
-def test_the_blocked_constellation_is_the_whole_signal_one(song, block_frames):
-    """Blocks of a few seconds (97 frames is under the margin's own reach) give
-    the peaks the whole spectrogram gives, frame for frame and bin for bin."""
-    p = fp.DEFAULT_LANDMARK_PARAMS
-    y = fp._mono_at(song, sr=SR, target=p.sample_rate)
-    whole = fp._peaks(fp._spectrogram_db(y, p), p)
-    blocked = fp._constellation(y, p, block_frames=block_frames)
-    assert np.array_equal(blocked[0], whole[0]) and np.array_equal(blocked[1], whole[1])
+_TIGHT_PARAMS = [
+    fp.DEFAULT_LANDMARK_PARAMS,
+    # an even prominence window, a wide density window, a coarse max filter
+    dataclasses.replace(
+        fp.DEFAULT_LANDMARK_PARAMS,
+        prominence_window_s=0.6,
+        peak_density_window_s=3.0,
+        peak_neighborhood_s=0.4,
+    ),
+    dataclasses.replace(fp.DEFAULT_LANDMARK_PARAMS, hop_length=128, n_fft=512),
+]
+
+
+@pytest.mark.parametrize("params", _TIGHT_PARAMS, ids=["default", "wide", "fine"])
+def test_the_blocked_constellation_is_the_whole_signal_one(song, params):
+    """Blocks down to a few frames give the peaks the whole spectrogram gives,
+    frame for frame and bin for bin (the song is noise and sweeps: no exact ties)."""
+    y = fp._mono_at(song, sr=SR, target=params.sample_rate)
+    whole = fp._peaks(fp._spectrogram_db(y, params), params)
     assert len(whole[0]) > 100
+    for block_frames in (7, 97, 400):
+        blocked = fp._constellation(y, params, block_frames=block_frames)
+        assert np.array_equal(blocked[0], whole[0]), block_frames
+        assert np.array_equal(blocked[1], whole[1]), block_frames
+
+
+def test_a_margin_two_frames_short_is_caught(monkeypatch):
+    """The equality test bites: on dense white noise, blocks whose margin is two
+    frames short of the reach disagree with the whole signal (one frame short
+    needs a rarer layout of peaks to show)."""
+    noise = np.random.default_rng(3).standard_normal(SR * 20) * 0.3
+    params = fp.DEFAULT_LANDMARK_PARAMS
+    y = fp._mono_at(noise, sr=SR, target=params.sample_rate)
+    whole = fp._peaks(fp._spectrogram_db(y, params), params)[0]
+    blocks = (3, 7, 13, 31)
+    assert all(
+        np.array_equal(fp._constellation(y, params, block_frames=b)[0], whole)
+        for b in blocks
+    )
+    monkeypatch.setattr(fp, "_CONSTELLATION_SLACK_FRAMES", -2)
+    assert not all(
+        np.array_equal(fp._constellation(y, params, block_frames=b)[0], whole)
+        for b in blocks
+    )
 
 
 def test_the_blocked_constellation_holds_memory_to_a_block(monkeypatch):
