@@ -544,3 +544,22 @@ def test_integer_pcm_is_scaled_like_float(clip, index):
     assert np.allclose(
         fp._as_float(np.array([0, 128, 255], np.uint8)), [-1, 0, 127 / 128]
     )
+
+
+def test_exact_prominence_ties_are_broken_the_same_way_in_every_block():
+    """reeleehq/mixing#148: noise looped on hop boundaries gives peaks of equal
+    prominence; the blocked pass must rank them as the whole-signal pass does."""
+    p = fp.DEFAULT_LANDMARK_PARAMS
+    for seed, hops in ((0, 5), (0, 17), (7, 5)):  # ~100-230 peaks differed before
+        rng = np.random.default_rng(seed)
+        loop = rng.standard_normal(p.hop_length * hops) * 0.3  # repeated exactly
+        y = np.tile(loop, 60 * p.sample_rate // len(loop))
+        _assert_blocked_is_whole(y, p)
+
+
+def _assert_blocked_is_whole(y, p):
+    whole = fp._peaks(fp._spectrogram_db(y, p), p)
+    for block_frames in (97, 400, 1024):
+        blocked = fp._constellation(y, p, block_frames=block_frames)
+        assert np.array_equal(blocked[0], whole[0]), block_frames
+        assert np.array_equal(blocked[1], whole[1]), block_frames

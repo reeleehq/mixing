@@ -198,6 +198,10 @@ CONSTELLATION_BLOCK_FRAMES = 4096
 #: insurance only: the reach itself is exact (a margin two frames short
 #: changes the peaks of dense noise; one frame short, rarer layouts).
 _CONSTELLATION_SLACK_FRAMES = 1
+#: Decimals (dB) a peak's prominence is ranked to: far below any audible or
+#: measurable difference, far above the ~1e-13 dB rounding noise of the
+#: prominence filter's running sum, so equal prominences rank as equal.
+PROMINENCE_DECIMALS = 9
 
 
 @dataclass(frozen=True)
@@ -493,7 +497,10 @@ def _peaks(
         ),
         mode="nearest",
     )
-    prominence = (spec_db - local_mean)[frames, bins]
+    # rounded below any difference that means something: the running-sum mean
+    # differs in its last bits with where it starts (a block, a clip), and an
+    # exact tie (audio looped on hop boundaries) must not be ranked by that
+    prominence = np.round((spec_db - local_mean)[frames, bins], PROMINENCE_DECIMALS)
     keep = _dense_enough(
         frames,
         prominence,
@@ -547,11 +554,10 @@ def _constellation(
 
     Each block is analysed with :func:`_constellation_margin` frames of context
     on either side and keeps only the peaks in its own frames, so the result is
-    the whole-signal one in the memory of one block, with one exception: the
-    prominence filter is a running sum, so its last bits depend on where the
-    block starts, and two peaks of *exactly* equal prominence (audio looped on
-    hop boundaries) may be ranked the other way. The whole-signal pass breaks
-    such ties by rounding noise too, so matching is not affected.
+    the whole-signal one in the memory of one block. (The prominence filter's
+    last bits depend on where a block starts; prominences are ranked to
+    :data:`PROMINENCE_DECIMALS`, so exact ties, as in audio looped on hop
+    boundaries, rank the same in every block.)
     """
     n_fft, hop = params.n_fft, params.hop_length
     if len(y) < n_fft:
