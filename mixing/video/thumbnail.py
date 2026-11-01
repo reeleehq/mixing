@@ -153,7 +153,7 @@ def _num_s(seconds: float) -> str:
 
 def _frames_in_one_pass(video, times: Sequence[float], width: Optional[int]):
     """The first frame at or after each of ``times`` (sorted, distinct), from one
-    decode of the whole video: a ``select`` of the frames whose interval
+    decode (up to just past the last time): a ``select`` of the frames whose interval
     ``[prev_t, t]`` crosses a time, so two times in one frame interval give one
     frame (the caller checks the count)."""
     import io
