@@ -46,7 +46,7 @@ def media(tmp_path_factory):
 
 
 def _chunk(data: bytes, name: bytes) -> bytes:
-    """The body of a RIFF chunk (``-rf64 auto`` reserves a JUNK chunk before fmt)."""
+    """The body of a RIFF chunk (not assuming fmt sits at a fixed offset)."""
     at = 12
     while at + 8 <= len(data):
         tag, size = data[at : at + 4], struct.unpack_from("<I", data, at + 4)[0]
@@ -97,6 +97,17 @@ def test_output_follows_the_egress_protocol(media, tmp_path):
 def test_a_video_with_no_sound_is_an_error_naming_ffmpeg(media):
     with pytest.raises(RuntimeError, match="could not take the audio track out"):
         audio_track(media["silent"])
+
+
+def test_a_local_file_with_a_colon_is_a_file_not_a_protocol(media, tmp_path):
+    colon = tmp_path / "take:2.wav"
+    colon.write_bytes(media["mono"].read_bytes())
+    assert audio_track(colon) == audio_track(media["mono"])
+    assert (
+        audio_track(colon, output=tmp_path / "out") == tmp_path / "out" / "take:2.wav"
+    )
+    with pytest.raises(MediaNotFoundError):
+        audio_track(tmp_path / "take:9.mp4")
 
 
 def test_a_missing_file_is_media_not_found(tmp_path):

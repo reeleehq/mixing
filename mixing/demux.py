@@ -49,16 +49,31 @@ def _is_url(text: str) -> bool:
     return bool(_URL_SCHEME.match(text))
 
 
+def _is_bytes(media: Media) -> bool:
+    return isinstance(media, (bytes, bytearray, memoryview))
+
+
+def _is_local_file(text: str) -> bool:
+    try:
+        return Path(text).is_file()
+    except (OSError, ValueError):  # a name too long for the filesystem, a NUL
+        return False
+
+
 @contextmanager
 def _local_media(media: Media):
     """A location ffmpeg can open for ``media``: bytes are written to a
     temporary file (seekable, which an mp4 with its index at the end needs); a
-    path or URL is yielded as is."""
-    if not isinstance(media, (bytes, bytearray, memoryview)):
+    local file is given by its absolute path (``take:2.mp4`` would otherwise
+    read to ffmpeg as a ``take:`` protocol); a URL is yielded as is."""
+    if not _is_bytes(media):
         text = os.fspath(media)
-        if not _is_url(text) and not Path(text).is_file():
+        if _is_local_file(text):
+            yield os.path.abspath(text)
+        elif _is_url(text):
+            yield text
+        else:
             raise MediaNotFoundError(f"no such media file: {media}")
-        yield text
         return
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "media"
@@ -67,8 +82,8 @@ def _local_media(media: Media):
 
 
 def _track_name(media: Media) -> str:
-    """The WAV's name in an ``output`` directory: the input's stem, else ``audio.wav``."""
-    if isinstance(media, (bytes, bytearray, memoryview)) or _is_url(os.fspath(media)):
+    """The WAV's name in an ``output`` directory: a local file's stem, else ``audio.wav``."""
+    if _is_bytes(media) or not _is_local_file(os.fspath(media)):
         return _BYTES_TRACK_NAME
     return Path(os.fspath(media)).stem + _WAV_SUFFIX
 
@@ -85,8 +100,8 @@ def audio_track(
 
     No resample and no downmix; the samples are quantized to ``codec`` (16-bit
     by default: a 24-bit or float source loses precision there, ``"pcm_f32le"``
-    keeps it). ffmpeg writes a file, not a pipe, so the WAV header carries the
-    final size (RF64 past 4 GB).
+    keeps it). A stream with no samples gives a header-only WAV. ffmpeg writes a file, not a pipe, so the WAV header carries the
+    final size (a plain RIFF WAV, so a track is limited to 4 GB).
 
     Args:
         media: the container, as bytes or a path, or a URL ffmpeg opens.
@@ -110,11 +125,13 @@ def audio_track(
     """
     timeout = check_timeout(timeout)
     exe = ffmpeg or ffmpeg_exe()
-    what = f"take the audio track out of {_track_name(media)[: -len(_WAV_SUFFIX)]}"
+    what = "take the audio track out of " + (
+        "the given bytes" if _is_bytes(media) else str(os.fspath(media))
+    )
     with _local_media(media) as source, tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / _BYTES_TRACK_NAME
         cmd = [exe, "-hide_banner", "-nostdin", "-loglevel", "error", "-i", source,
-               "-map", "0:a:0", "-c:a", codec, "-rf64", "auto", str(wav)]  # fmt: skip
+               "-map", "0:a:0", "-c:a", codec, str(wav)]  # fmt: skip
         with run_ffmpeg(cmd, what=what, timeout=timeout):
             pass
         data = wav.read_bytes() if wav.is_file() else b""
