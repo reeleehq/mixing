@@ -1,32 +1,34 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T17:03:59Z",
+  "built_at": "2026-11-01T17:18:06Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.88",
+    "version": "0.0.90",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "8067803ee89dc470e83828c85ffc297896fb8404",
-    "short_commit": "8067803",
+    "commit": "102ceda6b12e28fd82409cbf309e81bacb9da7e6",
+    "short_commit": "102ceda",
     "branch": "main",
-    "tags": [],
+    "tags": [
+      "0.0.90"
+    ],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/8067803ee89dc470e83828c85ffc297896fb8404",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/102ceda6b12e28fd82409cbf309e81bacb9da7e6",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "8067803ee89dc470e83828c85ffc297896fb8404",
+    "sha": "ec3f845b70d583d3fe7c2c1683334477726753ad",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41328688417",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41328688417",
+    "run_id": "41330098554",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41330098554",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -61,15 +63,15 @@
   "pypi": {
     "checked": true,
     "latest": "0.0.89",
-    "relation": "behind",
+    "relation": "ahead",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 8067803ee89dc470e83828c85ffc297896fb8404\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 102ceda6b12e28fd82409cbf309e81bacb9da7e6\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": false,
     "notes": [
-      "The documented version (0.0.88) is behind the latest release on PyPI (0.0.89): `pip install mixing` gives newer code than these docs describe."
+      "The documented version (0.0.90) is ahead of the latest release on PyPI (0.0.89): these docs describe unreleased code."
     ]
   }
 }
