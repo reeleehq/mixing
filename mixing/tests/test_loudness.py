@@ -345,7 +345,16 @@ def test_limiter_keeps_a_float32_input_float32(true_peak):
     reference = limit_peaks(data.astype(np.float64), **kwargs)
     np.testing.assert_allclose(out, reference.astype(np.float32), rtol=0, atol=0)
     if not true_peak:
-        assert np.abs(out).max() <= np.float32(0.5) * (1 + np.finfo(np.float32).eps)
+        assert np.abs(out).max() <= 0.5  # 0.5 is exact in float32
+
+
+@pytest.mark.parametrize("true_peak", [False, True])
+def test_float32_limiter_overshoots_by_at_most_half_a_float32_step(true_peak):
+    ceiling = 0.6  # float32 stores it rounded up: 0.60000002
+    data = (np.random.default_rng(7).standard_normal((FS, 2)) * 0.8).astype(np.float32)
+    out = limit_peaks(data, ceiling=ceiling, window=64, true_peak=true_peak, fs=FS)
+    half_step = np.spacing(np.float32(ceiling)) / 2
+    assert float(np.abs(out).max()) <= ceiling + half_step
 
 
 def test_limiter_turns_non_float_input_into_float64():

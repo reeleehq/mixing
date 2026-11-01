@@ -649,9 +649,11 @@ def limit_peaks(
     ceiling holds exactly; nothing moves in time. ``window`` is in samples;
     by default ``DEFAULT_LIMITER_WINDOW_S`` * ``fs`` when ``fs`` is given, else 1.
     Returned unchanged (the same object, for 2-D input) when nothing exceeds
-    the ceiling. A float input keeps its dtype (a float32 mix comes back
-    float32: the gain is computed in float64 and the product rounded once, so
-    the ceiling holds to the output's precision); any other comes back float64.
+    the ceiling. A limited float (or complex) input keeps its dtype: a float32
+    mix comes back float32, the gain computed in float64 and the product
+    rounded once, so a sample may sit above ``ceiling`` by at most half a step
+    of the output's precision (``0.6`` is stored as ``0.60000002`` in float32).
+    Any other input that is limited comes back float64.
     Works in ``LIMITER_CHUNK_FRAMES`` chunks sharing the context each gain
     depends on, so the result is the whole-signal one at a bounded memory.
 
@@ -702,9 +704,10 @@ def limit_peaks(
 
 
 def _limited_dtype(dtype: np.dtype) -> np.dtype:
-    """The dtype of the limiter's output: a float input's own (a float32 mix
-    stays float32, half the memory of float64), else float64."""
-    return dtype if np.issubdtype(dtype, np.floating) else np.dtype(np.float64)
+    """The dtype of the limiter's output: a float (or complex) input's own (a
+    float32 mix stays float32, half the memory of float64), else float64."""
+    inexact = np.issubdtype(dtype, np.inexact)
+    return dtype if inexact else np.dtype(np.float64)
 
 
 def stream_limit_peaks(
