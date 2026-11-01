@@ -30,6 +30,7 @@ Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
 
 from __future__ import annotations
 
+import math
 import numbers
 import os
 import re
@@ -49,6 +50,7 @@ from typing import (
     Union,
 )
 
+from mixing.errors import GainCappedWarning  # noqa: F401  (re-exported)
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
 
 try:  # numpy only: scipy is imported where used, so the ffmpeg meter works without it
@@ -66,6 +68,7 @@ from mixing.decode import (  # noqa: E402
     stream_kinds,
 )
 from mixing.egress import Output, write_egress  # noqa: E402
+from mixing.resample import resample  # noqa: E402
 
 #: A loudness meter: float samples ``(n, channels)`` and a rate in, LUFS out.
 Meter = Union[str, Callable[[np.ndarray, int], float]]
@@ -357,15 +360,18 @@ def file_loudness(
 # --- other meters ----------------------------------------------------------------
 
 
-def ebur128_lufs(data: np.ndarray, fs: int) -> float:
+def ebur128_lufs(data: np.ndarray, fs: int, *, ffmpeg: Optional[str] = None) -> float:
     """Integrated loudness by ffmpeg's ``ebur128`` filter (``-inf`` for silence).
 
     Needs at least one 400 ms block (shorter reads as silence), and ffmpeg
-    assumes a channel layout beyond stereo.
+    assumes a channel layout beyond stereo. ``ffmpeg`` is the executable
+    (default :func:`mixing.util.ffmpeg_exe`, which prefers the pip-bundled
+    build; ``"ffmpeg"`` for the one on ``PATH``). As a meter:
+    ``meter=functools.partial(ebur128_lufs, ffmpeg="ffmpeg")``.
     """
     data = _as_2d(data)
     proc = subprocess.run(
-        [ffmpeg_exe(), "-hide_banner", "-nostats", "-nostdin", "-f", _FFMPEG_FLOAT,
+        [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostats", "-nostdin", "-f", _FFMPEG_FLOAT,
          "-ar", str(fs), "-ac", str(data.shape[1]), "-i", "pipe:0",
          "-af", "ebur128=framelog=quiet", "-f", "null", "-"],
         input=np.ascontiguousarray(data, dtype="<f4").tobytes(),
@@ -548,11 +554,49 @@ def true_peak_db(
 # --- group leveling -------------------------------------------------------------
 
 
+def _whole_rate(rate) -> int:
+    """``rate`` (Hz) as an int; a rate that is not a whole number is refused."""
+    whole = (
+        isinstance(rate, numbers.Real)
+        and not isinstance(rate, bool)
+        and math.isfinite(rate)
+        and rate == int(rate)
+    )
+    if not whole:
+        raise ValueError(f"a sample rate is a whole number of Hz, got {rate!r}")
+    if rate <= 0:
+        raise ValueError(f"a sample rate is > 0, got {rate!r}")
+    return int(rate)
+
+
+def _at_one_rate(
+    segments: Sequence[np.ndarray], fs: Union[int, Sequence[int]]
+) -> tuple[list[np.ndarray], int]:
+    """``segments`` as 2-D float arrays at one rate, and that rate: ``fs`` is one
+    rate for all, or one per segment (each resampled to the highest of them, so
+    nothing is filtered away)."""
+    arrays = [_as_2d(np.asarray(s, dtype=np.float64)) for s in segments]
+    if isinstance(fs, (str, bytes)):
+        raise ValueError(f"a sample rate is a number of Hz, not text: {fs!r}")
+    if np.ndim(fs) == 0:  # one rate (int, whole float, numpy scalar or 0-d array)
+        return arrays, _whole_rate(fs.item() if isinstance(fs, np.ndarray) else fs)
+    rates = [_whole_rate(r) for r in fs]
+    if len(rates) != len(arrays):
+        raise ValueError(
+            f"fs gives {len(rates)} rates for {len(arrays)} segments: one rate, "
+            "or one per segment"
+        )
+    if not rates:
+        raise ValueError("fs is an empty sequence: give one rate (an int)")
+    target = max(rates)
+    return [resample(a, r, target) for a, r in zip(arrays, rates)], target
+
+
 def _join(segments: Sequence[np.ndarray], fs: int, min_measure_s: float) -> np.ndarray:
-    """Segments back to back, keeping their channels when all have the same
-    count (BS.1770 weights channels; a downmix of uncorrelated stereo reads
-    ~3 dB low), else downmixed to mono; looped up to ``min_measure_s``."""
-    segments = [_as_2d(np.asarray(s, dtype=np.float64)) for s in segments]
+    """Segments (2-D, at ``fs``) back to back, keeping their channels when all
+    have the same count (BS.1770 weights channels; a downmix of uncorrelated
+    stereo reads ~3 dB low), else downmixed to mono; looped up to
+    ``min_measure_s``."""
     if not segments:
         return np.zeros((0, 1))
     keep = len({s.shape[1] for s in segments}) == 1
@@ -565,9 +609,30 @@ def _join(segments: Sequence[np.ndarray], fs: int, min_measure_s: float) -> np.n
     return joined
 
 
+def group_lufs(
+    segments: Sequence[np.ndarray],
+    fs: Union[int, Sequence[int]],
+    *,
+    meter: Meter = "numpy",
+    min_measure_s: float = MIN_MEASURE_S,
+) -> float:
+    """The integrated loudness (LUFS) of a group measured **back to back**.
+
+    What :func:`level_group` measures, without deciding a gain: the segments
+    joined (channels kept when all agree, else downmixed), looped up to
+    ``min_measure_s`` when shorter, and measured with ``meter``. ``-inf`` for
+    silence. ``fs`` is one rate, or one per segment (each segment is then
+    resampled, polyphase, to the highest).
+    """
+    if min_measure_s < BLOCK_S:
+        raise ValueError(f"min_measure_s must be >= one gate block ({BLOCK_S} s)")
+    arrays, rate = _at_one_rate(segments, fs)
+    return integrated_lufs(_join(arrays, rate, min_measure_s), rate, meter=meter)
+
+
 def level_group(
     segments: Sequence[np.ndarray],
-    fs: int,
+    fs: Union[int, Sequence[int]],
     *,
     target_lufs: float,
     meter: Meter = "numpy",
@@ -576,17 +641,16 @@ def level_group(
 ) -> tuple[float, float]:
     """``(gain_db, measured_lufs)``: the one gain bringing a group to ``target_lufs``.
 
-    The group (a voice's lines, say) is measured **back to back**, so its
-    members keep their relative dynamics instead of each being pulled to the
-    target. A group shorter than ``min_measure_s`` is looped to that length for
-    the measurement. Silence (at or below the -70 LUFS gate) gets gain 0. A gain
-    above ``max_gain_db`` is capped, with a warning, since it would mostly
-    amplify noise. Apply it with ``data * 10 ** (gain_db / 20)`` and
+    The group (a voice's lines, say) is measured **back to back** by
+    :func:`group_lufs`, so its members keep their relative dynamics instead of
+    each being pulled to the target. A group shorter than ``min_measure_s`` is
+    looped to that length for the measurement. ``fs`` is one rate, or one per
+    segment. Silence (at or below the -70 LUFS gate) gets gain 0. A gain above
+    ``max_gain_db`` is capped, with a :class:`GainCappedWarning`, since it would
+    mostly amplify noise. Apply it with ``data * 10 ** (gain_db / 20)`` and
     :func:`limit_peaks`.
     """
-    if min_measure_s < BLOCK_S:
-        raise ValueError(f"min_measure_s must be >= one gate block ({BLOCK_S} s)")
-    measured = integrated_lufs(_join(segments, fs, min_measure_s), fs, meter=meter)
+    measured = group_lufs(segments, fs, meter=meter, min_measure_s=min_measure_s)
     gain = _target_gain(
         measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject="group"
     )
@@ -607,8 +671,16 @@ def _target_gain(
     gain = target_lufs - measured
     if gain > max_gain_db:
         warnings.warn(
-            f"{subject} measures {measured:.1f} LUFS: reaching {target_lufs:g} would "
-            f"take {gain:.1f} dB, mostly noise; capped at +{max_gain_db:g} dB",
+            GainCappedWarning(
+                f"{subject} measures {measured:.1f} LUFS: reaching {target_lufs:g} "
+                f"would take {gain:.1f} dB, mostly noise; capped at "
+                f"+{max_gain_db:g} dB",
+                subject=subject,
+                measured_lufs=float(measured),
+                target_lufs=float(target_lufs),
+                requested_gain_db=float(gain),
+                max_gain_db=float(max_gain_db),
+            ),
             stacklevel=3,
         )
         gain = max_gain_db

@@ -79,6 +79,96 @@ def test_level_group_reaches_the_target_and_keeps_relative_dynamics():
     ) == pytest.approx(spread, abs=1e-6)
 
 
+def test_a_capped_gain_warns_with_a_typed_warning_carrying_the_numbers():
+    from mixing.errors import GainCappedWarning
+
+    with pytest.warns(GainCappedWarning) as caught:
+        gain, measured = level_group(
+            [_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0
+        )
+    (w,) = [c.message for c in caught if isinstance(c.message, GainCappedWarning)]
+    assert isinstance(w, UserWarning) and w.subject == "group"
+    assert (w.max_gain_db, w.target_lufs, w.measured_lufs) == (6.0, -10.0, measured)
+    assert w.requested_gain_db == pytest.approx(-10.0 - measured) and gain == 6.0
+    with warnings.catch_warnings():  # filterable on its own: an error, others not
+        warnings.simplefilter("error", GainCappedWarning)
+        level_group([_voice(2, 0.3)], FS, target_lufs=-20.0)  # uncapped: silent
+        with pytest.raises(GainCappedWarning):
+            level_group([_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0)
+
+
+def test_the_cap_warning_survives_pickle_and_copy():
+    import copy
+    import pickle
+
+    import mixing
+    from mixing.errors import GainCappedWarning
+
+    assert mixing.GainCappedWarning is GainCappedWarning
+    w = GainCappedWarning("capped", subject="v1", measured_lufs=-50.0, max_gain_db=6.0)
+    for twin in (pickle.loads(pickle.dumps(w)), copy.copy(w), copy.deepcopy(w)):
+        assert (str(twin), twin.subject, twin.measured_lufs) == ("capped", "v1", -50.0)
+
+
+@pytest.mark.parametrize("fs", [FS, float(FS), np.int64(FS), np.float64(FS)])
+def test_one_rate_may_be_any_whole_number(fs):
+    group = [_voice(1, 0.2)]
+    assert level_group(group, fs, target_lufs=-20.0) == level_group(
+        group, FS, target_lufs=-20.0
+    )
+
+
+@pytest.mark.parametrize("fs", [44100.5, [44100.5], 0, -FS, True])
+def test_a_rate_that_is_not_a_whole_positive_number_is_refused(fs):
+    with pytest.raises(ValueError, match="sample rate"):
+        level_group([_voice(1, 0.2)], fs, target_lufs=-20.0)
+
+
+def test_group_lufs_is_what_level_group_measures():
+    from mixing.loudness import group_lufs
+
+    group = [_voice(1, 0.05), _voice(2, 0.4, seed=1)]
+    _, measured = level_group(group, FS, target_lufs=-20.0)
+    assert group_lufs(group, FS) == measured
+    assert group_lufs([np.zeros((FS, 1))], FS) == -np.inf
+    with pytest.raises(ValueError, match="min_measure_s"):
+        group_lufs(group, FS, min_measure_s=0.1)
+
+
+def test_segments_at_different_rates_are_measured_at_one():
+    from mixing.loudness import group_lufs
+    from mixing.resample import resample
+
+    a, b = _voice(2, 0.2), _voice(2, 0.2, seed=1)
+    at_fs = group_lufs([a, b], FS)
+    b_low = resample(b, FS, 22050)
+    mixed = group_lufs([a, b_low], [FS, 22050])
+    assert mixed == pytest.approx(at_fs, abs=0.2)  # b resampled back up to FS
+    gain, measured = level_group([a, b_low], (FS, 22050), target_lufs=-20.0)
+    assert measured == mixed and gain == pytest.approx(-20.0 - mixed)
+    with pytest.raises(ValueError, match="one per segment"):
+        group_lufs([a, b], [FS])
+    with pytest.raises(ValueError, match="empty"):
+        group_lufs([], [])
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="needs ffmpeg")
+def test_the_ebur128_meter_takes_an_ffmpeg(tmp_path):
+    import functools
+    import shutil
+
+    from mixing.loudness import ebur128_lufs, integrated_lufs
+
+    data = _voice(2, 0.2)
+    default = ebur128_lufs(data, FS)
+    on_path = shutil.which("ffmpeg")
+    if on_path:
+        meter = functools.partial(ebur128_lufs, ffmpeg=on_path)
+        assert integrated_lufs(data, FS, meter=meter) == pytest.approx(default, abs=0.1)
+    with pytest.raises(OSError):
+        ebur128_lufs(data, FS, ffmpeg=str(tmp_path / "no-such-ffmpeg"))
+
+
 def test_level_group_edge_cases():
     # silence: nothing to level
     assert level_group([np.zeros((FS, 1))], FS, target_lufs=-20.0) == (0.0, -np.inf)
