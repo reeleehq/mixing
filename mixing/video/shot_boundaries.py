@@ -41,28 +41,27 @@ from typing import Callable, Iterable, Iterator, Union
 import numpy as np
 
 from mixing.egress import Output, deliver
+from mixing.shot_changes import (  # the array stages, light: re-exported here
+    ADAPTIVE_THRESHOLD_SIGMAS,
+    CUT_RULES,
+    DEFAULT_SHOT_FPS,
+    MAX_SHOT_THRESHOLD,
+    MIN_SHOT_THRESHOLD,
+    SHOT_FRAME_SIZE,
+    Span,
+    adaptive_threshold,
+    cut_indices,
+    frame_changes,
+    merge_short_spans,
+    shots_from_changes,
+    spans_from_changes,
+    streamed_changes,
+)
 from mixing.probe import probe_duration  # re-exported: it lives in the light probe
 from mixing.util import ffmpeg_exe, require_package
 
-Span = tuple[float, float]
-
 #: ``diff_shots(duration=SAMPLED_DURATION)``: no probe; spans tile the sampled length.
 SAMPLED_DURATION = 0.0
-
-DEFAULT_SHOT_FPS = 2.0
-#: Frames are shrunk to this (width, height) before differencing: cheap and
-#: insensitive to compression noise.
-SHOT_FRAME_SIZE = (64, 36)
-#: Adaptive threshold = median change + this many robust standard deviations.
-ADAPTIVE_THRESHOLD_SIGMAS = 6.0
-#: Never go below this mean abs difference (0-255 scale); noise-only videos
-#: would otherwise have a threshold near zero.
-MIN_SHOT_THRESHOLD = 8.0
-#: ...and never above this: when cuts are frequent (a page every 0.5 s) the
-#: median change *is* a cut, and an uncapped threshold would sit above all of them.
-MAX_SHOT_THRESHOLD = 30.0
-#: Scale turning a median absolute deviation into a standard deviation.
-_MAD_TO_SIGMA = 1.4826
 
 #: Frames read from ffmpeg at a time: memory stays flat however long the video.
 SAMPLE_CHUNK_FRAMES = 512
@@ -117,77 +116,6 @@ def sample_frames(
     return np.concatenate(chunks) if chunks else np.zeros((0, height, width), np.uint8)
 
 
-def frame_changes(frames: np.ndarray) -> np.ndarray:
-    """Mean absolute difference between consecutive frames (length ``n - 1``)."""
-    frames = frames.astype(np.float32)
-    return np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
-
-
-def _streamed_changes(chunks: Iterable[np.ndarray]) -> tuple[np.ndarray, int]:
-    """``(frame_changes, frame count)`` over frames arriving in chunks, holding
-    one chunk (plus the previous frame) at a time."""
-    changes, count, last = [], 0, None
-    for chunk in chunks:
-        chunk = np.asarray(chunk)
-        if chunk.ndim == 2:  # a single (h, w) frame
-            chunk = chunk[None]
-        if not len(chunk):
-            continue
-        joined = chunk if last is None else np.concatenate([last[None], chunk])
-        changes.append(frame_changes(joined))
-        count, last = count + len(chunk), chunk[-1]
-    return (np.concatenate(changes) if changes else np.zeros(0, np.float32)), count
-
-
-def adaptive_threshold(
-    changes: np.ndarray,
-    *,
-    sigmas: float = ADAPTIVE_THRESHOLD_SIGMAS,
-    floor: float = MIN_SHOT_THRESHOLD,
-    ceiling: float = MAX_SHOT_THRESHOLD,
-) -> float:
-    """Median change plus ``sigmas`` robust deviations, clamped to ``[floor, ceiling]``."""
-    if len(changes) == 0:
-        return floor
-    median = float(np.median(changes))
-    mad = float(np.median(np.abs(changes - median)))
-    return min(ceiling, max(floor, median + sigmas * _MAD_TO_SIGMA * mad))
-
-
-def spans_from_changes(
-    changes: np.ndarray, *, fps: float, threshold: float, duration: float | None = None
-) -> list[Span]:
-    """Turn per-frame changes into ``[(start, end), ...]`` shot spans.
-
-    ``changes[i]`` is the change between frames ``i`` and ``i + 1``; a value
-    above ``threshold`` puts a boundary at time ``(i + 1) / fps``. The spans
-    tile ``[0, duration]`` with no gaps; ``duration`` defaults to the sampled
-    length ``(len(changes) + 1) / fps``. Cuts at or past ``duration`` are dropped.
-    """
-    end = (len(changes) + 1) / fps if duration is None else float(duration)
-    cuts = [(i + 1) / fps for i in np.flatnonzero(changes > threshold)]
-    edges = [0.0, *(c for c in cuts if c < end), end]
-    return [(float(a), float(b)) for a, b in zip(edges[:-1], edges[1:])]
-
-
-def merge_short_spans(spans: list[Span], *, min_s: float) -> list[Span]:
-    """``spans`` with every span shorter than ``min_s`` merged into the one
-    before it (the first into the one after), so the result still tiles them.
-
-    >>> merge_short_spans([(0.0, 2.0), (2.0, 2.5), (2.5, 6.0)], min_s=1.0)
-    [(0.0, 2.5), (2.5, 6.0)]
-    """
-    merged: list[Span] = []
-    for start, end in spans:
-        if merged and end - start < min_s:
-            merged[-1] = (merged[-1][0], end)
-        else:
-            merged.append((start, end))
-    if len(merged) > 1 and merged[0][1] - merged[0][0] < min_s:
-        merged[:2] = [(merged[0][0], merged[1][1])]
-    return merged
-
-
 def diff_shots(
     video,
     *,
@@ -195,6 +123,7 @@ def diff_shots(
     threshold: float | None = None,
     sampler: Sampler = iter_frames,
     duration: float | None = None,
+    rule: str = "level",
 ) -> list[Span]:
     """The ``"diff"`` strategy: frame differences of a low-rate grayscale stream.
 
@@ -211,6 +140,12 @@ def diff_shots(
             whatever the ``sampler``; a number is used as is;
             :data:`SAMPLED_DURATION` (``0``) skips the probe and keeps the
             sampled length.
+        rule: which changes are cuts (:func:`mixing.shot_changes.cut_indices`):
+            ``"level"`` (default) every change above the threshold, right for
+            edited video; ``"spike"`` only changes well above both neighbours
+            (so not motion or flashes), for continuous footage, where motion
+            would otherwise read as a run of cuts (it misses cuts on
+            consecutive samples: see :mod:`mixing.shot_changes`).
 
     Returns:
         Spans tiling ``duration`` (the sampled length when there is none, or the
@@ -219,13 +154,15 @@ def diff_shots(
     """
     if fps <= 0:
         raise ValueError(f"fps must be > 0, got {fps}")
+    if rule not in CUT_RULES:
+        raise ValueError(f"unknown rule {rule!r}; one of {CUT_RULES}")
     if duration is not None and (
         isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
     ):
         raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
     frames = sampler(video, fps=fps)
     chunks = [frames] if isinstance(frames, np.ndarray) else frames
-    changes, count = _streamed_changes(chunks)
+    changes, count = streamed_changes(chunks)
     if duration is None and isinstance(video, (str, os.PathLike)):
         probed = probe_duration(video)
         # a container shorter than what the sampler read is not this video's
@@ -236,9 +173,13 @@ def diff_shots(
     duration = duration or None  # SAMPLED_DURATION: the sampled length
     if count == 0:
         return [] if not duration else [(0.0, float(duration))]
-    if threshold is None:
-        threshold = adaptive_threshold(changes)
-    return spans_from_changes(changes, fps=fps, threshold=threshold, duration=duration)
+    return shots_from_changes(
+        changes,
+        fps=fps,
+        threshold=threshold,
+        rule=rule,
+        duration=duration,
+    )
 
 
 def pyscenedetect_shots(
