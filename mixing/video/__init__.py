@@ -26,6 +26,7 @@ from mixing.video.video_concat import (
 )
 from mixing.video.thumbnail import (
     grab_frame,
+    grab_frames,
     make_thumbnail,
     THUMBNAIL_SIZE,
     YOUTUBE_THUMB_SIZE,

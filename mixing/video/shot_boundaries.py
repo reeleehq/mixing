@@ -312,20 +312,29 @@ def contact_sheet(
     columns: int = CONTACT_SHEET_COLUMNS,
     thumb_width: int = CONTACT_SHEET_THUMB_WIDTH,
     labels: bool = True,
+    method: str = "auto",
 ):
     """One mid-shot thumbnail per span, tiled into a PIL image for review.
 
     ``labels`` writes each span's ``start-end`` time on its thumbnail.
+    ``method`` is how the frames are read (:func:`mixing.video.thumbnail.grab_frames`:
+    one seek per shot, or one decoding pass when the shots are dense).
     ``output=None`` returns the image; a path (or directory) saves a PNG;
     a callable receives the image.
     """
     from PIL import Image
 
-    from mixing.video.thumbnail import grab_frame
+    from mixing.video.thumbnail import grab_frames
 
     if not spans:
         raise ValueError("contact_sheet needs at least one span")
-    thumbs = [grab_frame(video, (a + b) / 2, width=thumb_width) for a, b in spans]
+    thumbs = grab_frames(
+        video,
+        [(a + b) / 2 for a, b in spans],
+        width=thumb_width,
+        method=method,
+        duration_s=spans[-1][1],
+    )
     if labels:
         for thumb, (a, b) in zip(thumbs, spans):
             _label(thumb, f"{_clock(a)}-{_clock(b)}")

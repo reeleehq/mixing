@@ -10,8 +10,11 @@ is a sensible default, not a YouTube-specific coupling.
 
 from __future__ import annotations
 
+import struct
 import subprocess
+import tempfile
 from pathlib import Path
+from typing import Optional, Sequence
 
 from ..egress import Output, write_egress
 from ..util import ffmpeg_exe
@@ -92,6 +95,121 @@ def grab_frame(video: PathLike, at_time: float, *, width: int | None = None):
             f"{proc.stderr.decode(errors='replace')}"
         )
     return Image.open(io.BytesIO(proc.stdout)).convert("RGB")
+
+
+#: Shots per minute of video above which :func:`grab_frames` decodes the video
+#: once rather than seeking once per frame. Measured on 30 min of 720p h264
+#: (reeleehq/mixing#94): one pass ~20 s whatever the count, a seek ~0.085 s
+#: each (3 s at 1/min, 34 s at 15/min, 153 s at 60/min); both scale with the
+#: resolution, so the crossover, ~8 per minute, does not.
+ONE_PASS_SHOTS_PER_MINUTE = 8.0
+#: :func:`grab_frames` methods: one ffmpeg seek per frame, one decoding pass,
+#: or the faster of the two for the frame density.
+GRAB_METHODS = ("auto", "seek", "pass")
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_PNG_END = b"IEND"
+_PNG_CHUNK_OVERHEAD = 12  # length + type + crc
+
+
+def _split_pngs(stream: bytes) -> list[bytes]:
+    """The PNG files concatenated in ``stream`` (walked chunk by chunk, so a
+    signature-like run inside compressed data cannot split one)."""
+    images, at = [], 0
+    while at < len(stream):
+        if stream[at : at + len(_PNG_SIGNATURE)] != _PNG_SIGNATURE:
+            raise RuntimeError("ffmpeg's frame stream is not a run of PNG images")
+        end = at + len(_PNG_SIGNATURE)
+        while True:
+            (length,) = struct.unpack(">I", stream[end : end + 4])
+            kind = stream[end + 4 : end + 8]
+            end += _PNG_CHUNK_OVERHEAD + length
+            if kind == _PNG_END:
+                break
+        images.append(stream[at:end])
+        at = end
+    return images
+
+
+def _frames_in_one_pass(video, times: Sequence[float], width: Optional[int]):
+    """The first frame at or after each of ``times`` (sorted, distinct), from one
+    decode of the whole video: a ``select`` of the frames whose interval
+    ``[prev_t, t]`` crosses a time, so two times in one frame interval give one
+    frame (the caller checks the count)."""
+    import io
+
+    from PIL import Image
+
+    terms = "+".join(
+        f"gte(t-start_t,{t:.6f})*lt(prev_t-start_t,{t:.6f})" for t in times
+    )
+    # the first frame has no prev_t (NaN): it is selected when a time is <= its own
+    first = f"isnan(prev_t)*lte({times[0]:.6f},t-start_t)"
+    scale = f",scale={width}:-2" if width else ""
+    with tempfile.TemporaryDirectory() as tmp:
+        script = Path(tmp) / "select.txt"
+        # a file, not an argument: thousands of terms exceed a Windows command line
+        script.write_text(f"select='{first}+{terms}'{scale}")
+        proc = subprocess.run(
+            [ffmpeg_exe(), "-v", "error", "-i", str(video), "-/filter:v", str(script),
+             "-fps_mode", "passthrough", "-f", "image2pipe", "-vcodec", "png", "-"],
+            capture_output=True,
+        )  # fmt: skip
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg could not select frames of {video!s}: "
+            f"{proc.stderr.decode(errors='replace')[-500:]}"
+        )
+    return [
+        Image.open(io.BytesIO(png)).convert("RGB") for png in _split_pngs(proc.stdout)
+    ]
+
+
+def grab_frames(
+    video: PathLike,
+    times: Sequence[float],
+    *,
+    width: int | None = None,
+    method: str = "auto",
+    duration_s: Optional[float] = None,
+) -> list:
+    """The frames of ``video`` at ``times`` (seconds, any order) as RGB PIL images.
+
+    ``method`` (:data:`GRAB_METHODS`): ``"seek"`` runs :func:`grab_frame` per
+    time (one ffmpeg seek each: cheap for a few frames of a long video);
+    ``"pass"`` decodes the video once and selects every frame (cheap for many
+    frames); ``"auto"`` (default) takes the pass above
+    :data:`ONE_PASS_SHOTS_PER_MINUTE` frames per minute of ``duration_s``
+    (default: the last time), and falls back to seeking when the pass cannot
+    give one distinct frame per time (two times in one frame interval, or an
+    ffmpeg older than 7). Both give the first frame at or after each time.
+    """
+    if method not in GRAB_METHODS:
+        raise ValueError(f"unknown method {method!r}; one of {GRAB_METHODS}")
+    times = [float(t) for t in times]
+    if not times:
+        return []
+    if method == "auto":
+        minutes = max(duration_s or max(times), 1e-9) / 60
+        method = "pass" if len(times) / minutes > ONE_PASS_SHOTS_PER_MINUTE else "seek"
+        if method == "pass":
+            try:
+                return grab_frames(video, times, width=width, method="pass")
+            except RuntimeError:
+                method = "seek"
+    if method == "seek":
+        return [grab_frame(video, t, width=width) for t in times]
+    order = sorted(range(len(times)), key=times.__getitem__)
+    ordered = [times[i] for i in order]
+    frames = _frames_in_one_pass(video, ordered, width)
+    if len(frames) != len(ordered):
+        raise RuntimeError(
+            f"one pass over {video!s} gave {len(frames)} frames for {len(times)} "
+            "times (two in one frame interval, or past the end); use method='seek'"
+        )
+    out = [None] * len(times)
+    for i, frame in zip(order, frames):
+        out[i] = frame
+    return out
 
 
 def _media_duration(path: PathLike) -> float:
