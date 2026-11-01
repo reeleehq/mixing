@@ -54,7 +54,6 @@ from mixing.shot_changes import (  # the array stages, light: re-exported here
     frame_changes,
     merge_short_spans,
     shots_from_changes,
-    skip_changes,
     spans_from_changes,
     streamed_changes,
 )
@@ -143,9 +142,10 @@ def diff_shots(
             sampled length.
         rule: which changes are cuts (:func:`mixing.shot_changes.cut_indices`):
             ``"level"`` (default) every change above the threshold, right for
-            edited video; ``"spike"`` only changes well above both neighbours,
-            and not flashes, for handheld or continuous footage, where motion
-            would otherwise read as a run of cuts.
+            edited video; ``"spike"`` only changes well above both neighbours
+            (so not motion or flashes), for continuous footage, where motion
+            would otherwise read as a run of cuts (it misses cuts on
+            consecutive samples: see :mod:`mixing.shot_changes`).
 
     Returns:
         Spans tiling ``duration`` (the sampled length when there is none, or the
@@ -162,7 +162,7 @@ def diff_shots(
         raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
     frames = sampler(video, fps=fps)
     chunks = [frames] if isinstance(frames, np.ndarray) else frames
-    changes, skips, count = streamed_changes(chunks, with_skips=rule == "spike")
+    changes, count = streamed_changes(chunks)
     if duration is None and isinstance(video, (str, os.PathLike)):
         probed = probe_duration(video)
         # a container shorter than what the sampler read is not this video's
@@ -178,7 +178,6 @@ def diff_shots(
         fps=fps,
         threshold=threshold,
         rule=rule,
-        skips=skips,
         duration=duration,
     )
 

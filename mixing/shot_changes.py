@@ -5,8 +5,8 @@ decoded, for callers that decode frames themselves (a scoring pass that
 already holds them): numpy only, so importing it pulls none of the video stack
 (``mixing.video`` loads moviepy, looks and burns).
 
-- :func:`frame_changes`: mean absolute difference of consecutive frames;
-  :func:`skip_changes`: of frames two apart (what a flash does not change).
+- :func:`frame_changes`: mean absolute difference of consecutive frames
+  (:func:`streamed_changes` over frames arriving in chunks).
 - :func:`adaptive_threshold`: median change plus robust deviations, clamped.
 - :func:`cut_indices`: which changes are cuts, by a ``rule``:
 
@@ -15,11 +15,21 @@ already holds them): numpy only, so importing it pulls none of the video stack
     consecutive samples (a page scrolled every 0.5 s);
   - ``"spike"``: a change above the threshold **and** :data:`SPIKE_RATIO` times
     both neighbouring changes, so sustained motion (handheld footage, a pan, a
-    fade) is not a run of cuts; given ``skips``, a cut whose next frame comes
-    back to the old picture (a flash) is not one either.
+    fade) is not a run of cuts, and neither is a flash (a frame that differs
+    and comes back changes twice in a row). Measured on 14 single-take phone
+    clips (reeleehq/mixing#160): false cuts 481 -> 10 at 2 Hz, 473 -> 11 at
+    5 Hz (PySceneDetect: 16). The price is recall: of 62 real cuts between two
+    takes of one event it finds 45 % at 2 Hz, 71 % at 5 Hz (at a ratio of 1.5:
+    74 % / 90 %, with twice the false cuts), and it misses cuts on consecutive
+    samples. For continuous footage, not for edited video.
 
 - :func:`spans_from_changes` / :func:`shots_from_changes`: cuts to spans that
   tile the duration, at a fixed rate or at given frame times.
+
+The thresholds are calibrated on frames shrunk by ffmpeg's ``scale`` to
+:data:`SHOT_FRAME_SIZE` (what :func:`mixing.video.shot_boundaries.iter_frames`
+gives); frames shrunk another way (cv2's ``INTER_AREA``) have somewhat
+different change levels.
 
 >>> import numpy as np
 >>> handheld = np.array([20.0, 24.0, 31.0, 28.0, 33.0, 26.0, 90.0, 4.0, 3.0])
@@ -31,6 +41,7 @@ already holds them): numpy only, so importing it pulls none of the video stack
 
 from __future__ import annotations
 
+import math
 from typing import Iterable, Optional, Sequence
 
 import numpy as np
@@ -44,9 +55,8 @@ __all__ = [
     "MAX_SHOT_THRESHOLD",
     "CUT_RULES",
     "SPIKE_RATIO",
-    "FLASH_RETURN_RATIO",
     "frame_changes",
-    "skip_changes",
+    "streamed_changes",
     "adaptive_threshold",
     "cut_indices",
     "spans_from_changes",
@@ -79,10 +89,6 @@ CUT_RULES = ("level", "spike")
 #: neighbouring changes: a hard cut is one large change between two small ones;
 #: motion and fades are runs of similar ones.
 SPIKE_RATIO = 2.0
-#: Under ``rule="spike"`` with ``skips``: a cut whose frames on either side of
-#: it differ by less than this fraction of the cut's own change came back to
-#: the old picture (a flash), and is not a cut.
-FLASH_RETURN_RATIO = 0.5
 
 
 def frame_changes(frames: np.ndarray) -> np.ndarray:
@@ -91,44 +97,21 @@ def frame_changes(frames: np.ndarray) -> np.ndarray:
     return np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
 
 
-def skip_changes(frames: np.ndarray) -> np.ndarray:
-    """Mean absolute difference between frames two apart (length ``n - 2``).
-
-    ``skips[i]`` compares frame ``i`` with frame ``i + 2``: across the change
-    ``changes[i]``. A real cut there leaves them different; a flash (frame
-    ``i + 1`` alone is different) leaves them alike.
-    """
-    frames = np.asarray(frames).astype(np.float32)
-    return np.abs(frames[2:] - frames[:-2]).mean(axis=(1, 2))
-
-
-def streamed_changes(
-    chunks: Iterable[np.ndarray], *, with_skips: bool = False
-) -> tuple[np.ndarray, Optional[np.ndarray], int]:
-    """``(changes, skips or None, frame count)`` over frames arriving in chunks
-    (each ``(k, h, w)``, or one ``(h, w)`` frame), holding one chunk plus the
-    (at most two) frames before it at a time: equal to :func:`frame_changes`
-    and :func:`skip_changes` of all the frames at once."""
-    changes, skips, count = [], [], 0
-    tail = None  # the last (up to) two frames already seen
+def streamed_changes(chunks: Iterable[np.ndarray]) -> tuple[np.ndarray, int]:
+    """``(changes, frame count)`` over frames arriving in chunks (each
+    ``(k, h, w)``, or one ``(h, w)`` frame), holding one chunk plus the frame
+    before it at a time: equal to :func:`frame_changes` of all the frames."""
+    changes, count, last = [], 0, None
     for chunk in chunks:
         chunk = np.asarray(chunk)
         if chunk.ndim == 2:  # a single (h, w) frame
             chunk = chunk[None]
         if not len(chunk):
             continue
-        held = 0 if tail is None else len(tail)
-        joined = chunk if tail is None else np.concatenate([tail, chunk])
-        # the pairs (and triples) that end in a frame of this chunk
-        changes.append(frame_changes(joined)[max(0, held - 1) :])
-        if with_skips:
-            skips.append(skip_changes(joined)[max(0, held - 2) :])
-        count += len(chunk)
-        tail = joined[-2:]
-    empty = np.zeros(0, np.float32)
-    joined_changes = np.concatenate(changes) if changes else empty
-    joined_skips = (np.concatenate(skips) if skips else empty) if with_skips else None
-    return joined_changes, joined_skips, count
+        joined = chunk if last is None else np.concatenate([last[None], chunk])
+        changes.append(frame_changes(joined))
+        count, last = count + len(chunk), chunk[-1]
+    return (np.concatenate(changes) if changes else np.zeros(0, np.float32)), count
 
 
 def adaptive_threshold(
@@ -151,17 +134,16 @@ def cut_indices(
     *,
     threshold: float,
     rule: str = "level",
-    skips: Optional[np.ndarray] = None,
     spike_ratio: float = SPIKE_RATIO,
-    flash_return_ratio: float = FLASH_RETURN_RATIO,
 ) -> np.ndarray:
     """Indices ``i`` of the changes that are cuts (between frames ``i`` and ``i + 1``).
 
     ``rule`` (:data:`CUT_RULES`): ``"level"`` takes every change above
     ``threshold``; ``"spike"`` also needs it ``spike_ratio`` times both
-    neighbouring changes (a missing neighbour, at an end, does not count), and,
-    given ``skips`` (:func:`skip_changes`), the frames on either side of the cut
-    to differ by at least ``flash_return_ratio`` of the cut's change.
+    neighbouring changes (a missing neighbour, at an end, does not count). That
+    rejects flashes too: the frames on either side of a spike differ by at least
+    half its change (the triangle inequality on mean absolute differences), so
+    no separate "does the picture come back" test can add anything.
     """
     if rule not in CUT_RULES:
         raise ValueError(f"unknown rule {rule!r}; one of {CUT_RULES}")
@@ -172,16 +154,6 @@ def cut_indices(
     before = np.concatenate([[0.0], changes[:-1]])
     after = np.concatenate([changes[1:], [0.0]])
     spike = above & (changes >= spike_ratio * before) & (changes >= spike_ratio * after)
-    if skips is not None:
-        skips = np.asarray(skips, dtype=np.float64)
-        if len(skips) != max(0, len(changes) - 1):
-            raise ValueError(
-                f"skips has {len(skips)} values for {len(changes)} changes: "
-                "it should have one fewer (frames two apart)"
-            )
-        # across cut i: frame i against frame i + 2 (skips[i]), when it exists
-        across = np.concatenate([skips, [np.inf]])
-        spike &= across >= flash_return_ratio * changes
     return np.flatnonzero(spike)
 
 
@@ -216,7 +188,6 @@ def shots_from_changes(
     times: Optional[Sequence[float]] = None,
     threshold: Optional[float] = None,
     rule: str = "level",
-    skips: Optional[np.ndarray] = None,
     duration: Optional[float] = None,
     min_shot_s: Optional[float] = None,
 ) -> list[Span]:
@@ -226,14 +197,14 @@ def shots_from_changes(
         changes: :func:`frame_changes` of the frames (``changes[i]`` between
             frames ``i`` and ``i + 1``).
         fps: the frames' fixed rate, or
-        times: each frame's time (s), ``len(changes) + 1`` of them; a cut
-            between frames ``i`` and ``i + 1`` is at ``times[i + 1]``.
+        times: each frame's time (s), increasing, ``len(changes) + 1`` of them;
+            a cut between frames ``i`` and ``i + 1`` is at ``times[i + 1]``.
         threshold: above which a change can be a cut; ``None`` picks one
             (:func:`adaptive_threshold`).
-        rule, skips: as :func:`cut_indices` (``"spike"`` for handheld footage).
-        duration: the length the spans tile; default the last frame's time
-            plus one frame (``len(changes) + 1`` frames at ``fps``), or the last
-            time given.
+        rule: as :func:`cut_indices` (``"spike"`` for continuous footage).
+        duration: the length (s) the spans tile; default the last frame's time
+            plus one frame (``len(changes) + 1`` frames at ``fps``; the last
+            interval of ``times`` repeated).
         min_shot_s: merge spans shorter than this (:func:`merge_short_spans`).
 
     Returns:
@@ -241,28 +212,35 @@ def shots_from_changes(
     """
     if (fps is None) == (times is None):
         raise ValueError("give the frames' rate (fps=) or their times (times=), one")
+    if duration is not None and (
+        isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
+    ):
+        raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
     changes = np.asarray(changes, dtype=np.float64)
     if fps is not None:
         if not fps > 0:
             raise ValueError(f"fps must be > 0, got {fps}")
-        frame_times = (np.arange(len(changes) + 1)) / fps
+        frame_times = np.arange(len(changes) + 1) / fps
         end = (len(changes) + 1) / fps
     else:
         frame_times = np.asarray(times, dtype=np.float64)
+        if not len(frame_times) and not len(changes):
+            return [] if not duration else [(0.0, float(duration))]
         if len(frame_times) != len(changes) + 1:
             raise ValueError(
                 f"{len(frame_times)} times for {len(changes)} changes: one time per "
                 "frame, one more than the changes"
             )
-        end = float(frame_times[-1]) if len(frame_times) else 0.0
+        if np.any(np.diff(frame_times) <= 0):
+            raise ValueError("times must increase, one per frame in order")
+        step = frame_times[-1] - frame_times[-2] if len(frame_times) > 1 else 0.0
+        end = float(frame_times[-1] + step)  # the last frame lasts one interval
     end = end if duration is None else float(duration)
-    if not len(changes) and not end:
+    if not end:
         return []
     if threshold is None:
         threshold = adaptive_threshold(changes)
-    cuts = frame_times[
-        cut_indices(changes, threshold=threshold, rule=rule, skips=skips) + 1
-    ]
+    cuts = frame_times[cut_indices(changes, threshold=threshold, rule=rule) + 1]
     spans = _tile(cuts.tolist(), end)
     return merge_short_spans(spans, min_s=min_shot_s) if min_shot_s else spans
 
