@@ -1,5 +1,6 @@
 """Shot-boundary detection: pure stages plus an ffmpeg-rendered video."""
 
+import subprocess
 import sys
 
 import numpy as np
@@ -255,3 +256,131 @@ def test_grab_frame_scales_and_raises(tmp_path):
     assert grab_frame(video, 3.0, width=80).size == (80, 46)  # height kept even
     with pytest.raises(RuntimeError, match="could not grab"):
         grab_frame(tmp_path / "missing.mp4", 0.0)
+
+
+# --- grab_frames: one seek per frame, or one pass (reeleehq/mixing#94) ----------
+
+
+def _counter_video(path, seconds=6, rate=10):
+    """A video whose every frame differs (testsrc draws a running counter)."""
+    from mixing.util import ffmpeg_exe
+
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i",
+         f"testsrc=s=160x90:r={rate}:d={seconds}", "-c:v", "libx264", "-g", "25",
+         "-pix_fmt", "yuv420p", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+def test_one_pass_gives_the_frames_the_seeks_give(tmp_path):
+    from mixing.video.thumbnail import grab_frames
+
+    video = _counter_video(tmp_path / "count.mp4")
+    times = [5.05, 0.0, 0.33, 1.0, 2.71, 4.2]  # any order, between and on frames
+    seeked = grab_frames(video, times, width=80, method="seek")
+    passed = grab_frames(video, times, width=80, method="pass")
+    assert [np.asarray(a).tolist() for a in passed] == [
+        np.asarray(b).tolist() for b in seeked
+    ]
+    assert len({np.asarray(a).tobytes() for a in passed}) == len(times)  # distinct
+
+
+def test_one_pass_refuses_two_times_in_one_frame_and_auto_falls_back(tmp_path):
+    from mixing.video.thumbnail import grab_frames
+
+    video = _counter_video(tmp_path / "count.mp4")
+    close = [1.01, 1.02] + [0.1 * k for k in range(30, 50)]  # dense, two in one frame
+    with pytest.raises(RuntimeError, match="method='seek'"):
+        grab_frames(video, close, method="pass")
+    assert len(grab_frames(video, close, method="auto", duration_s=6)) == len(close)
+
+
+def test_auto_picks_by_frames_per_minute(tmp_path, monkeypatch):
+    import mixing.video.thumbnail as thumb
+
+    used = []
+    real_pass = thumb._frames_in_one_pass
+    monkeypatch.setattr(
+        thumb, "grab_frame", lambda v, t, width=None: used.append("seek")
+    )
+    monkeypatch.setattr(
+        thumb,
+        "_frames_in_one_pass",
+        lambda v, ts, w: used.append("pass") or real_pass(v, ts, w),
+    )
+    video = _counter_video(tmp_path / "count.mp4")
+    thumb.grab_frames(video, [30.0], duration_s=60)  # 1 per minute: seek
+    assert used == ["seek"]
+    used.clear()
+    dense = [0.5 * k for k in range(1, 10)]  # 90 per minute
+    thumb.grab_frames(video, dense, duration_s=6)  # unscaled: held in memory, seek
+    assert used == ["seek"] * len(dense)
+    used.clear()
+    thumb.grab_frames(video, dense, width=40, duration_s=6)
+    assert used == ["pass"]
+    with pytest.raises(ValueError, match="unknown method"):
+        thumb.grab_frames(video, [1.0], method="fast")
+    assert thumb.grab_frames(video, []) == []
+
+
+def test_contact_sheet_is_the_same_either_way(tmp_path):
+    video = _counter_video(tmp_path / "count.mp4")
+    spans = [(0.0, 1.0), (1.0, 2.5), (2.5, 6.0)]
+    a = contact_sheet(video, spans, method="seek")
+    b = contact_sheet(video, spans, method="pass")
+    assert a.size == b.size and np.array_equal(np.asarray(a), np.asarray(b))
+
+
+def test_one_pass_is_on_the_files_clock_when_the_video_starts_late(tmp_path):
+    """Sound from 0 s, picture from 0.5 s: both methods count from the file."""
+    from mixing.util import ffmpeg_exe
+    from mixing.video.thumbnail import grab_frames
+
+    late = tmp_path / "late.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-itsoffset", "0.5", "-f", "lavfi", "-i",
+         "testsrc=s=160x90:r=10:d=4", "-f", "lavfi", "-i", "sine=d=4.5",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(late)],
+        check=True,
+    )  # fmt: skip
+    times = [1.0, 2.05, 3.3]
+    seeked = grab_frames(late, times, width=80, method="seek")
+    passed = grab_frames(late, times, width=80, method="pass")
+    assert [np.asarray(a).tolist() for a in passed] == [
+        np.asarray(b).tolist() for b in seeked
+    ]
+
+
+def test_a_time_on_a_frame_picks_that_frame_not_the_next(tmp_path):
+    from mixing.util import ffmpeg_exe
+    from mixing.video.thumbnail import grab_frames
+
+    ntsc = tmp_path / "ntsc.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i",
+         "testsrc=s=160x90:r=30000/1001:d=2", "-c:v", "libx264", "-pix_fmt",
+         "yuv420p", str(ntsc)],
+        check=True,
+    )  # fmt: skip
+    on = [k * 1001 / 30000 for k in range(3, 40, 4)]
+    just_before = [t - 0.3 * 1001 / 30000 for t in on]  # first frame at/after: same
+    a = grab_frames(ntsc, on, width=80, method="pass")
+    b = grab_frames(ntsc, just_before, width=80, method="pass")
+    assert [np.asarray(x).tolist() for x in a] == [np.asarray(x).tolist() for x in b]
+
+
+def test_a_truncated_frame_stream_is_a_runtime_error():
+    import io
+
+    from PIL import Image
+
+    from mixing.video.thumbnail import _split_pngs
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8)).save(buffer, format="PNG")
+    png = buffer.getvalue()
+    assert _split_pngs(png + png) == [png, png]
+    with pytest.raises(RuntimeError, match="truncated"):
+        _split_pngs(png + png[:-5])
