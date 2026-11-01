@@ -40,9 +40,11 @@ uses that binary, ``None`` forces the banner. A file that does not exist raises
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -55,6 +57,7 @@ from mixing.util import ffmpeg_exe
 
 __all__ = [
     "MediaProbe",
+    "MediaStream",
     "probe",
     "probe_duration",
     "parse_banner",
@@ -74,6 +77,10 @@ AUTO_FFPROBE = "auto"
 #: (``ffmpeg -i`` banner) reading.
 FFPROBE_METHOD = "ffprobe"
 BANNER_METHOD = "banner"
+#: :attr:`MediaStream.kind` of a stream ffprobe states no ``codec_type`` for.
+UNKNOWN_STREAM_KIND = "unknown"
+#: How the banner (and ffprobe's ``codec_name``) says a stream has no codec.
+NO_CODEC = "none"
 #: Name of the ffprobe executable, looked for beside ffmpeg and then on ``PATH``.
 FFPROBE_NAME = "ffprobe"
 #: ffprobe ``-read_intervals`` reading only the first packet (of the selected
@@ -119,6 +126,24 @@ DEFAULT_PROBE_DURATION_TIMEOUT = 30.0
 
 
 @dataclass(frozen=True)
+class MediaStream:
+    """One stream of a media file, as :func:`probe` lists them in :attr:`MediaProbe.streams`.
+
+    Attributes:
+        kind: ``"video"``, ``"audio"``, ``"subtitle"``, ``"data"``, ``"attachment"``
+            (ffprobe's ``codec_type``, the banner's stream label, lower-cased). Cover
+            art is a ``"video"`` stream with ``attached_pic``.
+        codec: the codec's short name (``"h264"``, ``"aac"``), ``None`` when not stated.
+        attached_pic: the stream is a still picture attached to the file (an mp3's or
+            m4a's cover art), not a picture track.
+    """
+
+    kind: str
+    codec: Optional[str] = None
+    attached_pic: bool = False
+
+
+@dataclass(frozen=True)
 class MediaProbe:
     """What :func:`probe` read about a media file.
 
@@ -153,6 +178,7 @@ class MediaProbe:
             average rates disagree by more than :data:`VFR_TOLERANCE`, or, from
             ffprobe, the packets disagree with the duration).
         has_audio: the file has an audio stream.
+        streams: every stream of the file, in file order (:class:`MediaStream`).
     """
 
     method: str
@@ -171,6 +197,7 @@ class MediaProbe:
     channels: Optional[int] = None
     variable_rate: bool = False
     has_audio: bool = False
+    streams: Tuple[MediaStream, ...] = ()
 
     @property
     def has_video(self) -> bool:
@@ -291,10 +318,35 @@ def _unreadable(media, proc: subprocess.CompletedProcess) -> ProbeError:
     )
 
 
+def _run(
+    cmd: list, *, what: str, deadline: Optional[float]
+) -> subprocess.CompletedProcess:
+    """``cmd`` run to completion through :func:`mixing.ffmpeg.run_ffmpeg` (its
+    output decoded as text), within what is left before ``deadline`` (a
+    monotonic time; ``None`` for no bound).
+
+    Raises:
+        FfmpegTimeout: the deadline passed (the run, and what it started, killed).
+        OSError: ``cmd[0]`` cannot be run.
+    """
+    left = None if deadline is None else deadline - time.monotonic()
+    if left is not None and left <= 0:
+        raise FfmpegTimeout(f"no time left to {what}")
+    with run_ffmpeg(
+        cmd, what=what, stdout=subprocess.PIPE, timeout=left, check=False
+    ) as proc:
+        out = proc.stdout.read()
+    return subprocess.CompletedProcess(
+        cmd, proc.returncode, out.decode(errors="replace"), proc.message
+    )
+
+
 # --- ffprobe (exact) ----------------------------------------------------------------
 
 
-def _first_audio_start(binary: str, media, audio: dict, origin: float) -> float:
+def _first_audio_start(
+    binary: str, media, audio: dict, origin: float, *, deadline: Optional[float]
+) -> float:
     """When the first audio stream's first **decoded** frame plays, after the
     file's start (``origin``).
 
@@ -303,15 +355,14 @@ def _first_audio_start(binary: str, media, audio: dict, origin: float) -> float:
     plays from 0.000 s (aac and mp3 do start at their first packet). Falls
     back to ``start_time`` (see :func:`_start`) when no frame is reported.
     """
-    proc = subprocess.run(
+    proc = _run(
         [binary, "-v", "error", "-select_streams", "a:0", "-show_frames",
          "-read_intervals", FIRST_PACKET_INTERVAL, "-show_entries", "frame=pts_time",
          "-of", "json", str(media)],
-        capture_output=True, text=True,
+        what=f"read the first audio frame of {media!s}", deadline=deadline,
     )  # fmt: skip
-    frames = (
-        json.loads(proc.stdout or "{}").get("frames", []) if not proc.returncode else []
-    )
+    ok = not proc.returncode
+    frames = json.loads(proc.stdout or "{}").get("frames", []) if ok else []
     decoded = next((_seconds(f.get("pts_time")) for f in frames), None)
     return _start(audio, origin) if decoded is None else decoded - origin
 
@@ -322,22 +373,39 @@ def _is_picture_stream(stream: dict) -> bool:
     return stream.get("codec_type") == "video" and not attached
 
 
-def find_ffprobe() -> Optional[str]:
-    """The ffprobe beside :func:`mixing.util.ffmpeg_exe`, else on ``PATH``, else ``None``."""
-    ffmpeg = Path(ffmpeg_exe())
+def _has_dir(command: str) -> bool:
+    """Whether ``command`` names a location (``./ffmpeg``, ``/usr/bin/ffmpeg``), not
+    a bare name to look up on ``PATH``."""
+    return any(sep and sep in command for sep in (os.sep, os.altsep))
+
+
+def find_ffprobe(*, ffmpeg: Optional[str] = None) -> Optional[str]:
+    """The ffprobe beside ``ffmpeg`` (default :func:`mixing.util.ffmpeg_exe`; a bare
+    name is looked up on ``PATH``), else on ``PATH``, else ``None``."""
+    named = ffmpeg_exe() if ffmpeg is None else ffmpeg
+    if not _has_dir(named):  # a bare name: the one on PATH
+        named = shutil.which(named) or named
+    ffmpeg_path = Path(named)
     # ffprobe.exe beside ffmpeg.exe (Windows); any other suffix is not an
     # extension (imageio's Linux build is ``ffmpeg-linux-x86_64-v7.0.2``)
-    suffix = WINDOWS_EXE_SUFFIX if ffmpeg.suffix.lower() == WINDOWS_EXE_SUFFIX else ""
-    sibling = ffmpeg.with_name(FFPROBE_NAME + suffix)
-    return str(sibling) if sibling.is_file() else shutil.which(FFPROBE_NAME)
+    is_exe = ffmpeg_path.suffix.lower() == WINDOWS_EXE_SUFFIX
+    suffix = WINDOWS_EXE_SUFFIX if is_exe else ""
+    sibling = ffmpeg_path.with_name(FFPROBE_NAME + suffix)
+    if _has_dir(named) and sibling.is_file():
+        return os.path.abspath(sibling)  # ``./ffprobe``'s Path reads as a bare name
+    return shutil.which(FFPROBE_NAME)
 
 
-def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProbe:
+def _probe_with_ffprobe(
+    binary: str, media, *, count_packets: bool, deadline: Optional[float]
+) -> MediaProbe:
     argv = [binary, "-v", "error", "-show_streams", "-show_format", "-of", "json"]
     if count_packets:
         argv.append("-count_packets")
     try:
-        proc = subprocess.run([*argv, str(media)], capture_output=True, text=True)
+        proc = _run([*argv, str(media)], what=f"probe {media!s}", deadline=deadline)
+    except FfmpegTimeout:  # a TimeoutError, so an OSError: not a missing binary
+        raise
     except OSError as e:  # not MediaNotFoundError: it is the binary that is missing
         raise ProbeError(f"cannot run ffprobe {binary!r}: {e}") from e
     if proc.returncode != 0:
@@ -350,7 +418,9 @@ def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProb
     audio_fields = {}
     if audio is not None:
         audio_fields = dict(
-            audio_start=_first_audio_start(binary, media, audio, origin),
+            audio_start=_first_audio_start(
+                binary, media, audio, origin, deadline=deadline
+            ),
             sample_rate=_count(audio.get("sample_rate")),
             channels=_count(audio.get("channels")),
         )
@@ -358,11 +428,25 @@ def _probe_with_ffprobe(binary: str, media, *, count_packets: bool) -> MediaProb
         method=FFPROBE_METHOD,
         duration=_seconds(fmt.get("duration")),
         has_audio=audio is not None,
+        streams=tuple(_ffprobe_stream(stream) for stream in streams),
         **audio_fields,
     )
     if video is None:
         return MediaProbe(**common)
     return MediaProbe(**common, **_video_fields(video, fmt, origin, count_packets))
+
+
+def _ffprobe_stream(stream: dict) -> MediaStream:
+    return MediaStream(
+        kind=str(stream.get("codec_type", UNKNOWN_STREAM_KIND)),
+        codec=_codec(stream.get("codec_name")),
+        attached_pic=bool(stream.get("disposition", {}).get("attached_pic", 0)),
+    )
+
+
+def _codec(name: Optional[str]) -> Optional[str]:
+    """A stated codec name, ``None`` for none (``"none"``, or not stated)."""
+    return None if name in (None, "", NO_CODEC) else name
 
 
 def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) -> dict:
@@ -406,6 +490,11 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
 # --- the banner (approximate) -------------------------------------------------------
 
 _BANNER_INPUT = re.compile(r"^Input #\d+", re.MULTILINE)
+#: A stream's line in the banner: ``Stream #0:1[0x2](und): Video: h264 (High), ...``
+#: (kind, then codec).
+_BANNER_STREAM = re.compile(
+    r"^\s*Stream #(\d+):(\d+).*?: (\w+): (\w+)?(.*)$", re.MULTILINE
+)
 _BANNER_VIDEO = re.compile(r"Stream #.*Video:.*")
 #: How the banner marks a video stream that is cover art, not a picture track.
 BANNER_ATTACHED_PIC = "(attached pic)"
@@ -457,7 +546,20 @@ def parse_banner(text: str) -> MediaProbe:
     (Fraction(30000, 1001), 315, (1920, 1080), 2)
     """
     seconds = _banner_seconds(text)
-    fields = dict(method=BANNER_METHOD, duration=seconds)
+    # a stream in two programs (mpegts), or in a stream group (ffmpeg 8+), is
+    # printed more than once: one record per (input, index), in index order
+    by_index = {}
+    for m in _BANNER_STREAM.finditer(text):
+        by_index.setdefault(
+            (int(m.group(1)), int(m.group(2))),
+            MediaStream(
+                kind=m.group(3).lower(),
+                codec=_codec(m.group(4)),
+                attached_pic=BANNER_ATTACHED_PIC in m.group(0),
+            ),
+        )
+    streams = tuple(by_index[key] for key in sorted(by_index))
+    fields = dict(method=BANNER_METHOD, duration=seconds, streams=streams)
     audio = _BANNER_AUDIO.search(text)
     if audio:
         sound = _BANNER_SOUND.search(audio.group(0))
@@ -497,9 +599,13 @@ def parse_banner(text: str) -> MediaProbe:
     return MediaProbe(**fields)
 
 
-def _probe_with_banner(media) -> MediaProbe:
-    proc = subprocess.run(
-        [ffmpeg_exe(), "-hide_banner", "-i", str(media)], capture_output=True, text=True
+def _probe_with_banner(
+    media, *, ffmpeg: Optional[str], deadline: Optional[float]
+) -> MediaProbe:
+    proc = _run(  # a missing ffmpeg is an OSError: not the file's fault
+        [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(media)],
+        what=f"read the banner of {media!s}",
+        deadline=deadline,
     )
     if not _BANNER_INPUT.search(proc.stderr):
         raise _unreadable(media, proc)
@@ -510,42 +616,41 @@ def _probe_with_banner(media) -> MediaProbe:
 
 
 def probe_duration(
-    media: PathLike, *, timeout: Optional[float] = DEFAULT_PROBE_DURATION_TIMEOUT
+    media: PathLike,
+    *,
+    timeout: Optional[float] = DEFAULT_PROBE_DURATION_TIMEOUT,
+    ffmpeg: Optional[str] = None,
 ) -> Optional[float]:
     """The container duration of ``media`` in seconds, from ``ffmpeg -i``, or ``None``.
 
-    The cheap question alone: one ``ffmpeg -i`` (no ffprobe lookup, no stream
-    reads), and ``None`` rather than an error whenever the duration cannot be
-    had: the file is missing or unreadable, its container states no duration,
-    or ffmpeg is still running ``timeout`` seconds after it started. Unlike
-    :func:`probe` and :mod:`mixing.decode`, whose ``timeout`` defaults to no
-    bound and raises :class:`~mixing.ffmpeg.FfmpegTimeout`, this one is bounded
-    by default and answers ``None``: it is the question a caller asks before
-    deciding anything, and must not hang it. On expiry ffmpeg is killed with
-    whatever it started (see :func:`mixing.ffmpeg.run_ffmpeg`).
+    The cheap question alone: :func:`probe`'s banner reading (one ``ffmpeg -i``,
+    no ffprobe lookup), and ``None`` rather than an error whenever the duration
+    cannot be had: the file is missing or unreadable, its container states no
+    duration, or ffmpeg is still running ``timeout`` seconds after it started.
+    Unlike :func:`probe` and :mod:`mixing.decode`, whose ``timeout`` defaults to
+    no bound and raises :class:`~mixing.ffmpeg.FfmpegTimeout`, this one is
+    bounded by default and answers ``None``: it is the question a caller asks
+    before deciding anything, and must not hang it. On expiry ffmpeg is killed
+    with whatever it started (see :func:`mixing.ffmpeg.run_ffmpeg`).
 
     Args:
         media: the file (or any location ffmpeg opens).
         timeout: seconds to wait for ffmpeg (default
             :data:`DEFAULT_PROBE_DURATION_TIMEOUT`); ``None`` (or ``inf``)
             waits forever.
+        ffmpeg: the executable, as :func:`probe` takes it.
 
     Raises:
         ValueError: ``timeout`` is not ``None`` or a number of seconds > 0
             (see :func:`mixing.ffmpeg.check_timeout`).
         RuntimeError: no ffmpeg executable can be found (see
             :func:`mixing.util.ffmpeg_exe`).
+        OSError: the ``ffmpeg`` given cannot be run.
     """
-    check_timeout(timeout)  # before the ffmpeg lookup, so a bad one is a ValueError
-    cmd = [ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(media)]
     try:
-        with run_ffmpeg(
-            cmd, what=f"read the duration of {media!s}", timeout=timeout, check=False
-        ) as proc:
-            pass  # with no output named, ffmpeg prints the banner and exits 1
-    except FfmpegTimeout:
+        return probe(media, ffprobe=None, ffmpeg=ffmpeg, timeout=timeout).duration
+    except (ProbeError, FfmpegTimeout):
         return None
-    return _banner_seconds(proc.message)
 
 
 def probe(
@@ -553,30 +658,52 @@ def probe(
     *,
     ffprobe: Optional[str] = AUTO_FFPROBE,
     count_packets: bool = True,
+    ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
 ) -> MediaProbe:
     """Probe ``media`` with ffprobe when there is one, else with ffmpeg's banner.
 
     Args:
         media: the file (or any location ffmpeg opens).
         ffprobe: the ffprobe binary. :data:`AUTO_FFPROBE` (default) finds one
-            with :func:`find_ffprobe`; ``None`` forces the approximate banner
-            (:func:`parse_banner`).
+            with :func:`find_ffprobe` (beside ``ffmpeg``); ``None`` forces the
+            approximate banner (:func:`parse_banner`).
         count_packets: have ffprobe count the video packets (reads, but does
             not decode, the whole file) for an exact frame count. ``False``
             uses the container's ``nb_frames`` header, which mkv lacks.
+        ffmpeg: the ffmpeg whose banner is read, and beside which ffprobe is
+            looked for (default :func:`mixing.util.ffmpeg_exe`; ``"ffmpeg"`` for
+            the one on ``PATH``), as :mod:`mixing.decode` takes it.
+        timeout: seconds the whole probe may take (every ffprobe/ffmpeg run it
+            makes); the run still going then is killed, with what it started,
+            and :class:`~mixing.ffmpeg.FfmpegTimeout` is raised. ``None``
+            (default) for no bound.
 
     Raises:
-        MediaNotFoundError: ``media`` does not exist.
+        MediaNotFoundError: ``media`` does not exist (a ``FileNotFoundError``
+            too, so tell it from a missing ``ffmpeg`` by this class).
         ProbeError: ffmpeg/ffprobe cannot read it, or the named ``ffprobe``
             cannot be run.
-        ValueError: ``ffprobe=""``.
+        OSError: the ``ffmpeg`` read for the banner cannot be run (a missing
+            binary is a ``FileNotFoundError``), as with :mod:`mixing.decode`.
+        FfmpegTimeout: the probe ran past ``timeout`` (a ``TimeoutError``).
+        ValueError: ``ffprobe=""``, or ``timeout`` is not ``None`` or seconds > 0.
     """
     if ffprobe == "":
         raise ValueError(
             "ffprobe='' names no binary: pass a path, AUTO_FFPROBE to find one, "
             "or None for the banner fallback"
         )
-    binary = find_ffprobe() if ffprobe == AUTO_FFPROBE else ffprobe
-    if binary is not None:
-        return _probe_with_ffprobe(binary, media, count_packets=count_packets)
-    return _probe_with_banner(media)
+    budget = check_timeout(timeout)
+    deadline = None if budget is None else time.monotonic() + budget
+    binary = find_ffprobe(ffmpeg=ffmpeg) if ffprobe == AUTO_FFPROBE else ffprobe
+    try:
+        if binary is not None:
+            return _probe_with_ffprobe(
+                binary, media, count_packets=count_packets, deadline=deadline
+            )
+        return _probe_with_banner(media, ffmpeg=ffmpeg, deadline=deadline)
+    except FfmpegTimeout as e:  # name the caller's budget, not what was left of it
+        raise FfmpegTimeout(
+            f"probing {media} took more than {budget:g} s; it was killed"
+        ) from e

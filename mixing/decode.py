@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import itertools
 import os
-import re
 import secrets
 import shutil
 import struct
@@ -31,12 +30,14 @@ import subprocess
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
 
+from mixing.errors import ProbeError
 from mixing.ffmpeg import (
     FfmpegTimeout,
     check_timeout,
     ignore_closed_stdin,
     run_ffmpeg,
 )
+from mixing.probe import probe
 from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint
 
 try:
@@ -54,8 +55,6 @@ _WAV_CODEC = "pcm_f32le"
 _SAMPLE_BYTES = 4
 #: How float samples travel into the encoder.
 _RAW_FLOAT = "f32le"
-#: A stream's line in ffmpeg's banner: ``Stream #0:1[0x2](und): Video: ...``.
-_STREAM_KIND = re.compile(r"^\s*Stream #\d+:\d+.*?: (\w+):", re.M)
 #: Random bytes in a partial file's name, so concurrent writes never share one.
 _PARTIAL_TOKEN_BYTES = 6
 
@@ -86,12 +85,16 @@ def stream_kinds(
 ) -> list[str]:
     """The kind of each of ``path``'s streams (``"audio"``, ``"video"`` for a
     picture or cover art, ``"subtitle"``, ``"data"``, ...), from ffmpeg's
-    banner; ``[]`` for a file ffmpeg cannot open."""
-    cmd = [ffmpeg or ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(path)]
-    what = f"read the streams of {path!s}"
-    with run_ffmpeg(cmd, what=what, timeout=timeout, check=False) as proc:
-        pass  # with no output named, ffmpeg prints the banner and exits 1
-    return [kind.lower() for kind in _STREAM_KIND.findall(proc.message)]
+    banner; ``[]`` for a file ffmpeg cannot open.
+
+    An adapter over :attr:`mixing.probe.MediaProbe.streams` (the banner
+    reading, so ``ffmpeg=`` is the binary that reads it).
+    """
+    try:
+        found = probe(path, ffprobe=None, ffmpeg=ffmpeg, timeout=timeout)
+    except ProbeError:
+        return []
+    return [stream.kind for stream in found.streams]
 
 
 def _decode(
