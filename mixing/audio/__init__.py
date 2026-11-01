@@ -98,6 +98,7 @@ from .sections import (
     register_section_backend,
     structural_sections,
 )
+from .lag import onset_lag, OnsetLag
 from .beats import (
     beat_grid,
     BeatGrid,
@@ -197,6 +198,8 @@ __all__ = [
     "register_section_backend",
     "structural_sections",
     "rank_beats",
+    "onset_lag",
+    "OnsetLag",
     "ranked_cut_points",
     "register_beat_backend",
     "BeatGrid",
