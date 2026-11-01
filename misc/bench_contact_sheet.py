@@ -1,54 +1,45 @@
-"""Benchmark for reeleehq/mixing#94: contact-sheet frames by N seeks vs one select pass.
+"""Benchmark behind ``ONE_PASS_SHOTS_PER_MINUTE`` (reeleehq/mixing#94).
 
-Usage: python bench.py VIDEO [--minutes M]
-Prints one row per shot density: shots/min, N, seek seconds, one-pass seconds.
+Times :func:`mixing.video.thumbnail.grab_frames` with ``method="seek"`` and
+``method="pass"`` on one long video at several shot densities, so the
+crossover can be re-measured on other material, resolutions or ffmpeg builds.
+
+Usage::
+
+    python misc/bench_contact_sheet.py VIDEO --minutes 30 --densities 1,4,15,60
+
+Prints one tab-separated row per density: shots per minute, frame count,
+seconds by seeking, seconds by one pass.
 """
 
 import argparse
-import subprocess
-import sys
 import time
 
-from mixing.util import ffmpeg_exe
+from mixing.video.thumbnail import grab_frames
 
-THUMB_W = 240
-
-
-def seeks(video, times):
-    for t in times:
-        subprocess.run(
-            [ffmpeg_exe(), "-v", "error", "-ss", f"{t:.3f}", "-i", video, "-frames:v", "1",
-             "-vf", f"scale={THUMB_W}:-2", "-f", "image2pipe", "-vcodec", "png", "-"],
-            capture_output=True, check=True,
-        )
+THUMB_WIDTH = 240
 
 
-def one_pass(video, times):
-    expr = "+".join(f"gte(t,{t:.3f})*lt(prev_pts*TB,{t:.3f})" for t in times)
-    script = f"select='{expr}',scale={THUMB_W}:-2"
-    proc = subprocess.run(
-        [ffmpeg_exe(), "-v", "error", "-i", video, "-filter_script:v", "/dev/stdin",
-         "-fps_mode", "passthrough", "-f", "image2pipe", "-vcodec", "png", "-"],
-        input=script.encode(), capture_output=True, check=True,
-    )
-    return proc.stdout.count(b"\x89PNG")
+def _timed(video, times, method) -> float:
+    began = time.perf_counter()
+    grab_frames(video, times, width=THUMB_WIDTH, method=method)
+    return time.perf_counter() - began
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("video")
-    ap.add_argument("--minutes", type=float, required=True)
-    ap.add_argument("--densities", default="1,4,15,60")
-    a = ap.parse_args()
-    duration = a.minutes * 60
-    print("shots_per_min\tN\tseek_s\tone_pass_s\tframes_out")
-    for d in map(float, a.densities.split(",")):
-        n = max(1, int(round(d * a.minutes)))
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("video")
+    parser.add_argument("--minutes", type=float, required=True)
+    parser.add_argument("--densities", default="1,4,15,60")
+    args = parser.parse_args()
+    duration = args.minutes * 60
+    print("shots_per_min\tN\tseek_s\tone_pass_s")
+    for density in map(float, args.densities.split(",")):
+        n = max(1, round(density * args.minutes))
         times = [(i + 0.5) * duration / n for i in range(n)]
-        t0 = time.perf_counter(); seeks(a.video, times); ts = time.perf_counter() - t0
-        t0 = time.perf_counter(); got = one_pass(a.video, times); tp = time.perf_counter() - t0
-        print(f"{d:g}\t{n}\t{ts:.1f}\t{tp:.1f}\t{got}", flush=True)
+        seek, one_pass = (_timed(args.video, times, m) for m in ("seek", "pass"))
+        print(f"{density:g}\t{n}\t{seek:.1f}\t{one_pass:.1f}", flush=True)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
