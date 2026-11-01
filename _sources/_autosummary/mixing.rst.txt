@@ -54,6 +54,7 @@
    util
    audio
    decode
+   demux
    ffmpeg
    filtergraph
    loudness

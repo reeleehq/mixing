@@ -1,0 +1,19 @@
+mixing.demux
+============
+
+.. automodule:: mixing.demux
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      DEFAULT_AUDIO_TRACK_CODEC
+      DEFAULT_AUDIO_TRACK_TIMEOUT
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      audio_track
+   
