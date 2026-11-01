@@ -649,7 +649,11 @@ def limit_peaks(
     ceiling holds exactly; nothing moves in time. ``window`` is in samples;
     by default ``DEFAULT_LIMITER_WINDOW_S`` * ``fs`` when ``fs`` is given, else 1.
     Returned unchanged (the same object, for 2-D input) when nothing exceeds
-    the ceiling.
+    the ceiling. A limited float (or complex) input keeps its dtype: a float32
+    mix comes back float32, the gain computed in float64 and the product
+    rounded once, so a sample may sit above ``ceiling`` by at most half a step
+    of the output's precision (``0.6`` is stored as ``0.60000002`` in float32).
+    Any other input that is limited comes back float64.
     Works in ``LIMITER_CHUNK_FRAMES`` chunks sharing the context each gain
     depends on, so the result is the whole-signal one at a bounded memory.
 
@@ -694,9 +698,16 @@ def limit_peaks(
         if out is None:
             if gain.min() >= 1.0:
                 continue  # untouched so far
-            out = data.astype(np.result_type(data.dtype, np.float64))
-        out[start:stop] = data[start:stop] * gain[:, None]
+            out = data.astype(_limited_dtype(data.dtype))
+        out[start:stop] = data[start:stop] * gain[:, None]  # float64, cast on store
     return data if out is None else out
+
+
+def _limited_dtype(dtype: np.dtype) -> np.dtype:
+    """The dtype of the limiter's output: a float (or complex) input's own (a
+    float32 mix stays float32, half the memory of float64), else float64."""
+    inexact = np.issubdtype(dtype, np.inexact)
+    return dtype if inexact else np.dtype(np.float64)
 
 
 def stream_limit_peaks(
@@ -713,9 +724,9 @@ def stream_limit_peaks(
 
     ``chunks`` are float arrays ``(k, channels)`` (or 1-D, mono), any sizes,
     all with the same channel count; the arguments are :func:`limit_peaks`'.
-    Yields the limited signal (float64) in blocks of ``LIMITER_CHUNK_FRAMES``
-    frames, the last one shorter, equal to :func:`limit_peaks` on the joined
-    signal. It holds one block plus the context each gain depends on (twice the
+    Yields the limited signal (in the chunks' float dtype, else float64) in
+    blocks of ``LIMITER_CHUNK_FRAMES`` frames, the last one shorter, equal to
+    :func:`limit_peaks` on the joined signal. It holds one block plus the context each gain depends on (twice the
     window, and the true-peak filter's length) and the chunk being read, so a
     track of any length is limited in bounded memory. The settings are
     checked here, before the first chunk is read.
@@ -744,7 +755,8 @@ def _limited_blocks(chunks, margin: int, block_gain) -> Iterator[np.ndarray]:
         gain = block_gain(
             held[lo - held_start : hi - held_start], start - lo, stop - lo
         )
-        out = held[start - held_start : stop - held_start] * gain[:, None]  # float64
+        out = held[start - held_start : stop - held_start] * gain[:, None]
+        out = out.astype(_limited_dtype(held.dtype), copy=False)
         done = stop
         keep = max(0, done - margin)
         held, held_start = held[keep - held_start :], keep
@@ -820,6 +832,9 @@ def _peak_need(
         peak = np.maximum(peak, np.concatenate([[0.0], peak[:-1]]))  # the gap before
     else:
         peak = np.abs(data).max(axis=1)
+    # float64 whatever the input (a chunk's worth): the eased gain must stay
+    # under every sample's need, which float32 rounding could break
+    peak = peak.astype(np.float64, copy=False)
     return np.minimum(1.0, ceiling / np.maximum(peak, 1e-12))
 
 

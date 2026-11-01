@@ -53,6 +53,18 @@ def test_stream_limiter_equals_the_array_limiter(monkeypatch, true_peak, sizes):
     np.testing.assert_allclose(np.concatenate(blocks), whole, rtol=0, atol=1e-12)
 
 
+def test_stream_limiter_keeps_float32_chunks_float32(monkeypatch):
+    rng = np.random.default_rng(4)
+    data = (rng.standard_normal((20_000, 2)) * 0.4).astype(np.float32)
+    data[4999] = 2.0
+    kwargs = dict(ceiling=0.6, window=40, fs=FS)
+    whole = limit_peaks(data, **kwargs)
+    monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", 5000)
+    blocks = list(stream_limit_peaks(_pieces(data, (777, 5, 3001)), **kwargs))
+    assert {b.dtype for b in blocks} == {np.dtype(np.float32)}
+    np.testing.assert_array_equal(np.concatenate(blocks), whole)
+
+
 def test_stream_limiter_checks_settings_at_once_and_channels_as_it_goes():
     with pytest.raises(ValueError, match="not dB"):
         stream_limit_peaks(iter(()), ceiling=-1.0)  # raised before any chunk
