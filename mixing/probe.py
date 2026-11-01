@@ -50,11 +50,13 @@ from typing import Optional, Tuple
 
 from mixing.egress import PathLike
 from mixing.errors import MediaNotFoundError, ProbeError
+from mixing.ffmpeg import FfmpegTimeout, check_timeout, run_ffmpeg
 from mixing.util import ffmpeg_exe
 
 __all__ = [
     "MediaProbe",
     "probe",
+    "probe_duration",
     "parse_banner",
     "find_ffprobe",
     "snap_rate",
@@ -108,6 +110,9 @@ SECONDS_PER_HOUR = 3600
 ERROR_TAIL_CHARS = 500
 #: What marks a location ffmpeg opens that is not a local file (``https://``…).
 URL_MARKER = "://"
+#: Seconds :func:`probe_duration` waits for ``ffmpeg -i`` before giving up (a
+#: stalled network path or a damaged file would otherwise hang the caller).
+DEFAULT_PROBE_DURATION_TIMEOUT = 30.0
 
 
 # --- the result -----------------------------------------------------------------
@@ -413,6 +418,15 @@ _BANNER_DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 _BANNER_ROTATION = re.compile(r"rotation of (-?[\d.]+) degrees")
 
 
+def _banner_seconds(text: str) -> Optional[float]:
+    """The container duration the banner states (``Duration: HH:MM:SS.ff``), or ``None``."""
+    found = _BANNER_DURATION.search(text)
+    if found is None:
+        return None
+    h, m, s = found.groups()
+    return int(h) * SECONDS_PER_HOUR + int(m) * SECONDS_PER_MINUTE + float(s)
+
+
 def _banner_rate(pattern: re.Pattern, line: str) -> Optional[Fraction]:
     """A rate the banner prints (``29.97 fps``, ``30 tbr``, ``90k tbr``), snapped."""
     found = pattern.search(line)
@@ -442,11 +456,7 @@ def parse_banner(text: str) -> MediaProbe:
     >>> found.fps, found.frames, (found.width, found.height), found.channels
     (Fraction(30000, 1001), 315, (1920, 1080), 2)
     """
-    duration = _BANNER_DURATION.search(text)
-    seconds = None
-    if duration:
-        h, m, s = duration.groups()
-        seconds = int(h) * SECONDS_PER_HOUR + int(m) * SECONDS_PER_MINUTE + float(s)
+    seconds = _banner_seconds(text)
     fields = dict(method=BANNER_METHOD, duration=seconds)
     audio = _BANNER_AUDIO.search(text)
     if audio:
@@ -497,6 +507,45 @@ def _probe_with_banner(media) -> MediaProbe:
 
 
 # --- the probe ----------------------------------------------------------------------
+
+
+def probe_duration(
+    media: PathLike, *, timeout: Optional[float] = DEFAULT_PROBE_DURATION_TIMEOUT
+) -> Optional[float]:
+    """The container duration of ``media`` in seconds, from ``ffmpeg -i``, or ``None``.
+
+    The cheap question alone: one ``ffmpeg -i`` (no ffprobe lookup, no stream
+    reads), and ``None`` rather than an error whenever the duration cannot be
+    had: the file is missing or unreadable, its container states no duration,
+    or ffmpeg is still running ``timeout`` seconds after it started. Unlike
+    :func:`probe` and :mod:`mixing.decode`, whose ``timeout`` defaults to no
+    bound and raises :class:`~mixing.ffmpeg.FfmpegTimeout`, this one is bounded
+    by default and answers ``None``: it is the question a caller asks before
+    deciding anything, and must not hang it. On expiry ffmpeg is killed with
+    whatever it started (see :func:`mixing.ffmpeg.run_ffmpeg`).
+
+    Args:
+        media: the file (or any location ffmpeg opens).
+        timeout: seconds to wait for ffmpeg (default
+            :data:`DEFAULT_PROBE_DURATION_TIMEOUT`); ``None`` (or ``inf``)
+            waits forever.
+
+    Raises:
+        ValueError: ``timeout`` is not ``None`` or a number of seconds > 0
+            (see :func:`mixing.ffmpeg.check_timeout`).
+        RuntimeError: no ffmpeg executable can be found (see
+            :func:`mixing.util.ffmpeg_exe`).
+    """
+    check_timeout(timeout)  # before the ffmpeg lookup, so a bad one is a ValueError
+    cmd = [ffmpeg_exe(), "-hide_banner", "-nostdin", "-i", str(media)]
+    try:
+        with run_ffmpeg(
+            cmd, what=f"read the duration of {media!s}", timeout=timeout, check=False
+        ) as proc:
+            pass  # with no output named, ffmpeg prints the banner and exits 1
+    except FfmpegTimeout:
+        return None
+    return _banner_seconds(proc.message)
 
 
 def probe(
