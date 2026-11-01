@@ -20,6 +20,7 @@ from mixing.probe import (
     BANNER_METHOD,
     FFPROBE_METHOD,
     MediaProbe,
+    MediaStream,
     find_ffprobe,
     parse_banner,
     probe,
@@ -288,6 +289,10 @@ def test_cover_art_is_not_the_picture_in_a_banner():
         " (attached pic)\n"
     )
     assert not found.has_video and found.has_audio
+    assert [(st.kind, st.codec, st.attached_pic) for st in found.streams] == [
+        ("audio", "mp3", False),
+        ("video", "mjpeg", True),
+    ]
 
 
 @BOTH_WAYS
@@ -301,6 +306,10 @@ def test_an_mp3_with_cover_art_is_audio_only(media, tmp_path, ffprobe):
     found = probe(song, ffprobe=ffprobe)
     assert not found.has_video and found.fps is None
     assert found.has_audio and found.sample_rate == SR
+    assert found.streams == (
+        MediaStream("audio", "mp3"),
+        MediaStream("video", "png", attached_pic=True),
+    )
 
 
 @needs_ffprobe
@@ -329,18 +338,15 @@ def test_find_ffprobe_ignores_a_non_exe_suffix(tmp_path, monkeypatch):
     assert find_ffprobe() == str(tmp_path / "ffprobe")
 
 
-def test_banner_error_states_the_exit_code(tmp_path, monkeypatch):
-    import mixing.probe
-
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in for ffmpeg")
+def test_banner_error_states_the_exit_code(tmp_path):
     junk = tmp_path / "crash.ts"
     junk.touch()
-
-    def crashed(argv, **kwargs):
-        return subprocess.CompletedProcess(argv, -11, stdout="", stderr="")
-
-    monkeypatch.setattr(mixing.probe.subprocess, "run", crashed)
-    with pytest.raises(ProbeError, match=r"could not read it \(exit code -11\)"):
-        probe(junk, ffprobe=None)
+    crashing = tmp_path / "ffmpeg"  # dies of SIGSEGV, printing nothing
+    crashing.write_text("#!/bin/sh\nkill -SEGV $$\n")
+    crashing.chmod(0o755)
+    with pytest.raises(ProbeError, match=r"ffmpeg could not read it \(exit code -11\)$"):
+        probe(junk, ffprobe=None, ffmpeg=str(crashing))
 
 
 def test_find_ffprobe_takes_ffmpegs_suffix(tmp_path, monkeypatch):
@@ -369,7 +375,7 @@ def test_banner_fallback_when_no_ffprobe_beside_ffmpeg(media, monkeypatch):
     """The default finds no ffprobe (imageio-ffmpeg's case): the banner is read."""
     import mixing.probe
 
-    monkeypatch.setattr(mixing.probe, "find_ffprobe", lambda: None)
+    monkeypatch.setattr(mixing.probe, "find_ffprobe", lambda **kw: None)
     assert probe(media["ntsc"]).method == BANNER_METHOD
 
 
@@ -407,6 +413,81 @@ def test_get_video_dimensions_agrees_with_the_probe(media, name):
 
     found = probe(media[name], ffprobe=None)
     assert get_video_dimensions(str(media[name])) == (found.width, found.height)
+
+
+# --- streams, ffmpeg= and timeout= (issue #134) ------------------------------------------
+
+
+@BOTH_WAYS
+def test_streams_list_every_stream_in_file_order(media, ffprobe):
+    found = probe(media["ntsc"], ffprobe=ffprobe)
+    assert found.streams == (MediaStream("video", "h264"), MediaStream("audio", "aac"))
+    assert probe(media["audio"], ffprobe=ffprobe).streams == (
+        MediaStream("audio", "pcm_s16le"),
+    )
+
+
+def test_a_banner_without_streams_lists_none():
+    assert parse_banner("Duration: 00:00:01.00, start: 0.0").streams == ()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script stand-in")
+@pytest.mark.parametrize("which", ["ffprobe", "ffmpeg"])
+def test_a_stalled_probe_is_killed_at_the_timeout(media, tmp_path, which):
+    import os
+    import time
+
+    from mixing.ffmpeg import FfmpegTimeout
+
+    pid_file = tmp_path / "child.pid"
+    stalled = tmp_path / which  # a wrapper whose child stalls
+    stalled.write_text(f"#!/bin/sh\nsleep 30 &\necho $! > {pid_file}\nwait\n")
+    stalled.chmod(0o755)
+    kwargs = (
+        dict(ffprobe=str(stalled))
+        if which == "ffprobe"
+        else dict(ffprobe=None, ffmpeg=str(stalled))
+    )
+    began = time.monotonic()
+    with pytest.raises(FfmpegTimeout):
+        probe(media["ntsc"], timeout=2.0, **kwargs)
+    assert time.monotonic() - began < 10
+    child = int(pid_file.read_text())
+    for _ in range(50):
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(child, 9)
+        pytest.fail("the stalled probe's child was left running")
+
+
+@pytest.mark.parametrize("timeout", [0, -1, "5", True])
+def test_probe_refuses_a_bad_timeout(timeout):
+    with pytest.raises(ValueError, match="timeout"):
+        probe("any.mp4", ffprobe=None, timeout=timeout)
+
+
+def test_find_ffprobe_looks_beside_the_given_ffmpeg(tmp_path, monkeypatch):
+    (tmp_path / "ffmpeg").touch()
+    (tmp_path / "ffprobe").touch()
+    assert find_ffprobe(ffmpeg=str(tmp_path / "ffmpeg")) == str(tmp_path / "ffprobe")
+    # a bare name is looked up on PATH, never beside the working directory
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "")
+    assert find_ffprobe(ffmpeg="ffmpeg") is None
+
+
+def test_stream_kinds_is_the_banner_reading_of_probe(media, tmp_path):
+    from mixing.decode import stream_kinds
+
+    assert stream_kinds(media["ntsc"]) == ["video", "audio"]
+    assert stream_kinds(tmp_path / "missing.mp4") == []
+    junk = tmp_path / "junk.mp4"
+    junk.write_bytes(b"not media")
+    assert stream_kinds(junk) == []
 
 
 # --- probe_duration ------------------------------------------------------------------------
