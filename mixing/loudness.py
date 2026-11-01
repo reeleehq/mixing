@@ -30,6 +30,7 @@ Everything here takes plain float arrays shaped ``(n, channels)`` in [-1, 1]
 
 from __future__ import annotations
 
+import math
 import numbers
 import os
 import re
@@ -555,11 +556,13 @@ def true_peak_db(
 
 def _whole_rate(rate) -> int:
     """``rate`` (Hz) as an int; a rate that is not a whole number is refused."""
-    if (
-        isinstance(rate, bool)
-        or not isinstance(rate, numbers.Real)
-        or rate != int(rate)
-    ):
+    whole = (
+        isinstance(rate, numbers.Real)
+        and not isinstance(rate, bool)
+        and math.isfinite(rate)
+        and rate == int(rate)
+    )
+    if not whole:
         raise ValueError(f"a sample rate is a whole number of Hz, got {rate!r}")
     if rate <= 0:
         raise ValueError(f"a sample rate is > 0, got {rate!r}")
@@ -573,8 +576,10 @@ def _at_one_rate(
     rate for all, or one per segment (each resampled to the highest of them, so
     nothing is filtered away)."""
     arrays = [_as_2d(np.asarray(s, dtype=np.float64)) for s in segments]
-    if isinstance(fs, numbers.Real):  # one rate (int, whole float, numpy scalar)
-        return arrays, _whole_rate(fs)
+    if isinstance(fs, (str, bytes)):
+        raise ValueError(f"a sample rate is a number of Hz, not text: {fs!r}")
+    if np.ndim(fs) == 0:  # one rate (int, whole float, numpy scalar or 0-d array)
+        return arrays, _whole_rate(fs.item() if isinstance(fs, np.ndarray) else fs)
     rates = [_whole_rate(r) for r in fs]
     if len(rates) != len(arrays):
         raise ValueError(
