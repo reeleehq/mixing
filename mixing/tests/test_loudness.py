@@ -333,6 +333,45 @@ def test_limiter_memory_stays_near_the_output(monkeypatch):
     assert peak < 2 * data.nbytes
 
 
+@pytest.mark.parametrize("true_peak", [False, True])
+def test_limiter_keeps_a_float32_input_float32(true_peak):
+    rng = np.random.default_rng(6)
+    data64 = rng.standard_normal((FS, 2)) * 0.8
+    data = data64.astype(np.float32)
+    kwargs = dict(ceiling=0.5, window=int(0.005 * FS), true_peak=true_peak, fs=FS)
+    out = limit_peaks(data, **kwargs)
+    assert out.dtype == np.float32 and out.shape == data.shape
+    # the same limiting as the float64 path, rounded once to float32
+    reference = limit_peaks(data.astype(np.float64), **kwargs)
+    np.testing.assert_allclose(out, reference.astype(np.float32), rtol=0, atol=0)
+    if not true_peak:
+        assert np.abs(out).max() <= np.float32(0.5) * (1 + np.finfo(np.float32).eps)
+
+
+def test_limiter_turns_non_float_input_into_float64():
+    data = np.zeros((100, 1), dtype=np.int64)
+    data[50] = 3
+    out = limit_peaks(data, ceiling=1.0, window=4)
+    assert out.dtype == np.float64 and np.abs(out).max() <= 1.0
+
+
+def test_float32_limiter_memory_stays_near_its_float32_output(monkeypatch):
+    import tracemalloc
+
+    import mixing.loudness as loudness
+
+    monkeypatch.setattr(loudness, "LIMITER_CHUNK_FRAMES", FS)
+    data = (np.random.default_rng(2).standard_normal((FS * 20, 2)) * 0.5).astype(
+        np.float32
+    )
+    tracemalloc.start()
+    limit_peaks(data, ceiling=0.5, fs=FS)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    # a float32 output plus one chunk's temporaries; a float64 output alone is 2x
+    assert peak < 2 * data.nbytes
+
+
 # --- streaming and file meters ------------------------------------------------
 
 
