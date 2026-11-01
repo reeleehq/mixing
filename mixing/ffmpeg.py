@@ -26,9 +26,11 @@ import subprocess
 import tempfile
 import threading
 from contextlib import contextmanager, suppress
+from functools import partial
 from typing import Optional
 
 __all__ = [
+    "FfmpegError",
     "FfmpegTimeout",
     "run_ffmpeg",
     "check_timeout",
@@ -37,6 +39,28 @@ __all__ = [
 
 #: How much of ffmpeg's complaint an error carries.
 _STDERR_TAIL_CHARS = 2000
+
+
+class FfmpegError(RuntimeError, subprocess.CalledProcessError):
+    """ffmpeg exited with an error (``run_ffmpeg(check=True)``).
+
+    A ``RuntimeError`` like every ffmpeg failure here, and a
+    ``subprocess.CalledProcessError`` (``returncode``, ``cmd``, ``stderr`` as
+    bytes) for callers written against ``subprocess.run(check=True)``.
+    """
+
+    def __init__(self, message: str, *, returncode: int, cmd, stderr: bytes = b""):
+        RuntimeError.__init__(self, message)
+        self.message = message
+        self.returncode, self.cmd = returncode, cmd
+        self.output, self.stderr = None, stderr
+
+    def __str__(self) -> str:
+        return self.message
+
+    def __reduce__(self):
+        fields = dict(returncode=self.returncode, cmd=self.cmd, stderr=self.stderr)
+        return (partial(type(self), self.message, **fields), ())
 
 
 class FfmpegTimeout(TimeoutError, RuntimeError):
@@ -157,4 +181,9 @@ def run_ffmpeg(
             )
         if check and proc.returncode != 0:
             tail = proc.message[-_STDERR_TAIL_CHARS:]
-            raise RuntimeError(f"ffmpeg could not {what}: {tail}")
+            raise FfmpegError(
+                f"ffmpeg could not {what}: {tail}",
+                returncode=proc.returncode,
+                cmd=cmd,
+                stderr=proc.message.encode(),
+            )
