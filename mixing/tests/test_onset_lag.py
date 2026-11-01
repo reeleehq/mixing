@@ -52,6 +52,57 @@ def test_coarse_motion_is_not_reduced_to_scattered_points(fps):
     assert r > 0.9
 
 
+def _bump(lags, centre, height, width=0.05):
+    return height * np.exp(-0.5 * ((lags - centre) / width) ** 2)
+
+
+def test_near_tied_peaks_go_to_the_smallest_lag_and_a_lone_peak_is_not_pulled():
+    from mixing.audio.lag import _pick_lag
+
+    lags = np.round(np.arange(-100, 101) * HOP, 10)
+    # three beats' worth of peaks: the best at -0.9, the true one at 0.1 just under it
+    rs = _bump(lags, -0.9, 1.0) + _bump(lags, 0.1, 0.995) + _bump(lags, 0.6, 0.999)
+    assert _pick_lag(lags, rs, 0.01) == (pytest.approx(0.1), pytest.approx(0.995))
+    assert _pick_lag(lags, rs, 0.0)[0] == pytest.approx(-0.9)  # argmax: the test bites
+    # one broad peak at 0.2: its shoulders near 0 are within 0.01 but not a peak
+    broad = _bump(lags, 0.2, 0.9, width=0.3)
+    assert _pick_lag(lags, broad, 0.01)[0] == pytest.approx(0.2)
+    assert _pick_lag(lags, np.full(len(lags), np.nan), 0.01) is None
+
+
+def test_a_smooth_envelope_does_not_bias_the_lag_toward_zero():
+    onset = np.convolve(_onsets(), np.hanning(101), mode="same")
+    t = np.arange(4.0, 16.0, HOP)
+    lag, r = onset_lag(t, _motion_following(onset, t, 0.2), onset, onset_hop_s=HOP)
+    assert lag == pytest.approx(0.2) and r == pytest.approx(1.0)
+
+
+def test_a_gap_in_the_motion_is_left_out_not_interpolated_across():
+    onset = np.convolve(_onsets(seconds=40), np.hanning(9), mode="same")
+    t = np.concatenate([np.arange(2.0, 8.0, 1 / 30), np.arange(23.0, 30.0, 1 / 30)])
+    lag, r = onset_lag(t, _motion_following(onset, t, 0.25), onset, onset_hop_s=HOP)
+    assert lag == pytest.approx(0.25) and r > 0.98  # a made-up ramp would drag r down
+
+
+def test_repeated_timestamps_do_not_change_the_answer():
+    onset = np.convolve(_onsets(), np.hanning(31), mode="same")
+    t = np.arange(4.0, 16.0, 0.1)  # 10 fps
+    motion = _motion_following(onset, t, 0.3)
+    once = onset_lag(t, motion, onset, onset_hop_s=HOP)
+    twice = onset_lag(np.repeat(t, 2), np.repeat(motion, 2), onset, onset_hop_s=HOP)
+    assert twice == once and once.lag_s == pytest.approx(0.3, abs=0.05)
+
+
+def test_motion_finer_than_the_hop_is_averaged_down():
+    hop = 512 / 22050  # librosa's default hop, ~23 ms
+    rng = np.random.default_rng(3)
+    onset = np.convolve(rng.random(int(20 / hop)), np.hanning(7), mode="same")
+    t = np.arange(3.0, 17.0, 1 / 60)  # 60 fps: ~1.4 frames per hop
+    motion = np.interp(t - 0.2, np.arange(len(onset)) * hop, onset)
+    lag, r = onset_lag(t, motion, onset, onset_hop_s=hop)
+    assert lag == pytest.approx(0.2, abs=hop) and r > 0.95
+
+
 def test_unsorted_times_and_missing_samples_are_handled():
     onset = np.convolve(
         _onsets(), np.hanning(9), mode="same"
