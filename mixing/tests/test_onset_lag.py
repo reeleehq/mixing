@@ -32,7 +32,8 @@ def test_a_short_window_inside_a_song_finds_its_lag_without_wrapping(true_lag):
     assert lag == pytest.approx(true_lag, abs=1e-9) and r == pytest.approx(1.0)
 
 
-def test_periodic_music_gives_the_smallest_lag_not_the_most_negative():
+def test_periodic_music_gives_the_true_lag_within_one_beat():
+    """End to end; the tie rule itself is pinned by the direct _pick_lag test."""
     beat = 0.5  # 120 bpm: the lag is defined only modulo 0.5 s
     n = np.arange(int(20 / HOP))
     onset = np.where(n % int(beat / HOP) == 0, 1.0, 0.0)
