@@ -103,9 +103,9 @@ def test_a_local_file_with_a_colon_is_a_file_not_a_protocol(media, tmp_path):
     colon = tmp_path / "take:2.wav"
     colon.write_bytes(media["mono"].read_bytes())
     assert audio_track(colon) == audio_track(media["mono"])
-    assert (
-        audio_track(colon, output=tmp_path / "out") == tmp_path / "out" / "take:2.wav"
-    )
+    out = tmp_path / "out"
+    out.mkdir()  # a directory: the WAV is named after the input
+    assert audio_track(colon, output=out) == out / "take:2.wav"
     with pytest.raises(MediaNotFoundError):
         audio_track(tmp_path / "take:9.mp4")
 
