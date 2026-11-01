@@ -1,4 +1,4 @@
-> built 2026-11-01 18:45 UTC from a1e4d62 (main) · mixing 0.0.96. Details: build_info.json
+> built 2026-11-01 19:16 UTC from 5d180fe (main) · mixing 0.0.97. Details: build_info.json
 
 # index.html.md
 
@@ -3618,18 +3618,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-01 18:45 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/a1e4d623c16eab19de7ba1fa3536e306b70207ce"><code>a1e4d62</code></a> on branch <code>main</code>, for **mixing 0.0.96** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 19:16 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/5d180fed40254c70d1689990e005824618cca7f8"><code>5d180fe</code></a> on branch <code>main</code>, for **mixing 0.0.97** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.97) is ahead of the latest release on PyPI (0.0.96): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/a1e4d623c16eab19de7ba1fa3536e306b70207ce"><code>a1e4d623c16eab19de7ba1fa3536e306b70207ce</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/5d180fed40254c70d1689990e005824618cca7f8"><code>5d180fed40254c70d1689990e005824618cca7f8</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | none                                                                                                                                                   |
+| Tags at this commit | <code>0.0.97</code>                                                                                                                                    |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3638,9 +3640,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41337400396">41337400396</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41338947633">41338947633</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>5956339e04111521e4b083f4f611903cda1ebba2</code> (in the history of the built commit) |
+| Event commit | <code>174dc347e3899465dde8e296159a692ff85a2b7a</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3665,13 +3667,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.96/">0.0.96</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.96/">0.0.96</a>, older than the documented version (0.0.97).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout a1e4d623c16eab19de7ba1fa3536e306b70207ce
+git checkout 5d180fed40254c70d1689990e005824618cca7f8
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
