@@ -2,10 +2,12 @@
 
 # About this build
 
-This documentation was built on **2026-11-01 19:53 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/ca22936404d09f23f4d4381409519fe4204f60a2"><code>ca22936</code></a> on branch <code>main</code>, for **mixing 0.0.100** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 19:55 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/ca22936404d09f23f4d4381409519fe4204f60a2"><code>ca22936</code></a> on branch <code>main</code>, for **mixing 0.0.100** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.100) is ahead of the latest release on PyPI (0.0.99): these docs describe unreleased code.
 
 ## Source
 
@@ -22,9 +24,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41341633232">41341633232</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41341644018">41341644018</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>0e75bcd6b706b939085542392dff7a328b8bf825</code> (in the history of the built commit) |
+| Event commit | <code>813de621a5f4c6fff4ec74e8ad4d1830b71858f3</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -49,7 +51,7 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.100/">0.0.100</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.99/">0.0.99</a>, older than the documented version (0.0.100).
 
 ## Reproduce
 
