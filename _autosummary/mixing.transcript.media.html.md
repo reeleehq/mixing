@@ -29,7 +29,8 @@ Re-encode `input_path` keeping only the listed time ranges.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
   * **faststart** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Add `-movflags +faststart` (mp4 web-streaming).
-  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Pass `-y` to ffmpeg.
+  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Replace an existing output; `False` refuses one with a
+    `FileExistsError`.
   * **ffmpeg** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – As in the module docstring.
   * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – As in the module docstring.
 * **Return type:**

@@ -1,4 +1,4 @@
-> built 2026-11-01 19:55 UTC from ca22936 (main) · mixing 0.0.100. Details: build_info.json
+> built 2026-11-01 20:00 UTC from 47e15e1 (main) · mixing 0.0.102. Details: build_info.json
 
 # index.html.md
 
@@ -3002,7 +3002,8 @@ Re-encode `input_path` keeping only the listed time ranges.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
   * **faststart** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Add `-movflags +faststart` (mp4 web-streaming).
-  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Pass `-y` to ffmpeg.
+  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Replace an existing output; `False` refuses one with a
+    `FileExistsError`.
   * **ffmpeg** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – As in the module docstring.
   * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – As in the module docstring.
 * **Return type:**
@@ -3251,7 +3252,8 @@ Re-encode `input_path` keeping only the listed time ranges.
   * **audio_bitrate** ([`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Re-encode
     knobs forwarded to ffmpeg.
   * **faststart** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Add `-movflags +faststart` (mp4 web-streaming).
-  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Pass `-y` to ffmpeg.
+  * **overwrite** ([`bool`](https://docs.python.org/3/builtins/functions.html#bool)) – Replace an existing output; `False` refuses one with a
+    `FileExistsError`.
   * **ffmpeg** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]) – As in the module docstring.
   * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – As in the module docstring.
 * **Return type:**
@@ -3646,20 +3648,18 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-01 19:55 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/ca22936404d09f23f4d4381409519fe4204f60a2"><code>ca22936</code></a> on branch <code>main</code>, for **mixing 0.0.100** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 20:00 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/47e15e1770d003794d96fe1ee5659801938a2c1c"><code>47e15e1</code></a> on branch <code>main</code>, for **mixing 0.0.102** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.100) is ahead of the latest release on PyPI (0.0.99): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/ca22936404d09f23f4d4381409519fe4204f60a2"><code>ca22936404d09f23f4d4381409519fe4204f60a2</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/47e15e1770d003794d96fe1ee5659801938a2c1c"><code>47e15e1770d003794d96fe1ee5659801938a2c1c</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | <code>0.0.100</code>                                                                                                                                   |
+| Tags at this commit | <code>0.0.102</code>                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -3668,9 +3668,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41341644018">41341644018</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41342470145">41342470145</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>813de621a5f4c6fff4ec74e8ad4d1830b71858f3</code> (in the history of the built commit) |
+| Event commit | <code>271dc89ef51d53d93b69d0a05950e401084b2bf6</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3695,13 +3695,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.99/">0.0.99</a>, older than the documented version (0.0.100).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.102/">0.0.102</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout ca22936404d09f23f4d4381409519fe4204f60a2
+git checkout 47e15e1770d003794d96fe1ee5659801938a2c1c
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
