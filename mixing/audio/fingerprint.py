@@ -190,6 +190,14 @@ DEFAULT_MAX_ABSENT_VOTES = 5
 DEFAULT_MIN_QUERY_HASHES = 240
 
 _EPS = 1e-12  # keeps log10 finite on digital silence
+#: STFT frames per block of the spectrogram -> peaks pass (~95 s at the
+#: defaults): memory is one block's spectrogram and filters, however long the
+#: signal, instead of the whole recording's (~1.3 GB for 30 min).
+CONSTELLATION_BLOCK_FRAMES = 4096
+#: Frames added to :func:`_constellation_margin` beyond its exact reach, as
+#: insurance only: the reach itself is exact (a margin two frames short
+#: changes the peaks of dense noise; one frame short, rarer layouts).
+_CONSTELLATION_SLACK_FRAMES = 1
 
 
 @dataclass(frozen=True)
@@ -513,6 +521,56 @@ def _dense_enough(
     return stronger < allowed
 
 
+def _constellation_margin(params: LandmarkParams) -> int:
+    """Frames on each side of a block that its peaks' fate can depend on.
+
+    A peak is a local maximum over half the max-filter neighbourhood, ranked by
+    a prominence over half the prominence window, and kept by comparing it with
+    the peaks up to the density radius away, whose own maxima and prominences
+    reach as far again. So: the radius plus the wider of the two half windows
+    (``size // 2`` covers the longer side of an even ``uniform_filter``), plus
+    :data:`_CONSTELLATION_SLACK_FRAMES`.
+    """
+    half_max = _odd(params.frames(params.peak_neighborhood_s)) // 2
+    half_mean = params.frames(params.prominence_window_s) // 2
+    radius = params.frames(params.peak_density_window_s) // 2
+    return radius + max(half_max, half_mean) + _CONSTELLATION_SLACK_FRAMES
+
+
+def _constellation(
+    y: np.ndarray,
+    params: LandmarkParams,
+    *,
+    block_frames: int = CONSTELLATION_BLOCK_FRAMES,
+) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`_peaks` of :func:`_spectrogram_db` of ``y``, a block of frames at a time.
+
+    Each block is analysed with :func:`_constellation_margin` frames of context
+    on either side and keeps only the peaks in its own frames, so the result is
+    the whole-signal one in the memory of one block, with one exception: the
+    prominence filter is a running sum, so its last bits depend on where the
+    block starts, and two peaks of *exactly* equal prominence (audio looped on
+    hop boundaries) may be ranked the other way. The whole-signal pass breaks
+    such ties by rounding noise too, so matching is not affected.
+    """
+    n_fft, hop = params.n_fft, params.hop_length
+    if len(y) < n_fft:
+        return np.empty(0, np.int64), np.empty(0, np.int64)
+    n_frames = (len(y) - n_fft) // hop + 1
+    margin = _constellation_margin(params)
+    frames_out, bins_out = [], []
+    for start in range(0, n_frames, block_frames):
+        stop = min(n_frames, start + block_frames)
+        lo, hi = max(0, start - margin), min(n_frames, stop + margin)
+        spec = _spectrogram_db(y[lo * hop : (hi - 1) * hop + n_fft], params)
+        frames, bins = _peaks(spec, params)
+        frames = frames + lo
+        own = (frames >= start) & (frames < stop)
+        frames_out.append(frames[own])
+        bins_out.append(bins[own])
+    return np.concatenate(frames_out), np.concatenate(bins_out)
+
+
 def _pair_hashes(
     frames: np.ndarray, bins: np.ndarray, params: LandmarkParams
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -562,7 +620,7 @@ def landmarks(
             ``params.sample_rate`` first.
     """
     y = _mono_at(audio, sr=sr, target=params.sample_rate)
-    frames, bins = _peaks(_spectrogram_db(y, params), params)
+    frames, bins = _constellation(y, params)
     hashes, anchors = _pair_hashes(frames, bins, params)
     return Landmarks(hashes, anchors, params, len(y) / params.sample_rate)
 
