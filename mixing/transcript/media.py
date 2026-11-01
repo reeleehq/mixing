@@ -22,6 +22,16 @@ from mixing.util import ffmpeg_exe
 PathLike = Union[str, Path]
 
 
+def _refuse_existing(output_path: PathLike, overwrite: bool) -> None:
+    """With ``overwrite=False``, an existing output is a ``FileExistsError``:
+    ffmpeg's ``-n`` exits 0 without writing, and the stale file would be
+    returned as if it had just been made."""
+    if not overwrite and Path(output_path).exists():
+        raise FileExistsError(
+            f"{output_path} exists and overwrite=False: remove it, or pass overwrite=True"
+        )
+
+
 def extract_audio(
     input_path: PathLike,
     output_path: PathLike,
@@ -37,6 +47,7 @@ def extract_audio(
 
     Returns the output path. ``ffmpeg`` and ``timeout`` as in the module docstring.
     """
+    _refuse_existing(output_path, overwrite)
     cmd = [
         ffmpeg or ffmpeg_exe(),
         "-hide_banner",
@@ -83,7 +94,8 @@ def apply_keeps(
         video_codec / audio_codec / crf / preset / audio_bitrate: Re-encode
             knobs forwarded to ffmpeg.
         faststart: Add ``-movflags +faststart`` (mp4 web-streaming).
-        overwrite: Pass ``-y`` to ffmpeg.
+        overwrite: Replace an existing output; ``False`` refuses one with a
+            ``FileExistsError``.
         ffmpeg, timeout: As in the module docstring.
 
     Returns:
@@ -91,6 +103,7 @@ def apply_keeps(
     """
     if not keeps:
         raise ValueError("keeps must contain at least one range")
+    _refuse_existing(output_path, overwrite)
     expr = "+".join(f"between(t,{k['start']:.3f},{k['end']:.3f})" for k in keeps)
     vf = f"select='{expr}',setpts=N/FRAME_RATE/TB"
     af = f"aselect='{expr}',asetpts=N/SR/TB"

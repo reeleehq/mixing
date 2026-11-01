@@ -92,3 +92,19 @@ def test_importing_it_stays_light():
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.stdout.strip() == "[]", out.stderr
+
+
+def test_overwrite_false_refuses_an_existing_output(clip, tmp_path):
+    """reeleehq/mixing#155: ffmpeg's -n exits 0 without writing; the stale file
+    must not come back as if it were new."""
+    stale = tmp_path / "speech.mp3"
+    stale.write_bytes(b"stale")
+    with pytest.raises(FileExistsError, match="overwrite=False"):
+        extract_audio(clip, stale, overwrite=False)
+    kept = tmp_path / "kept.mp4"
+    kept.write_bytes(b"stale")
+    with pytest.raises(FileExistsError):
+        apply_keeps(clip, kept, [{"start": 0, "end": 1}], overwrite=False)
+    assert stale.read_bytes() == b"stale" and kept.read_bytes() == b"stale"
+    fresh = extract_audio(clip, tmp_path / "fresh.mp3", overwrite=False)  # absent: fine
+    assert fresh.stat().st_size > 1000
