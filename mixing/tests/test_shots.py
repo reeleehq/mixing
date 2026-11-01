@@ -412,5 +412,35 @@ def test_duration_given_is_used_and_zero_keeps_the_sampled_length(monkeypatch):
     zero = sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=sb.SAMPLED_DURATION)
     assert zero == [(0.0, 6.0)] and probed == []  # 6 frames at 1 fps, no probe
     assert sb.diff_shots(frames, fps=1, sampler=lambda v, fps: v) == [(0.0, 6.0)]
+    for bad in (-1, True, float("nan")):
+        with pytest.raises(ValueError, match="duration"):
+            sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=bad)
+
+
+def test_a_bad_duration_is_refused_before_anything_is_decoded():
+    import mixing.video.shot_boundaries as sb
+
+    def sampler(v, fps):
+        raise AssertionError("decoded before the arguments were checked")
+
     with pytest.raises(ValueError, match="duration"):
-        sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=-1)
+        sb.diff_shots("v.mp4", sampler=sampler, duration=-1)
+
+
+def test_a_probe_shorter_than_the_sampled_frames_is_not_believed(monkeypatch):
+    """An image-sequence pattern probes as a 0.4 s clip: its cuts are kept."""
+    import mixing.video.shot_boundaries as sb
+
+    monkeypatch.setattr(sb, "probe_duration", lambda v: 0.4)
+    frames = np.zeros((10, 4, 4), np.uint8)
+    frames[5:] = 200  # a cut at 5 s
+    spans = sb.diff_shots("frames/%04d.png", fps=1, sampler=lambda v, fps: frames)
+    assert spans == [(0.0, 5.0), (5.0, 10.0)]
+
+
+def test_nothing_to_probe_keeps_the_sampled_length(monkeypatch):
+    import mixing.video.shot_boundaries as sb
+
+    monkeypatch.setattr(sb, "probe_duration", lambda v: None)
+    frames = np.zeros((6, 4, 4), np.uint8)
+    assert sb.diff_shots("x", fps=1, sampler=lambda v, fps: frames) == [(0.0, 6.0)]

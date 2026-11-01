@@ -31,6 +31,7 @@ source, and ``sampler`` lets a caller swap the diff strategy's frame source.
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import tempfile
@@ -218,13 +219,20 @@ def diff_shots(
     """
     if fps <= 0:
         raise ValueError(f"fps must be > 0, got {fps}")
+    if duration is not None and (
+        isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
+    ):
+        raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
     frames = sampler(video, fps=fps)
     chunks = [frames] if isinstance(frames, np.ndarray) else frames
     changes, count = _streamed_changes(chunks)
     if duration is None and isinstance(video, (str, os.PathLike)):
-        duration = probe_duration(video)
-    elif duration is not None and duration < 0:
-        raise ValueError(f"duration must be >= 0, got {duration}")
+        probed = probe_duration(video)
+        # a container shorter than what the sampler read is not this video's
+        # length (an image-sequence pattern probes as a short clip): keep the
+        # sampled one rather than drop the cuts past it
+        if probed is not None and probed >= count / fps - 1 / fps:
+            duration = probed
     duration = duration or None  # SAMPLED_DURATION: the sampled length
     if count == 0:
         return [] if not duration else [(0.0, float(duration))]
