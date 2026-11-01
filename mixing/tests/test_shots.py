@@ -464,3 +464,29 @@ def test_seek_and_pass_agree_on_exact_ntsc_frame_times(tmp_path):
     assert [np.asarray(a).tolist() for a in seeked] == [
         np.asarray(b).tolist() for b in passed
     ]
+
+
+# --- rule="spike" on continuous footage (reeleehq/mixing#160) ----------------------
+
+
+def test_a_real_pan_is_one_shot_under_spike_and_a_cut_after_it_is_kept(tmp_path):
+    from mixing.util import ffmpeg_exe
+
+    pan, cut = tmp_path / "pan.mp4", tmp_path / "pan_cut.mp4"
+    source = "testsrc2=s=1920x360:r=25:d=4,crop=640:360:x='t*400'"  # 400 px/s
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", source,
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(pan)],
+        check=True,
+    )  # fmt: skip
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", source,
+         "-f", "lavfi", "-i", "color=c=red:s=640x360:r=25:d=2",
+         "-filter_complex", "[0:v][1:v]concat=n=2:v=1[v]", "-map", "[v]",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(cut)],
+        check=True,
+    )  # fmt: skip
+    assert len(shots(pan, fps=5)) > 3  # level: the motion reads as cuts
+    assert shots(pan, fps=5, rule="spike") == [(0.0, pytest.approx(4.0, abs=0.1))]
+    spans = shots(cut, fps=5, rule="spike")
+    assert len(spans) == 2 and spans[0][1] == pytest.approx(4.0, abs=0.25)
