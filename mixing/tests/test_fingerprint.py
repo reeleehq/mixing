@@ -420,6 +420,40 @@ def test_constellation_density_follows_the_param(song, pps):
     assert len(frames) / SONG_S == pytest.approx(pps, rel=0.2)
 
 
+@pytest.mark.parametrize("block_frames", [97, 400, 4096])
+def test_the_blocked_constellation_is_the_whole_signal_one(song, block_frames):
+    """Blocks of a few seconds (97 frames is under the margin's own reach) give
+    the peaks the whole spectrogram gives, frame for frame and bin for bin."""
+    p = fp.DEFAULT_LANDMARK_PARAMS
+    y = fp._mono_at(song, sr=SR, target=p.sample_rate)
+    whole = fp._peaks(fp._spectrogram_db(y, p), p)
+    blocked = fp._constellation(y, p, block_frames=block_frames)
+    assert np.array_equal(blocked[0], whole[0]) and np.array_equal(blocked[1], whole[1])
+    assert len(whole[0]) > 100
+
+
+def test_the_blocked_constellation_holds_memory_to_a_block(monkeypatch):
+    import tracemalloc
+
+    p = fp.DEFAULT_LANDMARK_PARAMS
+    rng = np.random.default_rng(5)
+    y = rng.standard_normal(p.sample_rate * 120) * 0.1  # 2 min
+    tracemalloc.start()
+    fp._constellation(y, p, block_frames=1024)
+    _, blocked = tracemalloc.get_traced_memory()
+    tracemalloc.reset_peak()
+    fp._peaks(fp._spectrogram_db(y, p), p)
+    _, whole = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert blocked < whole / 2
+
+
+def test_a_signal_shorter_than_one_frame_has_no_peaks():
+    p = fp.DEFAULT_LANDMARK_PARAMS
+    frames, bins = fp._constellation(np.zeros(p.n_fft - 1), p)
+    assert frames.size == bins.size == 0
+
+
 def test_density_cap_keeps_peaks_with_few_stronger_neighbours():
     frames = np.array([0, 1, 2, 3, 50])
     strength = np.array([4.0, 3.0, 2.0, 1.0, 0.0])
