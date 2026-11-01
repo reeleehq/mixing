@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-01T18:44:59Z",
+  "built_at": "2026-11-01T18:45:02Z",
   "package": {
     "name": "mixing",
     "version": "0.0.96",
@@ -21,12 +21,12 @@
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "c0fa98d3289a73ac4f460c8fb1a694264e7e7a63",
+    "sha": "5956339e04111521e4b083f4f611903cda1ebba2",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41337267085",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41337267085",
+    "run_id": "41337400396",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41337400396",
     "server_url": "https://github.com"
   },
   "tools": {
