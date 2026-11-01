@@ -54,6 +54,7 @@
    util
    audio
    decode
+   ffmpeg
    filtergraph
    loudness
    video

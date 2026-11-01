@@ -1,0 +1,20 @@
+mixing.ffmpeg
+=============
+
+.. automodule:: mixing.ffmpeg
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      run_ffmpeg
+      check_timeout
+      ignore_closed_stdin
+   
+   .. rubric:: Exceptions
+
+   .. autosummary::
+   
+      FfmpegTimeout
+   

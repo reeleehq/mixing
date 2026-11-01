@@ -1,4 +1,4 @@
-> built 2026-10-30 17:55 UTC from 74d30ab (main) · mixing 0.0.87. Details: build_info.json
+> built 2026-11-01 17:03 UTC from 8067803 (main) · mixing 0.0.88. Details: build_info.json
 
 # index.html.md
 
@@ -1429,6 +1429,78 @@ at all; the value is floored at one sample there and is a lower bound rather
 than a promise.
 
 
+# _autosummary/mixing.ffmpeg.html.md
+
+# mixing.ffmpeg
+
+Run one ffmpeg process with a watchdog: the runner `mixing.decode` and
+[`mixing.probe`](_autosummary/mixing.probe.html.md#module-mixing.probe) share.
+
+[`run_ffmpeg()`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.run_ffmpeg) is a context manager around `subprocess.Popen`: ffmpeg’s
+stderr goes to a temporary file (a pipe nobody reads fills up and blocks it),
+`timeout=` arms a watchdog that kills ffmpeg **and what it started** (a
+wrapper script or a Windows shim would otherwise leave the real ffmpeg running,
+holding the pipes open) and raises [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout), and any exception in
+the block kills it. Pure stdlib, so importing it pulls no media library.
+
+```pycon
+>>> from mixing.ffmpeg import run_ffmpeg
+>>> with run_ffmpeg([exe, "-i", "talk.mp4"], what="read", timeout=5, check=False) as p:
+...     pass
+>>> "Duration:" in p.message
+True
+```
+
+### Functions
+
+| [`run_ffmpeg`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.run_ffmpeg)(cmd, \*, what[, stdin, stdout, ...])   | Run the ffmpeg `cmd` for the block; yield the process.                                                                                     |
+|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| [`check_timeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.check_timeout)(timeout)                            | `timeout` checked: `None` (or `inf`) for no bound, else seconds > 0.                                                                       |
+| [`ignore_closed_stdin`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.ignore_closed_stdin)()                             | Ignore writing to (or closing) the stdin of an ffmpeg that stopped reading: a broken pipe, or `EINVAL` on Windows; its exit code says why. |
+
+### Exceptions
+
+| [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout)   | ffmpeg ran past its `timeout` and was killed.   |
+|------------------------------------------------------------------|-------------------------------------------------|
+
+### *exception* mixing.ffmpeg.FfmpegTimeout
+
+Bases: [`TimeoutError`](https://docs.python.org/3/builtins/exceptions.html#TimeoutError), [`RuntimeError`](https://docs.python.org/3/builtins/exceptions.html#RuntimeError)
+
+ffmpeg ran past its `timeout` and was killed.
+
+A `TimeoutError`, and a `RuntimeError` like every other ffmpeg failure
+here, so a caller catching either sees it.
+
+### mixing.ffmpeg.check_timeout(timeout)
+
+`timeout` checked: `None` (or `inf`) for no bound, else seconds > 0.
+
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+### mixing.ffmpeg.ignore_closed_stdin()
+
+Ignore writing to (or closing) the stdin of an ffmpeg that stopped
+reading: a broken pipe, or `EINVAL` on Windows; its exit code says why.
+
+### mixing.ffmpeg.run_ffmpeg(cmd, , what, stdin=-3, stdout=-3, timeout=None, check=True)
+
+Run the ffmpeg `cmd` for the block; yield the process.
+
+Its stderr goes to a temporary file (a pipe nobody reads fills up and
+blocks ffmpeg); once it is done the text is `proc.message`. Any
+exception in the block (a generator closed early included) kills it. On
+the way out its pipes are closed, a broken stdin pipe ignored (ffmpeg
+stopped reading: its exit code says why), and it is waited for. With
+`check` a non-zero exit raises `RuntimeError("ffmpeg could not {what}:
+...")` with the tail of its message. With `timeout` (seconds, see
+[`check_timeout()`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.check_timeout)) a watchdog kills it, and what it started, that long
+after it started, waiting included, and [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout) is raised
+(the block sees an ordinary end of stream or broken pipe); an ffmpeg that
+finished in time is never reported as timed out.
+
+
 # _autosummary/mixing.filtergraph.html.md
 
 # mixing.filtergraph
@@ -1968,17 +2040,18 @@ Translate the cue text of an SRT to `target_language`, keeping timings.
 
 ### Modules
 
-| [`chapters`](_autosummary/mixing.chapters.html.md#module-mixing.chapters)       | Detect chapter markers from a transcript — platform-agnostic.                      |
-|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [`dubbing`](_autosummary/mixing.dubbing.html.md#module-mixing.dubbing)         | Text-to-speech dubbing: re-voice or translate a video from its SRT.                |
-| [`edit`](_autosummary/mixing.edit.html.md#module-mixing.edit)               | Render a re-edit of a finished video from a sound edit list and its picture clips. |
-| [`egress`](_autosummary/mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                    |
-| [`errors`](_autosummary/mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch. |
-| [`probe`](_autosummary/mixing.probe.html.md#module-mixing.probe)             | One light media probe: `ffprobe` first, ffmpeg's banner as the fallback.           |
-| [`srt`](_autosummary/mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).           |
-| [`transcript`](_autosummary/mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                   |
-| [`util`](_autosummary/mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                    |
-| [`filtergraph`](_autosummary/mixing.filtergraph.html.md#module-mixing.filtergraph) | Pure ffmpeg filter-string builders: no media dependency, no I/O.                   |
+| [`chapters`](_autosummary/mixing.chapters.html.md#module-mixing.chapters)       | Detect chapter markers from a transcript — platform-agnostic.                                                                                                   |
+|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`dubbing`](_autosummary/mixing.dubbing.html.md#module-mixing.dubbing)         | Text-to-speech dubbing: re-voice or translate a video from its SRT.                                                                                             |
+| [`edit`](_autosummary/mixing.edit.html.md#module-mixing.edit)               | Render a re-edit of a finished video from a sound edit list and its picture clips.                                                                              |
+| [`egress`](_autosummary/mixing.egress.html.md#module-mixing.egress)           | Canonical *egress*: route a produced result to its destination.                                                                                                 |
+| [`errors`](_autosummary/mixing.errors.html.md#module-mixing.errors)           | Typed errors `mixing` raises — the home for exceptions a caller may want to catch.                                                                              |
+| [`probe`](_autosummary/mixing.probe.html.md#module-mixing.probe)             | One light media probe: `ffprobe` first, ffmpeg's banner as the fallback.                                                                                        |
+| [`srt`](_autosummary/mixing.srt.html.md#module-mixing.srt)                 | Canonical SRT / timeline parsing and formatting (pure, dependency-free).                                                                                        |
+| [`transcript`](_autosummary/mixing.transcript.html.md#module-mixing.transcript)   | Transcript-driven media editing.                                                                                                                                |
+| [`util`](_autosummary/mixing.util.html.md#module-mixing.util)               | General utilities for mixing video, audio, etc.                                                                                                                 |
+| [`ffmpeg`](_autosummary/mixing.ffmpeg.html.md#module-mixing.ffmpeg)           | Run one ffmpeg process with a watchdog: the runner `mixing.decode` and [`mixing.probe`](_autosummary/mixing.probe.html.md#module-mixing.probe) share. |
+| [`filtergraph`](_autosummary/mixing.filtergraph.html.md#module-mixing.filtergraph) | Pure ffmpeg filter-string builders: no media dependency, no I/O.                                                                                                |
 
 
 # _autosummary/mixing.probe.html.md
@@ -2041,6 +2114,7 @@ ValueError\`\`s).
 
 | [`probe`](_autosummary/mixing.probe.html.md#mixing.probe.probe)(media, \*[, ffprobe, count_packets])   | Probe `media` with ffprobe when there is one, else with ffmpeg's banner.                                                                          |
 |-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`probe_duration`](_autosummary/mixing.probe.html.md#mixing.probe.probe_duration)(media, \*[, timeout])         | The container duration of `media` in seconds, from `ffmpeg -i`, or `None`.                                                                        |
 | [`parse_banner`](_autosummary/mixing.probe.html.md#mixing.probe.parse_banner)(text)                           | A [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe) from the text `ffmpeg -i FILE` prints (approximate).                                |
 | [`find_ffprobe`](_autosummary/mixing.probe.html.md#mixing.probe.find_ffprobe)()                               | The ffprobe beside [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe), else on `PATH`, else `None`. |
 | [`snap_rate`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate)(fps)                               | A float frame rate as the exact rate it stands for.                                                                                               |
@@ -2240,6 +2314,33 @@ Probe `media` with ffprobe when there is one, else with ffmpeg’s banner.
   * [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `ffprobe=""`.
 * **Return type:**
   [`MediaProbe`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe)
+
+### mixing.probe.probe_duration(media, , timeout=30.0)
+
+The container duration of `media` in seconds, from `ffmpeg -i`, or `None`.
+
+The cheap question alone: one `ffmpeg -i` (no ffprobe lookup, no stream
+reads), and `None` rather than an error whenever the duration cannot be
+had: the file is missing or unreadable, its container states no duration,
+or ffmpeg is still running `timeout` seconds after it started. Unlike
+[`probe()`](_autosummary/mixing.probe.html.md#mixing.probe.probe) and `mixing.decode`, whose `timeout` defaults to no
+bound and raises [`FfmpegTimeout`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout), this one is bounded
+by default and answers `None`: it is the question a caller asks before
+deciding anything, and must not hang it. On expiry ffmpeg is killed with
+whatever it started (see [`mixing.ffmpeg.run_ffmpeg()`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.run_ffmpeg)).
+
+* **Parameters:**
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), os.PathLike[str]]) – the file (or any location ffmpeg opens).
+  * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – seconds to wait for ffmpeg (default
+    `DEFAULT_PROBE_DURATION_TIMEOUT`); `None` (or `inf`)
+    waits forever.
+* **Raises:**
+  * [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `timeout` is not `None` or a number of seconds > 0
+        (see [`mixing.ffmpeg.check_timeout()`](_autosummary/mixing.ffmpeg.html.md#mixing.ffmpeg.check_timeout)).
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – no ffmpeg executable can be found (see
+        [`mixing.util.ffmpeg_exe()`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe)).
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
 
 ### mixing.probe.snap_rate(fps)
 
@@ -3325,18 +3426,18 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-10-30 17:55 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/74d30ab77302eaebad8ce6888dd303f2c19a8ce2"><code>74d30ab</code></a> on branch <code>main</code>, for **mixing 0.0.87** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 17:03 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/8067803ee89dc470e83828c85ffc297896fb8404"><code>8067803</code></a> on branch <code>main</code>, for **mixing 0.0.88** (from <code>pyproject.toml</code>).
 
 #### WARNING
 The documentation and the package may be misaligned:
 
-- The documented version (0.0.87) is behind the latest release on PyPI (0.0.88): `pip install mixing` gives newer code than these docs describe.
+- The documented version (0.0.88) is behind the latest release on PyPI (0.0.89): `pip install mixing` gives newer code than these docs describe.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/74d30ab77302eaebad8ce6888dd303f2c19a8ce2"><code>74d30ab77302eaebad8ce6888dd303f2c19a8ce2</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/8067803ee89dc470e83828c85ffc297896fb8404"><code>8067803ee89dc470e83828c85ffc297896fb8404</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -3347,9 +3448,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41100969188">41100969188</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41328688417">41328688417</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>74d30ab77302eaebad8ce6888dd303f2c19a8ce2</code> (in the history of the built commit) |
+| Event commit | <code>8067803ee89dc470e83828c85ffc297896fb8404</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3374,13 +3475,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.88/">0.0.88</a>, newer than the documented version (0.0.87).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.89/">0.0.89</a>, newer than the documented version (0.0.88).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 74d30ab77302eaebad8ce6888dd303f2c19a8ce2
+git checkout 8067803ee89dc470e83828c85ffc297896fb8404
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

@@ -56,6 +56,7 @@ ValueError\`\`s).
 
 | [`probe`](#mixing.probe.probe)(media, \*[, ffprobe, count_packets])   | Probe `media` with ffprobe when there is one, else with ffmpeg's banner.                                                                          |
 |-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`probe_duration`](#mixing.probe.probe_duration)(media, \*[, timeout])         | The container duration of `media` in seconds, from `ffmpeg -i`, or `None`.                                                                        |
 | [`parse_banner`](#mixing.probe.parse_banner)(text)                           | A [`MediaProbe`](#mixing.probe.MediaProbe) from the text `ffmpeg -i FILE` prints (approximate).                                |
 | [`find_ffprobe`](#mixing.probe.find_ffprobe)()                               | The ffprobe beside [`mixing.util.ffmpeg_exe()`](mixing.util.html.md#mixing.util.ffmpeg_exe), else on `PATH`, else `None`. |
 | [`snap_rate`](#mixing.probe.snap_rate)(fps)                               | A float frame rate as the exact rate it stands for.                                                                                               |
@@ -255,6 +256,33 @@ Probe `media` with ffprobe when there is one, else with ffmpeg’s banner.
   * [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `ffprobe=""`.
 * **Return type:**
   [`MediaProbe`](#mixing.probe.MediaProbe)
+
+### mixing.probe.probe_duration(media, , timeout=30.0)
+
+The container duration of `media` in seconds, from `ffmpeg -i`, or `None`.
+
+The cheap question alone: one `ffmpeg -i` (no ffprobe lookup, no stream
+reads), and `None` rather than an error whenever the duration cannot be
+had: the file is missing or unreadable, its container states no duration,
+or ffmpeg is still running `timeout` seconds after it started. Unlike
+[`probe()`](#mixing.probe.probe) and `mixing.decode`, whose `timeout` defaults to no
+bound and raises [`FfmpegTimeout`](mixing.ffmpeg.html.md#mixing.ffmpeg.FfmpegTimeout), this one is bounded
+by default and answers `None`: it is the question a caller asks before
+deciding anything, and must not hang it. On expiry ffmpeg is killed with
+whatever it started (see [`mixing.ffmpeg.run_ffmpeg()`](mixing.ffmpeg.html.md#mixing.ffmpeg.run_ffmpeg)).
+
+* **Parameters:**
+  * **media** ([`Union`](https://docs.python.org/3/library/typing.html#typing.Union)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), os.PathLike[str]]) – the file (or any location ffmpeg opens).
+  * **timeout** ([`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]) – seconds to wait for ffmpeg (default
+    `DEFAULT_PROBE_DURATION_TIMEOUT`); `None` (or `inf`)
+    waits forever.
+* **Raises:**
+  * [**ValueError**](https://docs.python.org/3/builtins/exceptions.html#ValueError) – `timeout` is not `None` or a number of seconds > 0
+        (see [`mixing.ffmpeg.check_timeout()`](mixing.ffmpeg.html.md#mixing.ffmpeg.check_timeout)).
+  * [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – no ffmpeg executable can be found (see
+        [`mixing.util.ffmpeg_exe()`](mixing.util.html.md#mixing.util.ffmpeg_exe)).
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`float`](https://docs.python.org/3/builtins/functions.html#float)]
 
 ### mixing.probe.snap_rate(fps)
 

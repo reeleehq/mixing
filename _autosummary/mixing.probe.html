@@ -93,6 +93,7 @@
 <li class="toctree-l3"><a class="reference internal" href="mixing.srt.html">mixing.srt</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.transcript.html">mixing.transcript</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.util.html">mixing.util</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mixing.ffmpeg.html">mixing.ffmpeg</a></li>
 <li class="toctree-l3"><a class="reference internal" href="mixing.filtergraph.html">mixing.filtergraph</a></li>
 </ul>
 </li>
@@ -184,13 +185,16 @@ uses that binary, <code class="docutils literal notranslate"><span class="pre">N
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">probe</span></code></a>(media, *[, ffprobe, count_packets])</p></td>
 <td><p>Probe <code class="docutils literal notranslate"><span class="pre">media</span></code> with ffprobe when there is one, else with ffmpeg's banner.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.parse_banner" title="mixing.probe.parse_banner"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_banner</span></code></a>(text)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.probe_duration" title="mixing.probe.probe_duration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">probe_duration</span></code></a>(media, *[, timeout])</p></td>
+<td><p>The container duration of <code class="docutils literal notranslate"><span class="pre">media</span></code> in seconds, from <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code>, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.parse_banner" title="mixing.probe.parse_banner"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_banner</span></code></a>(text)</p></td>
 <td><p>A <a class="reference internal" href="#mixing.probe.MediaProbe" title="mixing.probe.MediaProbe"><code class="xref py py-class docutils literal notranslate"><span class="pre">MediaProbe</span></code></a> from the text <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span> <span class="pre">FILE</span></code> prints (approximate).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_ffprobe</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.find_ffprobe" title="mixing.probe.find_ffprobe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_ffprobe</span></code></a>()</p></td>
 <td><p>The ffprobe beside <a class="reference internal" href="mixing.util.html#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.util.ffmpeg_exe()</span></code></a>, else on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, else <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">snap_rate</span></code></a>(fps)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.probe.snap_rate" title="mixing.probe.snap_rate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">snap_rate</span></code></a>(fps)</p></td>
 <td><p>A float frame rate as the exact rate it stands for.</p></td>
 </tr>
 </tbody>
@@ -454,6 +458,41 @@ uses the container’s <code class="docutils literal notranslate"><span class="p
 </dl>
 </dd></dl>
 <dl class="py function">
+<dt class="sig sig-object py" id="mixing.probe.probe_duration">
+<span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">probe_duration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">media</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#probe_duration"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.probe_duration" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.probe_duration'">¶</a></dt>
+<dd><p>The container duration of <code class="docutils literal notranslate"><span class="pre">media</span></code> in seconds, from <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code>, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<p>The cheap question alone: one <code class="docutils literal notranslate"><span class="pre">ffmpeg</span> <span class="pre">-i</span></code> (no ffprobe lookup, no stream
+reads), and <code class="docutils literal notranslate"><span class="pre">None</span></code> rather than an error whenever the duration cannot be
+had: the file is missing or unreadable, its container states no duration,
+or ffmpeg is still running <code class="docutils literal notranslate"><span class="pre">timeout</span></code> seconds after it started. Unlike
+<a class="reference internal" href="#mixing.probe.probe" title="mixing.probe.probe"><code class="xref py py-func docutils literal notranslate"><span class="pre">probe()</span></code></a> and <code class="xref py py-mod docutils literal notranslate"><span class="pre">mixing.decode</span></code>, whose <code class="docutils literal notranslate"><span class="pre">timeout</span></code> defaults to no
+bound and raises <a class="reference internal" href="mixing.ffmpeg.html#mixing.ffmpeg.FfmpegTimeout" title="mixing.ffmpeg.FfmpegTimeout"><code class="xref py py-class docutils literal notranslate"><span class="pre">FfmpegTimeout</span></code></a>, this one is bounded
+by default and answers <code class="docutils literal notranslate"><span class="pre">None</span></code>: it is the question a caller asks before
+deciding anything, and must not hang it. On expiry ffmpeg is killed with
+whatever it started (see <a class="reference internal" href="mixing.ffmpeg.html#mixing.ffmpeg.run_ffmpeg" title="mixing.ffmpeg.run_ffmpeg"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.ffmpeg.run_ffmpeg()</span></code></a>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>media</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Union</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>, os.PathLike[str]]</span>) – the file (or any location ffmpeg opens).</p></li>
+<li><p><strong>timeout</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span>) – seconds to wait for ffmpeg (default
+<code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_PROBE_DURATION_TIMEOUT</span></code>); <code class="docutils literal notranslate"><span class="pre">None</span></code> (or <code class="docutils literal notranslate"><span class="pre">inf</span></code>)
+waits forever.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" rel="nofollow noopener" title="(in Python v3.15)"><strong>ValueError</strong><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> – <code class="docutils literal notranslate"><span class="pre">timeout</span></code> is not <code class="docutils literal notranslate"><span class="pre">None</span></code> or a number of seconds &gt; 0
+    (see <a class="reference internal" href="mixing.ffmpeg.html#mixing.ffmpeg.check_timeout" title="mixing.ffmpeg.check_timeout"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.ffmpeg.check_timeout()</span></code></a>).</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#RuntimeError" rel="nofollow noopener" title="(in Python v3.15)"><strong>RuntimeError</strong><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> – no ffmpeg executable can be found (see
+    <a class="reference internal" href="mixing.util.html#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.util.ffmpeg_exe()</span></code></a>).</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
 <dt class="sig sig-object py" id="mixing.probe.snap_rate">
 <span class="sig-prename descclassname"><span class="pre">mixing.probe.</span></span><span class="sig-name descname"><span class="pre">snap_rate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fps</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/probe.html#snap_rate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.snap_rate" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.snap_rate'">¶</a></dt>
 <dd><p>A float frame rate as the exact rate it stands for.</p>
@@ -497,6 +536,7 @@ mean it; anything else is approximated with a denominator of at most
 <li><a :data-current="activeSection === '#mixing.probe.find_ffprobe'" class="reference internal" href="#mixing.probe.find_ffprobe"><code class="docutils literal notranslate"><span class="pre">find_ffprobe()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.probe.parse_banner'" class="reference internal" href="#mixing.probe.parse_banner"><code class="docutils literal notranslate"><span class="pre">parse_banner()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.probe.probe'" class="reference internal" href="#mixing.probe.probe"><code class="docutils literal notranslate"><span class="pre">probe()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.probe_duration'" class="reference internal" href="#mixing.probe.probe_duration"><code class="docutils literal notranslate"><span class="pre">probe_duration()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.probe.snap_rate'" class="reference internal" href="#mixing.probe.snap_rate"><code class="docutils literal notranslate"><span class="pre">snap_rate()</span></code></a></li>
 </ul>
 </div>
@@ -511,7 +551,7 @@ mean it; anything else is approximated with a denominator of at most
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=97e62c01"></script>
+<script src="../_static/documentation_options.js?v=7ffc8fc3"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

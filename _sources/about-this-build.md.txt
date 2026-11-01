@@ -5,19 +5,19 @@ orphan: true
 
 # About this build
 
-This documentation was built on **2026-10-30 17:55 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/74d30ab77302eaebad8ce6888dd303f2c19a8ce2"><code>74d30ab</code></a> on branch <code>main</code>, for **mixing 0.0.87** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-01 17:03 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/8067803ee89dc470e83828c85ffc297896fb8404"><code>8067803</code></a> on branch <code>main</code>, for **mixing 0.0.88** (from <code>pyproject.toml</code>).
 
 :::{warning}
 The documentation and the package may be misaligned:
 
-- The documented version (0.0.87) is behind the latest release on PyPI (0.0.88): `pip install mixing` gives newer code than these docs describe.
+- The documented version (0.0.88) is behind the latest release on PyPI (0.0.89): `pip install mixing` gives newer code than these docs describe.
 :::
 
 ## Source
 
 | | |
 |---|---|
-| Commit | <a href="https://github.com/reeleehq/mixing/commit/74d30ab77302eaebad8ce6888dd303f2c19a8ce2"><code>74d30ab77302eaebad8ce6888dd303f2c19a8ce2</code></a> |
+| Commit | <a href="https://github.com/reeleehq/mixing/commit/8067803ee89dc470e83828c85ffc297896fb8404"><code>8067803ee89dc470e83828c85ffc297896fb8404</code></a> |
 | Branch | <code>main</code> |
 | Tags at this commit | none |
 | Working tree | clean |
@@ -28,9 +28,9 @@ The documentation and the package may be misaligned:
 | | |
 |---|---|
 | Repository | <code>reeleehq/mixing</code> |
-| Run | <a href="https://github.com/reeleehq/mixing/actions/runs/41100969188">41100969188</a> |
+| Run | <a href="https://github.com/reeleehq/mixing/actions/runs/41328688417">41328688417</a> |
 | Ref | <code>refs/heads/main</code> |
-| Event commit | <code>74d30ab77302eaebad8ce6888dd303f2c19a8ce2</code> (in the history of the built commit) |
+| Event commit | <code>8067803ee89dc470e83828c85ffc297896fb8404</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -55,13 +55,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.88/">0.0.88</a>, newer than the documented version (0.0.87).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.89/">0.0.89</a>, newer than the documented version (0.0.88).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 74d30ab77302eaebad8ce6888dd303f2c19a8ce2
+git checkout 8067803ee89dc470e83828c85ffc297896fb8404
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

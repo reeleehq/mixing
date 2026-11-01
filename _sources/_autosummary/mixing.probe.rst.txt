@@ -16,6 +16,7 @@ mixing.probe
    .. autosummary::
    
       probe
+      probe_duration
       parse_banner
       find_ffprobe
       snap_rate
