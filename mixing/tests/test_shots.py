@@ -384,3 +384,33 @@ def test_a_truncated_frame_stream_is_a_runtime_error():
     assert _split_pngs(png + png) == [png, png]
     with pytest.raises(RuntimeError, match="truncated"):
         _split_pngs(png + png[:-5])
+
+
+# --- diff_shots(duration=) (reeleehq/mixing#95) ----------------------------------
+
+
+def test_a_wrapped_sampler_still_gets_the_probed_duration(monkeypatch):
+    import functools
+
+    import mixing.video.shot_boundaries as sb
+
+    monkeypatch.setattr(sb, "probe_duration", lambda v: 6.4)
+    frames = np.zeros((6, 4, 4), np.uint8)
+    wrapped = functools.partial(lambda v, fps, size: frames, size=(8, 8))
+    # a sampler that is not iter_frames itself: the probe still runs for a path
+    assert sb.diff_shots("v.mp4", fps=1, sampler=wrapped) == [(0.0, 6.4)]
+
+
+def test_duration_given_is_used_and_zero_keeps_the_sampled_length(monkeypatch):
+    import mixing.video.shot_boundaries as sb
+
+    probed = []
+    monkeypatch.setattr(sb, "probe_duration", lambda v: probed.append(v) or 6.4)
+    frames = np.zeros((6, 4, 4), np.uint8)
+    sampler = lambda v, fps: frames  # noqa: E731
+    assert sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=9.0) == [(0.0, 9.0)]
+    zero = sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=sb.SAMPLED_DURATION)
+    assert zero == [(0.0, 6.0)] and probed == []  # 6 frames at 1 fps, no probe
+    assert sb.diff_shots(frames, fps=1, sampler=lambda v, fps: v) == [(0.0, 6.0)]
+    with pytest.raises(ValueError, match="duration"):
+        sb.diff_shots("v.mp4", fps=1, sampler=sampler, duration=-1)
