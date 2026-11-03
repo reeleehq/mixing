@@ -554,7 +554,7 @@ r = level_file(
 )  # output_lufs < target: the limiter took loudness off
 ```
 
-The output is audio only (in place over a video is refused). `sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.
+The output is audio only (in place over a video is refused). `sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `meter_output=False` skips metering the written file back (`output_lufs` is then `None`; one decode fewer, for a caller that discards it). `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.
 
 ## Speaker turns: loudness, voice diagnosis, pitch
 

@@ -345,3 +345,21 @@ def test_level_file_memory_does_not_grow_with_the_file(tmp_path):
 
     short, long = peak_bytes(20), peak_bytes(180)
     assert long < short * 1.2  # a 3 min stereo float track alone is ~127 MB
+
+
+@needs_ffmpeg
+def test_meter_output_false_skips_the_read_back(tmp_path, monkeypatch):
+    # #166: a caller that discards output_lufs need not pay for a third decode
+    src = _speechy(tmp_path, volume_db=-35)
+    reads = []
+    real = loudness.file_loudness
+    monkeypatch.setattr(
+        loudness, "file_loudness", lambda *a, **k: reads.append(a) or real(*a, **k)
+    )
+    metered = level_file(src, tmp_path / "a.wav", target_lufs=-20.0)
+    assert len(reads) == 1 and metered.output_lufs is not None
+    skipped = level_file(src, tmp_path / "b.wav", target_lufs=-20.0, meter_output=False)
+    assert len(reads) == 1  # no read-back this time
+    assert skipped.output_lufs is None
+    assert skipped[:3] == (tmp_path / "b.wav", metered.gain_db, metered.measured_lufs)
+    assert (tmp_path / "a.wav").read_bytes() == (tmp_path / "b.wav").read_bytes()
