@@ -27,6 +27,7 @@ import secrets
 import shutil
 import struct
 import subprocess
+import time
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
 
@@ -46,6 +47,11 @@ except ImportError as e:
     raise ImportError(
         f"mixing.decode needs numpy: {install_hint(LOUDNESS_EXTRA)}", name=e.name
     ) from e
+
+#: A half-written file Windows refuses to remove (still in use) is retried this
+#: many times, this far apart: half a second in all.
+PARTIAL_REMOVE_ATTEMPTS = 10
+PARTIAL_REMOVE_WAIT_S = 0.05
 
 #: Seconds of audio per chunk by default.
 DECODE_CHUNK_S = 5.0
@@ -207,5 +213,25 @@ def encode_float_chunks(
             shutil.copymode(target, partial)
         os.replace(partial, target)
     finally:
-        partial.unlink(missing_ok=True)
+        _remove_partial(partial)
     return path
+
+
+def _remove_partial(
+    partial: Path,
+    *,
+    attempts: int = PARTIAL_REMOVE_ATTEMPTS,
+    wait_s: float = PARTIAL_REMOVE_WAIT_S,
+) -> None:
+    """Remove a half-written file. Windows may still hold it for a moment after
+    the ffmpeg writing it was killed and waited for (``WinError 32``: in use by
+    another process, a killed tree's child or a scanner), so a refused removal is
+    retried, ``attempts`` times ``wait_s`` apart, before the error is raised."""
+    for attempt in range(attempts):
+        try:
+            partial.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(wait_s)
