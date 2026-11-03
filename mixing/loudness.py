@@ -934,7 +934,8 @@ class LeveledFile(NamedTuple):
     )
     gain_db: float
     measured_lufs: float  #: the source's integrated loudness, at the output rate
-    output_lufs: float  #: the written file's, measured back from it
+    #: the written file's, measured back from it (``None`` with ``meter_output=False``)
+    output_lufs: Optional[float]
 
 
 def level_file(
@@ -953,15 +954,15 @@ def level_file(
     chunk_s: float = DECODE_CHUNK_S,
     ffmpeg: Optional[str] = None,
     timeout: Optional[float] = None,
+    meter_output: bool = True,
 ) -> LeveledFile:
     """Write ``src``'s audio at ``target_lufs`` with one measured gain, peak limited.
 
     Two passes over the file, each decoded in chunks by
     :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``;
     ``timeout`` bounds each ffmpeg run, see :mod:`mixing.decode`: four of
-    them, five in place, so the whole call is bounded by about five times
-    it), so
-    memory is bounded by the chunk and the limiter's block, not the track:
+    them, five in place, one fewer with ``meter_output=False``, so the whole
+    call is bounded by about five times it), so memory is bounded by the chunk and the limiter's block, not the track:
 
     1. :func:`stream_loudness` measures it; the gain is the one that brings it
        to ``target_lufs`` (as :func:`level_group`'s: 0 for silence, capped at
@@ -975,7 +976,9 @@ def level_file(
        are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``).
 
     The written file is then metered back (``output_lufs``): it reads below
-    the target when the limiter took a lot off. ``sample_rate`` resamples as
+    the target when the limiter took a lot off. That is a third decode;
+    ``meter_output=False`` skips it (one ffmpeg run fewer) and leaves
+    ``output_lufs`` ``None``, for a caller that does not read it. ``sample_rate`` resamples as
     the file is decoded, so the measurement and the limiter work at the rate
     written and the ceiling holds in the output (an encoder resampling after
     the limiter could push a peak over it). A lossy format (mp3, aac) can
@@ -1044,9 +1047,10 @@ def level_file(
             encode_float_chunks(
                 leveled, rate, path, args=encode_args, ffmpeg=ffmpeg, timeout=timeout
             )
-        output_lufs = file_loudness(
-            path, chunk_s=chunk_s, ffmpeg=ffmpeg, timeout=timeout
-        ).integrated_lufs
+        if meter_output:
+            output_lufs = file_loudness(
+                path, chunk_s=chunk_s, ffmpeg=ffmpeg, timeout=timeout
+            ).integrated_lufs
 
     default_path = src.with_name(f"{src.stem}{LEVELED_SUFFIX}{src.suffix}")
     written = write_egress(output, default_path=default_path, write=write)
