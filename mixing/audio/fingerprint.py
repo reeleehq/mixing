@@ -312,14 +312,25 @@ class SongThresholds:
         min_ratio: R at or above which "contains" is possible.
         max_absent_votes: K at or below which "absent" is possible.
         min_query_hashes: clip hashes needed before "absent" may be called.
+        max_absent_vote_rate: when set, "absent" ALSO needs
+            ``votes <= max_absent_vote_rate * query_hashes``. Chance K grows with the
+            clip's length (more hashes, more chance coincidences), so a fixed
+            ``max_absent_votes`` is either unreachable on a long clip or too lax on a
+            short one; the rate is the length-normalised bar (reeleehq/muvid#251:
+            chance K reached 15 on 10-60 s phone clips and 19 on whole files).
+            ``None`` (default) keeps the fixed bar alone.
     """
 
     min_votes: int = DEFAULT_MIN_VOTES
     min_ratio: float = DEFAULT_MIN_RATIO
     max_absent_votes: int = DEFAULT_MAX_ABSENT_VOTES
     min_query_hashes: int = DEFAULT_MIN_QUERY_HASHES
+    max_absent_vote_rate: Optional[float] = None
 
     def __post_init__(self):
+        rate = self.max_absent_vote_rate
+        if rate is not None and not 0.0 < rate < 1.0:
+            raise ValueError(f"max_absent_vote_rate must be in (0, 1), not {rate!r}")
         if self.max_absent_votes >= self.min_votes:
             raise ValueError(
                 f"max_absent_votes ({self.max_absent_votes}) must be below "
@@ -732,8 +743,18 @@ def _base_verdict(record: Mapping, t: SongThresholds) -> tuple[SongVerdict, str]
     }
     if all(passes.values()):
         return CONTAINS, f"{stats}: clears {', '.join(passes)}"
+    within_rate = (
+        t.max_absent_vote_rate is None or votes <= t.max_absent_vote_rate * query_hashes
+    )
     if votes <= t.max_absent_votes and query_hashes >= t.min_query_hashes:
-        return ABSENT, f"{stats}: K<={t.max_absent_votes} on {query_hashes} clip hashes"
+        if within_rate:
+            return ABSENT, (
+                f"{stats}: K<={t.max_absent_votes} on {query_hashes} clip hashes"
+            )
+        return UNDECIDED, (
+            f"{stats}: K={votes} is above {t.max_absent_vote_rate} of the clip's "
+            f"{query_hashes} hashes, more than chance explains"
+        )
     if votes <= t.max_absent_votes:
         return UNDECIDED, (
             f"{stats}, but only {query_hashes} clip hashes (< {t.min_query_hashes}): "
@@ -755,7 +776,8 @@ def song_verdict(
     without rehashing:
 
     - ``"contains"`` iff ``votes >= min_votes`` and ``ratio >= min_ratio``;
-    - ``"absent"`` iff ``votes <= max_absent_votes``, the clip offered at least
+    - ``"absent"`` iff ``votes <= max_absent_votes`` (and, when set,
+      ``votes <= max_absent_vote_rate * query_hashes``), the clip offered at least
       ``min_query_hashes`` hashes (too few landmarks is no evidence of absence),
       and the speed probes ran and found nothing: a recorded ``off_speed`` makes it
       "undecided", and so does a record whose configured probes

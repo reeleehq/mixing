@@ -563,3 +563,46 @@ def _assert_blocked_is_whole(y, p):
         blocked = fp._constellation(y, p, block_frames=block_frames)
         assert np.array_equal(blocked[0], whole[0]), block_frames
         assert np.array_equal(blocked[1], whole[1]), block_frames
+
+
+# -- the length-normalised absent bar (reeleehq/muvid#251) -------------------------
+
+
+RATE = SongThresholds(
+    min_votes=20,
+    min_ratio=4.0,
+    max_absent_votes=19,
+    min_query_hashes=1500,
+    max_absent_vote_rate=0.0013,
+)
+
+
+@pytest.mark.parametrize(
+    ("stats", "expected"),
+    [
+        (_stats(15, 0.0, 1.0, 20_000), ABSENT),  # 15 <= 26: chance, on a long clip
+        (_stats(15, 0.0, 1.0, 5_000), UNDECIDED),  # 15 > 6.5: too many for this size
+        (_stats(6, 0.0, 1.0, 5_000), ABSENT),
+        (_stats(6, 0.0, 1.0, 1_499), UNDECIDED),  # too few hashes, as before
+        (_stats(40, 0.0, 5.0, 5_000), CONTAINS),  # the contains bars are untouched
+    ],
+)
+def test_a_rate_makes_absent_scale_with_the_clip(stats, expected):
+    verdict, reason = song_verdict(stats, thresholds=RATE)
+    assert verdict == expected, reason
+
+
+def test_without_a_rate_the_fixed_bar_is_unchanged():
+    assert SongThresholds().max_absent_vote_rate is None
+    assert song_verdict(_stats(5, 0.0, 0.0, 240))[0] == ABSENT
+
+
+def test_a_stored_rate_is_rejudged_from_the_record():
+    record = {**_stats(15, 0.0, 1.0, 5_000), "thresholds": dataclasses.asdict(RATE)}
+    assert song_verdict(record)[0] == UNDECIDED  # the stored rate applies
+
+
+@pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 2.0])
+def test_a_rate_outside_zero_one_is_refused(bad):
+    with pytest.raises(ValueError, match="max_absent_vote_rate"):
+        SongThresholds(max_absent_vote_rate=bad)
