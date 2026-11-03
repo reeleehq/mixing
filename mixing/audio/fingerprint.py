@@ -313,12 +313,18 @@ class SongThresholds:
         max_absent_votes: K at or below which "absent" is possible.
         min_query_hashes: clip hashes needed before "absent" may be called.
         max_absent_vote_rate: when set, "absent" ALSO needs
-            ``votes <= max_absent_vote_rate * query_hashes``. Chance K grows with the
-            clip's length (more hashes, more chance coincidences), so a fixed
-            ``max_absent_votes`` is either unreachable on a long clip or too lax on a
-            short one; the rate is the length-normalised bar (reeleehq/muvid#251:
-            chance K reached 15 on 10-60 s phone clips and 19 on whole files).
-            ``None`` (default) keeps the fixed bar alone.
+            ``votes <= max_absent_vote_rate * query_hashes``: the floor on how many of
+            its own hashes a PRESENT song keeps. ``max_absent_votes`` is the chance
+            cap (it may sit high enough for long clips, whose chance K grows
+            roughly with the log of clip × song hashes); the rate stops that cap from
+            calling "absent" on a short clip where K, though under the cap, is
+            already more than a present-but-degraded song would keep. Measured on
+            phone recordings (reeleehq/muvid#251): a present song kept 0.15-2 % of
+            its hashes, chance K reached 15 on 10-60 s clips and 19 on whole files.
+            ``None`` (default) keeps the fixed bar alone. A stored record's rate is
+            honoured by :func:`song_verdict`; probes run live only where the bars
+            :func:`contains_song` was CALLED with said "absent", so pass the bars
+            you will judge by to :func:`contains_song` itself.
     """
 
     min_votes: int = DEFAULT_MIN_VOTES
@@ -753,7 +759,7 @@ def _base_verdict(record: Mapping, t: SongThresholds) -> tuple[SongVerdict, str]
             )
         return UNDECIDED, (
             f"{stats}: K={votes} is above {t.max_absent_vote_rate} of the clip's "
-            f"{query_hashes} hashes, more than chance explains"
+            f"{query_hashes} hashes, as many as a present but degraded song keeps"
         )
     if votes <= t.max_absent_votes:
         return UNDECIDED, (

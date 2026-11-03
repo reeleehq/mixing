@@ -580,8 +580,14 @@ RATE = SongThresholds(
 @pytest.mark.parametrize(
     ("stats", "expected"),
     [
-        (_stats(15, 0.0, 1.0, 20_000), ABSENT),  # 15 <= 26: chance, on a long clip
-        (_stats(15, 0.0, 1.0, 5_000), UNDECIDED),  # 15 > 6.5: too many for this size
+        (
+            _stats(15, 0.0, 1.0, 20_000),
+            ABSENT,
+        ),  # 15 <= 26: no more than chance, on a long clip
+        (
+            _stats(15, 0.0, 1.0, 5_000),
+            UNDECIDED,
+        ),  # 15 > 6.5: as many as a degraded present song keeps
         (_stats(6, 0.0, 1.0, 5_000), ABSENT),
         (_stats(6, 0.0, 1.0, 1_499), UNDECIDED),  # too few hashes, as before
         (_stats(40, 0.0, 5.0, 5_000), CONTAINS),  # the contains bars are untouched
@@ -606,3 +612,11 @@ def test_a_stored_rate_is_rejudged_from_the_record():
 def test_a_rate_outside_zero_one_is_refused(bad):
     with pytest.raises(ValueError, match="max_absent_vote_rate"):
         SongThresholds(max_absent_vote_rate=bad)
+
+
+def test_a_rate_survives_a_json_round_trip_of_the_record():
+    import json
+
+    record = {**_stats(15, 0.0, 1.0, 5_000), "thresholds": dataclasses.asdict(RATE)}
+    again = json.loads(json.dumps(record))
+    assert song_verdict(again) == song_verdict(record)
