@@ -556,6 +556,21 @@ r = level_file(
 
 The output is audio only (in place over a video is refused). `sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.
 
+## Bleep words (radio edit)
+
+`mixing.audio.bleep` mutes the voice over chosen words and lays a 1 kHz tone there at the word's own level; everything else is untouched.
+
+```python
+from mixing.audio import bleep
+
+words = [{"word": "...", "start": 12.31, "end": 12.62, "max_end": 12.70}]  # from a forced aligner
+bleep("vocals.wav", words, backing="no_vocals.wav", output="clean.wav")  # stems already split
+bleep("song.wav", words, separator="htdemucs", output="clean.wav")       # split the mix inside the spans only
+bleep(samples, [(1.2, 1.5)], sr=48000)                                   # a mix alone: the span becomes the tone
+```
+
+Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of the word's peak, so a held sung word's tail is covered, but never past `max_end` (the next word's onset; without it the widening swallows the next word in connected singing). `widen_floor_db=None` keeps the spans as given; `beep_db`, `tone_hz`, `fade_s` tune the beep. Whisper word times are off by up to ~0.3 s on sung vocals; MMS forced alignment of the phrase gives usable bounds.
+
 ## Speaker turns: loudness, voice diagnosis, pitch
 
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
