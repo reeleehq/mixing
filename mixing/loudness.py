@@ -927,7 +927,8 @@ def _smoothed_gain(need: np.ndarray, w: int) -> np.ndarray:
 class LeveledFile(NamedTuple):
     """What :func:`level_file` did: where it wrote, the gain, and the loudness
     before and after (``output_lufs`` falls short of the target when the
-    limiter had to take a lot off, or the gain was capped)."""
+    limiter had to take a lot off, or the gain was capped; it is ``None`` when
+    the output was not metered, ``meter_output=False``)."""
 
     output: (
         Any  #: what the ``output`` protocol returned (the ``Path``, or a sink's result)
@@ -959,10 +960,12 @@ def level_file(
     """Write ``src``'s audio at ``target_lufs`` with one measured gain, peak limited.
 
     Two passes over the file, each decoded in chunks by
-    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``;
-    ``timeout`` bounds each ffmpeg run, see :mod:`mixing.decode`: four of
-    them, five in place, one fewer with ``meter_output=False``, so the whole
-    call is bounded by about five times it), so memory is bounded by the chunk and the limiter's block, not the track:
+    :func:`mixing.decode.decode_float_chunks` (``chunk_s``, ``ffmpeg``), so
+    memory is bounded by the chunk and the limiter's block, not the track.
+    ``timeout`` bounds each ffmpeg run (see :mod:`mixing.decode`): two
+    decodes and an encode, one more decode to meter the output (unless
+    ``meter_output=False``) and one streams check in place, so the whole call
+    is bounded by at most five times it.
 
     1. :func:`stream_loudness` measures it; the gain is the one that brings it
        to ``target_lufs`` (as :func:`level_group`'s: 0 for silence, capped at
@@ -977,8 +980,12 @@ def level_file(
 
     The written file is then metered back (``output_lufs``): it reads below
     the target when the limiter took a lot off. That is a third decode;
-    ``meter_output=False`` skips it (one ffmpeg run fewer) and leaves
-    ``output_lufs`` ``None``, for a caller that does not read it. ``sample_rate`` resamples as
+    ``meter_output=False`` skips it and leaves ``output_lufs`` ``None``, for a
+    caller that does not read it. (Metering the limited stream as it is
+    encoded would be cheaper but wrong whenever the encoder changes the
+    sound: a lossy codec, or ``encode_args`` that resample or downmix.)
+
+    ``sample_rate`` resamples as
     the file is decoded, so the measurement and the limiter work at the rate
     written and the ceiling holds in the output (an encoder resampling after
     the limiter could push a peak over it). A lossy format (mp3, aac) can

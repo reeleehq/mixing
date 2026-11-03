@@ -131,6 +131,12 @@ def test_an_explicit_ffmpeg_runs_every_pipe(tmp_path):
     assert log.read_text().count("run") == 5
     level_file(src, src, target_lufs=-20.0, ffmpeg=str(wrapper))
     assert log.read_text().count("run") == 10  # and the in-place streams check
+    # meter_output=False (#166): no read-back run, in place or not
+    kw = dict(target_lufs=-20.0, ffmpeg=str(wrapper), meter_output=False)
+    level_file(src, tmp_path / "out2.wav", **kw)
+    assert log.read_text().count("run") == 13  # decode, decode, encode
+    level_file(src, src, **kw)
+    assert log.read_text().count("run") == 17  # and the in-place streams check
 
 
 @needs_ffmpeg
@@ -138,7 +144,10 @@ def test_level_file_bounds_each_ffmpeg_run(tmp_path, monkeypatch):
     import mixing.loudness as loudness
 
     seen = []
-    real_decode, real_encode = loudness.decode_float_chunks, loudness.encode_float_chunks
+    real_decode, real_encode = (
+        loudness.decode_float_chunks,
+        loudness.encode_float_chunks,
+    )
 
     def decode(*a, **k):
         seen.append(("decode", k.get("timeout")))
@@ -150,12 +159,25 @@ def test_level_file_bounds_each_ffmpeg_run(tmp_path, monkeypatch):
 
     monkeypatch.setattr(loudness, "decode_float_chunks", decode)
     monkeypatch.setattr(loudness, "encode_float_chunks", encode)
-    level_file(_tone(tmp_path / "t.wav"), tmp_path / "o.wav", target_lufs=-20.0, timeout=30)
+    level_file(
+        _tone(tmp_path / "t.wav"), tmp_path / "o.wav", target_lufs=-20.0, timeout=30
+    )
     assert seen == [("decode", 30), ("decode", 30), ("encode", 30), ("decode", 30)]
+    seen.clear()
+    level_file(
+        _tone(tmp_path / "t.wav"),
+        tmp_path / "o2.wav",
+        target_lufs=-20.0,
+        timeout=30,
+        meter_output=False,
+    )
+    assert seen == [("decode", 30), ("decode", 30), ("encode", 30)]
 
 
 def test_a_timeout_is_a_timeout_and_an_ffmpeg_failure():
-    assert issubclass(FfmpegTimeout, TimeoutError) and issubclass(FfmpegTimeout, RuntimeError)
+    assert issubclass(FfmpegTimeout, TimeoutError) and issubclass(
+        FfmpegTimeout, RuntimeError
+    )
 
 
 @needs_ffmpeg
@@ -190,7 +212,9 @@ def test_the_encoders_finishing_work_is_bounded_too(tmp_path):
     slow = _script(tmp_path / "slow-ffmpeg", "cat > /dev/null\nsleep 30\n")
     started = time.monotonic()
     with pytest.raises(FfmpegTimeout):
-        encode_float_chunks([np.zeros((10, 1))], FS, tmp_path / "x.wav", ffmpeg=slow, timeout=1)
+        encode_float_chunks(
+            [np.zeros((10, 1))], FS, tmp_path / "x.wav", ffmpeg=slow, timeout=1
+        )
     assert time.monotonic() - started < 10
 
 
