@@ -533,7 +533,10 @@ def test_real_render_ripples_both_shots_only_inside_its_window(
     base = _textured_video(tmp_path / "base.mp4")  # texture a warp must move
     item = make_color_video(4.0, color=(0, 255, 0))
     caption = tmp_path / "cap.png"
-    cv2.imwrite(str(caption), np.full((20, 20, 4), (255, 0, 255, 255), np.uint8))
+    stripes = np.zeros((40, 40, 4), np.uint8)
+    stripes[..., 3] = 255
+    stripes[:, ::2, :3] = 255  # one-pixel stripes: a warp of a pixel would show
+    cv2.imwrite(str(caption), stripes)
 
     def frame(path, t):
         cap = cv2.VideoCapture(str(path))
@@ -560,5 +563,5 @@ def test_real_render_ripples_both_shots_only_inside_its_window(
     outside = max(differs(0.5), differs(2.5))
     assert differs(1.25) > max(10 * outside, 2.0)
     # the caption sits on top of the warp, unmoved
-    inside = frame(rippled, 1.25)[4:16, 4:16]
-    np.testing.assert_allclose(inside, frame(plain, 1.25)[4:16, 4:16], atol=12)
+    inside = frame(rippled, 1.25)[:40, :40]
+    np.testing.assert_allclose(inside, frame(plain, 1.25)[:40, :40], atol=40)
