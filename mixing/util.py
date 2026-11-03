@@ -70,6 +70,7 @@ LLM_EXTRA = "llm"
 CLIPBOARD_EXTRA = "clipboard"
 SEPARATION_EXTRA = "separation"
 DEMUCS_EXTRA = "demucs"
+VOXY_EXTRA = "voxy"
 
 # Import names (top-level) that the ``media`` extra provides, per media area.
 AUDIO_IMPORT_NAMES = ("numpy", "pydub", "scipy")
@@ -103,6 +104,9 @@ SEPARATION_IMPORT_NAMES = (
     "joblib",
 )
 DEMUCS_IMPORT_NAMES = ("demucs",)
+# ``voxy``: voxy runs Demucs out of process, in its own environment, so this
+# extra brings no torch (the "voxy_htdemucs_ft" separator).
+VOXY_IMPORT_NAMES = ("voxy",)
 
 #: The one table of mixing's extras: ``{extra: import names it supplies}``,
 #: each declared by the same-named extra in ``pyproject.toml`` (a test holds the
@@ -123,6 +127,7 @@ EXTRAS: dict[str, tuple[str, ...]] = {
     CLIPBOARD_EXTRA: ("pyclip",),
     SEPARATION_EXTRA: SEPARATION_IMPORT_NAMES,
     DEMUCS_EXTRA: DEMUCS_IMPORT_NAMES,
+    VOXY_EXTRA: VOXY_IMPORT_NAMES,
     # an alias (media + soundfile), last so that no module's hint names it
     AUDIO_EXTRA: (*MEDIA_IMPORT_NAMES, "soundfile"),
 }

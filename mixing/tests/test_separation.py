@@ -376,7 +376,11 @@ def _run_hidden(body: str, *, hidden) -> dict:
 
 @pytest.mark.parametrize(
     "separator, extra",
-    [("mossformer2_se_48k", "separation"), ("htdemucs", "demucs")],
+    [
+        ("mossformer2_se_48k", "separation"),
+        ("htdemucs", "demucs"),
+        ("voxy_htdemucs_ft", "voxy"),
+    ],
 )
 def test_a_strategy_without_its_extra_names_the_extra(separator, extra):
     out = _run_hidden(
@@ -669,3 +673,36 @@ def test_real_default_strategy_on_a_span_longer_than_20_s():
     tail = slice(-sr // 2, None)
     assert np.std(speech[tail]) > 0.2 * np.std(voice[tail])  # the tail is decoded
     assert _si_sdr(kept, music) > _si_sdr(music + voice, music)
+
+
+# ---------------------------------------------------------------------------
+# voxy's out-of-process Demucs (#168), through voxy's own run seam
+# ---------------------------------------------------------------------------
+
+
+def test_voxy_separator_runs_through_voxys_seam():
+    voxy_separate = pytest.importorskip("voxy.separate")
+    from mixing.audio.separation import VOXY_SEPARATOR, voxy_separator
+
+    calls = []
+
+    def fake(audio, out_dir, *, stem, sample_rate, **options):  # a stand-in Demucs
+        calls.append((stem, sample_rate, options.get("shifts")))
+        samples, sr = voxy_separate.read_wav_channels(audio)
+        paths = {}
+        for name, part in ((stem, samples * 0.75), ("rest", samples * 0.25)):
+            paths[name] = f"{out_dir}/{name}.wav"
+            with open(paths[name], "wb") as f:
+                f.write(voxy_separate.write_wav_channels(part, sr))
+        return paths
+
+    rate = 44100  # Demucs's own: no resampling between mixing and voxy here
+    x = np.random.default_rng(0).standard_normal((rate // 4, 2)) * 0.1
+    strategy = voxy_separator(run=fake, shifts=2)
+    speech, music = separate_speech(x, sr=rate, separator=strategy)
+    assert speech.shape == music.shape == x.shape
+    np.testing.assert_allclose(speech, 0.75 * x, atol=1e-6)  # float WAV between
+    np.testing.assert_allclose(speech + music, x, atol=1e-6)  # the stems add back up
+    assert calls == [("vocals", 44100, 2)]  # options reach voxy, at Demucs's rate
+    assert SEPARATORS[VOXY_SEPARATOR].extra == "voxy"
+    assert SEPARATORS[VOXY_SEPARATOR].commercial_ok is True

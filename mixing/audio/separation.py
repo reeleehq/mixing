@@ -67,7 +67,13 @@ from typing import Any, Callable, Optional, Union
 import numpy as np
 
 from ..egress import Output, deliver
-from ..util import DEMUCS_EXTRA, SEPARATION_EXTRA, install_hint, require_extra
+from ..util import (
+    DEMUCS_EXTRA,
+    SEPARATION_EXTRA,
+    VOXY_EXTRA,
+    install_hint,
+    require_extra,
+)
 from ..util import require_package
 from ._pcm import resample
 from .samples import AudioLike, float_input
@@ -480,6 +486,43 @@ def htdemucs_separate(samples: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndar
 #: inference in a non-pip repo: pass it as a callable) and CC BY-NC checkpoints
 #: (BandIt Plus, dns64). #63's scores (SI-SDR of the music, talk over singing /
 #: over an instrumental): mossformer2_se_48k +7.3 / +0.8 dB, htdemucs -3.7 / +5.4.
+#: The registry name of :func:`voxy_separator`'s default (voxy's default model).
+VOXY_SEPARATOR = "voxy_htdemucs_ft"
+
+
+def voxy_separator(**options) -> SeparationStrategy:
+    """voxy's Demucs as a strategy, run **out of process** in voxy's own environment.
+
+    ``voxy.separate.speech_separator(**options)`` (thorwhalen/voxy#99) behind the
+    seam: ``htdemucs_ft``'s vocals sub-model by default, the music being the input
+    minus the voice, at Demucs's 44.1 kHz (mixing resamples to and from it, as
+    for ``"htdemucs"``). The host process
+    imports no torch (extra ``voxy``, ``pip install 'mixing[voxy]'``); voxy builds
+    its Demucs environment on first use. ``options`` are ``speech_separator``'s
+    (``stem``, Demucs's ``shifts``, ``overlap``, a test ``run``). Like
+    ``"htdemucs"``, for instrumental beds: the vocals stem holds singing too.
+
+    >>> voxy_separator().name, voxy_separator(shifts=2).context_s
+    ('voxy_htdemucs_ft', 3.0)
+    """
+
+    def separate(samples: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
+        from voxy.separate import speech_separator  # checked by the extra first
+
+        return speech_separator(**options)(samples, sr)
+
+    return SeparationStrategy(
+        name=VOXY_SEPARATOR,
+        separate=separate,
+        license="MIT",
+        commercial_ok=True,
+        extra=VOXY_EXTRA,
+        mono=False,
+        sample_rate=HTDEMUCS_RATE,  # Demucs's: mixing resamples around it, as for htdemucs
+        context_s=HTDEMUCS_CONTEXT_S,
+    )
+
+
 SEPARATORS: dict[str, SeparationStrategy] = {
     "mossformer2_se_48k": SeparationStrategy(
         name="mossformer2_se_48k",
@@ -501,6 +544,7 @@ SEPARATORS: dict[str, SeparationStrategy] = {
         sample_rate=HTDEMUCS_RATE,
         context_s=HTDEMUCS_CONTEXT_S,
     ),
+    VOXY_SEPARATOR: voxy_separator(),
 }
 #: The default strategy: the strongest permissive, pip-installable one (#63, #120).
 DEFAULT_SEPARATOR = "mossformer2_se_48k"
@@ -651,4 +695,6 @@ __all__ = [
     "wiener_split",
     "mossformer2_se_48k_speech",
     "htdemucs_separate",
+    "voxy_separator",
+    "VOXY_SEPARATOR",
 ]
