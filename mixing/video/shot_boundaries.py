@@ -213,7 +213,7 @@ def histogram_shots(
     size: tuple[int, int] = HISTOGRAM_FRAME_SIZE,
     fps: Optional[float] = None,
     sampler: Sampler = iter_frames,
-    duration: float | None = None,
+    duration: Optional[float] = None,
 ) -> list[Span]:
     """The ``"histogram"`` strategy: colour-histogram jumps over every frame.
 
@@ -229,9 +229,12 @@ def histogram_shots(
         l1, mean_diff, dedupe_frames, bits_dropped: the cut rule (defaults:
             reeleehq/cutan#151's measured ones, at :data:`HISTOGRAM_FRAME_SIZE`).
         size: decode size ``(width, height)``; the defaults hold at 320x180.
-        fps: ``None`` (default) decodes every frame, at the rate the probe
-            reports (frame-accurate); a number samples at that rate (cheaper,
-            cuts to ``1 / fps``; ``dedupe_frames`` then counts samples).
+        fps: the frames' rate. ``None`` (default) decodes every frame, at the
+            video's playback rate (probed: frame-accurate, what the defaults
+            were measured on). A number samples at that rate instead, cheaper
+            but not measured with these thresholds, and ``dedupe_frames`` then
+            counts samples; it is also how a ``sampler`` that does not decode a
+            file says what rate its frames are at.
         sampler: ``sampler(video, fps=, size=, pix_fmt="rgb24")`` -> RGB frames
             ``(n, h, w, 3)``, or an iterable of frames or chunks.
         duration: as :func:`diff_shots` (``None`` probes it).
@@ -274,13 +277,14 @@ def _tiled_duration(video, duration, *, count: int, fps: float) -> Optional[floa
 
 
 def _native_rate(video) -> float:
-    """``video``'s frame rate, probed, or an informative error."""
+    """The rate ``video``'s frames arrive at when every one is decoded
+    (:attr:`mixing.probe.MediaProbe.playback_fps`), or an informative error."""
     found = probe(video) if isinstance(video, (str, os.PathLike)) else None
-    if found is None or not found.fps:
+    if found is None or not found.playback_fps:
         raise ValueError(
             f"no frame rate for {video!r}: pass fps= (the rate to sample at)"
         )
-    return float(found.fps)
+    return float(found.playback_fps)
 
 
 def pyscenedetect_shots(
@@ -327,7 +331,8 @@ def shots(
     Args:
         video: path to a video file.
         strategy: a ``SHOT_STRATEGIES`` name (``"diff"``: :func:`diff_shots`,
-            ``"pyscenedetect"``: :func:`pyscenedetect_shots`) or a callable
+            ``"histogram"``: :func:`histogram_shots`, ``"pyscenedetect"``:
+            :func:`pyscenedetect_shots`) or a callable
             ``(video, **strategy_kwargs) -> spans``.
         min_shot_s: merge spans shorter than this into a neighbour
             (:func:`merge_short_spans`); a dissolve otherwise reads as a short

@@ -137,7 +137,10 @@ def streamed_changes(
     chunk plus the frame before it at a time: equal to ``measure`` of all the
     frames. ``measure`` maps ``n`` frames to ``n - 1`` rows (default
     :func:`frame_changes`, grey frames ``(h, w)``; :func:`histogram_changes`
-    with ``frame_ndim=3`` for RGB frames ``(h, w, 3)``)."""
+    with ``frame_ndim=3`` for RGB frames ``(h, w, 3)``). ``frame_ndim`` is how a
+    lone frame is told from a chunk, so it must match the frames: a ``(h, w, 3)``
+    frame read with the default would be ``h`` grey frames. With one frame the
+    changes are ``measure``'s empty result; with none, an empty ``(0,)`` array."""
     changes, count, last = [], 0, None
     for chunk in chunks:
         chunk = np.asarray(chunk)
@@ -175,13 +178,20 @@ def histogram_changes(
     if len(frames) < 2:
         return np.zeros((0, 2))
     bins = 256 >> bits_dropped
-    q = (frames >> bits_dropped).astype(np.int32)
-    keys = ((q[..., 0] * bins + q[..., 1]) * bins + q[..., 2]).reshape(len(frames), -1)
-    hists = np.stack([np.bincount(k, minlength=bins**3) / k.size for k in keys])
-    hist_l1 = np.abs(np.diff(hists, axis=0)).sum(axis=1)
-    grey = frames.astype(np.float32).mean(axis=3)
-    grey_diff = np.abs(np.diff(grey, axis=0)).mean(axis=(1, 2))
-    return np.column_stack([hist_l1, grey_diff])
+
+    def features(frame):  # one frame at a time: memory is a frame, not the chunk
+        q = (frame >> bits_dropped).astype(np.uint16)  # 8 bits -> < 2**9 keys
+        key = (q[..., 0] * bins + q[..., 1]) * bins + q[..., 2]
+        hist = np.bincount(key.ravel(), minlength=bins**3) / key.size
+        return hist, frame.mean(axis=2, dtype=np.float32)
+
+    out = np.empty((len(frames) - 1, 2))
+    hist, grey = features(frames[0])
+    for i in range(1, len(frames)):
+        next_hist, next_grey = features(frames[i])
+        out[i - 1] = np.abs(next_hist - hist).sum(), np.abs(next_grey - grey).mean()
+        hist, grey = next_hist, next_grey
+    return out
 
 
 def histogram_cut_indices(
@@ -304,6 +314,7 @@ def shots_from_changes(
     Returns:
         Spans tiling ``[0, duration]``; ``[]`` for no frames and no duration.
     """
+    _check_grid(fps, times, duration)  # before any work, as it always was
     changes = np.asarray(changes, dtype=np.float64)
     if threshold is None:
         threshold = adaptive_threshold(changes)
@@ -316,6 +327,18 @@ def shots_from_changes(
         duration=duration,
         min_shot_s=min_shot_s,
     )
+
+
+def _check_grid(fps, times, duration) -> None:
+    """Refuse a frame grid :func:`shots_from_cut_frames` cannot tile."""
+    if (fps is None) == (times is None):
+        raise ValueError("give the frames' rate (fps=) or their times (times=), one")
+    if duration is not None and (
+        isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
+    ):
+        raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
+    if fps is not None and not fps > 0:
+        raise ValueError(f"fps must be > 0, got {fps}")
 
 
 def shots_from_cut_frames(
@@ -333,18 +356,20 @@ def shots_from_cut_frames(
     :func:`shots_from_changes`, which decides its cuts and calls this; a
     detector with its own cut rule (:func:`histogram_cut_indices`) calls it too.
 
+    ``cut_frames`` are frame indices in ``(0, n_frames)``, any order, repeats
+    allowed (a cut at frame 0 or past the last frame is not a cut: ``ValueError``).
+
     >>> shots_from_cut_frames([3], n_frames=6, fps=2)
     [(0.0, 1.5), (1.5, 3.0)]
     """
-    if (fps is None) == (times is None):
-        raise ValueError("give the frames' rate (fps=) or their times (times=), one")
-    if duration is not None and (
-        isinstance(duration, bool) or not math.isfinite(duration) or duration < 0
-    ):
-        raise ValueError(f"duration must be a number of seconds >= 0, got {duration!r}")
+    _check_grid(fps, times, duration)
+    cut_frames = np.unique(np.asarray(cut_frames, dtype=np.int64))
+    if len(cut_frames) and not (0 < cut_frames[0] and cut_frames[-1] < n_frames):
+        raise ValueError(
+            f"cut frames must be in (0, {n_frames}): a new shot starts there, "
+            f"got {cut_frames.tolist()}"
+        )
     if fps is not None:
-        if not fps > 0:
-            raise ValueError(f"fps must be > 0, got {fps}")
         frame_times = np.arange(n_frames) / fps
         end = n_frames / fps
     else:
@@ -363,7 +388,7 @@ def shots_from_cut_frames(
     end = end if duration is None else float(duration)
     if not end:
         return []
-    cuts = frame_times[np.asarray(cut_frames, dtype=np.int64)]
+    cuts = frame_times[cut_frames]
     spans = _tile(cuts.tolist(), end)
     return merge_short_spans(spans, min_s=min_shot_s) if min_shot_s else spans
 

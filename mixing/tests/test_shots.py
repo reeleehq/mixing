@@ -593,3 +593,60 @@ def test_a_real_pan_is_one_histogram_shot_and_the_cut_is_frame_exact(tmp_path):
     assert len(spans) == 2
     assert spans[0][1] == pytest.approx(4.0, abs=1e-9)  # frame 100 at 25 fps
     assert spans[1][1] == pytest.approx(6.0, abs=0.05)
+
+
+def test_histogram_cuts_land_on_the_playback_rate_not_r_frame_rate(tmp_path):
+    # a 24 fps film whose pts jitter by 1/120 s: r_frame_rate reads 120/1, the
+    # frames arrive at ~24/s (reeleehq/an#195); the cut is at 4 s either way
+    from mixing.probe import probe
+    from mixing.util import ffmpeg_exe
+
+    clip = tmp_path / "jitter.mp4"
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y",
+         "-f", "lavfi", "-i", "testsrc2=s=320x180:r=24:d=4",
+         "-f", "lavfi", "-i", "color=c=red:s=320x180:r=24:d=4",
+         "-filter_complex",
+         "[0:v][1:v]concat=n=2:v=1,setpts='if(eq(mod(N\\,24)\\,1),PTS+1/120/TB,PTS)'[v]",
+         "-map", "[v]", "-fps_mode", "passthrough", "-video_track_timescale", "120",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+        check=True,
+    )  # fmt: skip
+    found = probe(clip)
+    assert found.variable_rate and float(found.fps) > 100  # the trap is there
+    spans = shots(clip, strategy="histogram")
+    assert len(spans) == 2 and spans[0][1] == pytest.approx(4.0, abs=0.05)
+
+
+def test_shots_from_cut_frames_refuses_cuts_off_the_grid():
+    from mixing.shot_changes import shots_from_cut_frames
+
+    with pytest.raises(ValueError, match=r"cut frames must be in \(0, 6\)"):
+        shots_from_cut_frames([6], n_frames=6, fps=2)
+    with pytest.raises(ValueError, match="cut frames"):
+        shots_from_cut_frames([-1], n_frames=6, fps=2)
+    with pytest.raises(ValueError, match="cut frames"):
+        shots_from_cut_frames([0, 3], n_frames=6, fps=2)
+    # any order, repeats merged
+    assert shots_from_cut_frames([3, 1, 3], n_frames=6, fps=2) == [
+        (0.0, 0.5),
+        (0.5, 1.5),
+        (1.5, 3.0),
+    ]
+
+
+def test_histogram_changes_per_frame_equals_the_vectorised_form():
+    from mixing.shot_changes import histogram_changes
+
+    frames = np.random.default_rng(5).integers(0, 256, (9, 18, 32, 3), dtype=np.uint8)
+    q = (frames >> 5).astype(np.int32)
+    key = ((q[..., 0] * 8 + q[..., 1]) * 8 + q[..., 2]).reshape(9, -1)
+    hists = np.stack([np.bincount(k, minlength=512) / k.size for k in key])
+    grey = frames.astype(np.float32).mean(axis=3)
+    expected = np.column_stack(
+        [
+            np.abs(np.diff(hists, axis=0)).sum(axis=1),
+            np.abs(np.diff(grey, axis=0)).mean(axis=(1, 2)),
+        ]
+    )
+    np.testing.assert_allclose(histogram_changes(frames), expected, rtol=1e-6)

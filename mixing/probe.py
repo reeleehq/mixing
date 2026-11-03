@@ -204,6 +204,26 @@ class MediaProbe:
         return self.width is not None
 
     @property
+    def playback_fps(self) -> Optional[Fraction]:
+        """The rate the frames actually arrive at, decoded one by one.
+
+        ``fps`` (``r_frame_rate``) is the lowest rate that represents every
+        timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
+        holes between its shots reads ``120/1`` (reeleehq/an#195, cutan's
+        ``stream_fps``). So for a ``variable_rate`` stream the average rate is
+        the playback rate; otherwise ``fps`` (``avg_fps`` when it is unset).
+
+        >>> MediaProbe("ffprobe", fps=Fraction(120), avg_fps=Fraction(5760, 239),
+        ...            variable_rate=True).playback_fps
+        Fraction(5760, 239)
+        >>> MediaProbe("ffprobe", fps=Fraction(24), avg_fps=Fraction(24)).playback_fps
+        Fraction(24, 1)
+        """
+        if self.variable_rate and self.avg_fps:
+            return self.avg_fps
+        return self.fps or self.avg_fps
+
+    @property
     def exact(self) -> bool:
         """Whether this came from ffprobe (exact) rather than the banner."""
         return self.method == FFPROBE_METHOD
