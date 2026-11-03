@@ -355,7 +355,9 @@ def compile_effects(
     """``effects`` as one ffmpeg filter fragment for a picture shaped like ``info``.
 
     Compiled by ``looks.compile_look`` against the ffmpeg that renders
-    (``ffmpeg``, default the one :meth:`CutawayPlan.command` runs): a ``looks``
+    (``ffmpeg``, default the one :meth:`CutawayPlan.command` runs by default:
+    running the plan with ``command(ffmpeg=other)`` needs a compiler made for
+    that binary, ``partial(compile_effects, ffmpeg=other)``): a ``looks``
     step's licence position is a property of the binary, so it is probed
     (``looks.probe``), once per call. :func:`plan_cutaways` calls it only when
     some item has a ``Ripple``; pass ``compile_effects=`` there to compile for
@@ -421,9 +423,10 @@ def plan_cutaways(
     at ``overlay_xy`` (ffmpeg expressions); an item with its own ``overlay``
     shows that one instead. An item with a ``transition_in`` enters by it.
     ``post`` (a filter fragment, e.g. ``looks.vf(...)``) runs on the finished
-    picture, after every overlay; the warps of items entering by a
-    ``looks.Ripple`` run there first (each gated to its own window, compiled
-    together by ``compile_effects``). Items are drawn in order, so a later one wins
+    picture, after every overlay. The warps of items entering by a
+    ``looks.Ripple`` run on the composited picture before the captions go on
+    (so captions stay still), each gated to its own window and compiled
+    together by ``compile_effects``. Items are drawn in order, so a later one wins
     where windows overlap.
 
     Args:
@@ -445,12 +448,17 @@ def plan_cutaways(
 
     Raises:
         ValueError: no items, or a ``src_in`` past the end of its clip.
+        looks.CompileError: the default ``compile_effects`` cannot compile a
+            ``Ripple``'s warp for the ffmpeg found (no usable ffmpeg).
     """
     if not items:
         raise ValueError("cutaways needs at least one Cutaway")
     base_info = probe(base)
-    warps = [item.warp for item in items if item.warp is not None]
-    post = _chain(compile_effects(warps, base_info) if warps else None, post)
+    shown_at_all = [
+        item for item in items if not base_info.duration or item.t0 < base_info.duration
+    ]
+    warps = [w for item in shown_at_all if (w := item.warp) is not None]
+    warp_fx = compile_effects(warps, base_info) if warps else None
     fps = base_info.fps or DEFAULT_FPS
     infos = [probe(item.src) for item in items]
 
@@ -514,6 +522,10 @@ def plan_cutaways(
                 )
             )
             mixed.append(f"[a{i}]")
+
+    if warp_fx:  # on the picture holding both shots, under the captions
+        fc.append(f"[{last}]{warp_fx}[wp]")
+        last = "wp"
 
     # one overlay per (image, position): the plan's on the items without their
     # own, each item's own on its window

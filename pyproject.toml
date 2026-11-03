@@ -49,8 +49,9 @@ media = [
     # the social backdrop's blur sigma and dim factor) is owned by `looks` and
     # imported by mixing.video.video_util — one place says what a "shorts" is.
     # `looks` declares no dependencies of its own. The floor is the first
-    # release carrying SOCIAL_SIZES / FitMode / DFLT_BACKDROP_*.
-    "looks>=0.0.11",
+    # release carrying looks.Ripple (mixing.video.cutaways imports it), which
+    # also carries SOCIAL_SIZES / FitMode / DFLT_BACKDROP_*.
+    "looks>=0.0.33",
 ]
 testing = [
     "pytest",

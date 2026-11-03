@@ -1,5 +1,7 @@
 """``mixing.video.cutaways``: the pure plan, and a real single-pass render."""
 
+import subprocess
+
 import pytest
 
 pytest.importorskip("moviepy")
@@ -453,8 +455,8 @@ def test_a_ripple_enters_by_its_dissolve_and_warps_the_finished_picture():
     assert "xfade=transition=fade:duration=0.25:offset=0" in fc
     # one compile for every warp, each at its item's t0, against the base's shape
     assert seen == [([1.0, 2.5], INFO)]
-    # on the finished picture, ahead of the caller's post
-    assert fc.endswith("[b2]WARP,negate[vout]")
+    # on the composited picture, then the caller's post
+    assert fc.endswith("[b2]WARP[wp];[wp]negate[vout]")
 
 
 def test_no_ripple_no_compile():
@@ -488,6 +490,38 @@ def test_entrance_and_warp_of_an_item():
     assert Cutaway("a.mp4", 0, 1, 2).entrance is None
 
 
+def test_captions_go_on_after_the_warp_and_late_items_are_not_compiled():
+    from looks import Ripple
+
+    seen = []
+
+    def compile_effects(effects, info):
+        seen.append([e.params["start_s"] for e in effects])
+        return "WARP"
+
+    items = [
+        Cutaway("a.mp4", 0, 1, 2, transition_in=Ripple(0.5)),
+        Cutaway("b.mp4", 0, 3.5, 4, transition_in=Ripple(0.25)),  # after the base
+    ]
+    with pytest.warns(UserWarning, match="will not show"):
+        plan = _plan(items, overlay="c.png", compile_effects=compile_effects)
+    assert seen == [[1.0]]
+    fc = plan.filter_complex
+    assert fc.index("WARP[wp]") < fc.index("[wp][cap0]overlay")
+
+
+def _textured_video(path, *, seconds=4, rate=24):
+    from mixing.util import ffmpeg_exe
+
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi",
+         "-i", f"testsrc2=s=320x240:r={rate}:d={seconds}",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
 @pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
 def test_real_render_ripples_both_shots_only_inside_its_window(
     make_color_video, tmp_path
@@ -496,12 +530,10 @@ def test_real_render_ripples_both_shots_only_inside_its_window(
     import numpy as np
     from looks import Ripple, Transition
 
-    base = make_color_video(4.0, color=(255, 0, 0))
+    base = _textured_video(tmp_path / "base.mp4")  # texture a warp must move
     item = make_color_video(4.0, color=(0, 255, 0))
-    stripes = tmp_path / "stripes.png"
-    img = np.zeros((240, 320, 3), np.uint8)
-    img[:, ::16] = 255  # vertical lines a ripple must bend
-    cv2.imwrite(str(stripes), img)
+    caption = tmp_path / "cap.png"
+    cv2.imwrite(str(caption), np.full((20, 20, 4), (255, 0, 255, 255), np.uint8))
 
     def frame(path, t):
         cap = cv2.VideoCapture(str(path))
@@ -511,18 +543,22 @@ def test_real_render_ripples_both_shots_only_inside_its_window(
         assert ok
         return f.astype(float)
 
-    kw = dict(overlay=stripes)  # the lines show while the item does
-    plain = cutaways(
-        base,
-        [Cutaway(item, 0.0, 1.0, 3.0, transition_in=Transition(1.0, "fade"))],
-        output=tmp_path / "plain.mp4",
-        **kw,
-    )
-    rippled = cutaways(
-        base,
-        [Cutaway(item, 0.0, 1.0, 3.0, transition_in=Ripple(1.0))],
-        output=tmp_path / "ripple.mp4",
-        **kw,
-    )
+    def render(transition, name):
+        return cutaways(
+            base,
+            [Cutaway(item, 0.0, 1.0, 3.0, transition_in=transition)],
+            overlay=caption,
+            output=tmp_path / name,
+        )
+
+    plain = render(Transition(1.0, "fade"), "plain.mp4")
+    rippled = render(Ripple(1.0, bloom=0.0), "ripple.mp4")  # the warp alone
     differs = lambda t: np.abs(frame(plain, t) - frame(rippled, t)).mean()  # noqa: E731
-    assert differs(1.5) > 5 * max(differs(0.5), differs(2.5), 0.5)
+    # early in the window the picture is still mostly the base: the warp moves
+    # it; outside the window only the encoder's own noise differs (measured
+    # 6.9 inside vs 0.3 and 0.0 outside)
+    outside = max(differs(0.5), differs(2.5))
+    assert differs(1.25) > max(10 * outside, 2.0)
+    # the caption sits on top of the warp, unmoved
+    inside = frame(rippled, 1.25)[4:16, 4:16]
+    np.testing.assert_allclose(inside, frame(plain, 1.25)[4:16, 4:16], atol=12)
