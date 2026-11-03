@@ -558,18 +558,18 @@ The output is audio only (in place over a video is refused). `sample_rate` resam
 
 ## Bleep words (radio edit)
 
-`mixing.audio.bleep` mutes the voice over chosen words and lays a 1 kHz tone there at the word's own level; everything else is untouched.
+`mixing.audio.bleep` (module `mixing.audio.censor`) mutes the voice over chosen words and lays a 1 kHz tone there at the word's own level; everything else is untouched.
 
 ```python
 from mixing.audio import bleep
 
 words = [{"word": "...", "start": 12.31, "end": 12.62, "max_end": 12.70}]  # from a forced aligner
 bleep("vocals.wav", words, backing="no_vocals.wav", output="clean.wav")  # stems already split
-bleep("song.wav", words, separator="htdemucs", output="clean.wav")       # split the mix inside the spans only
-bleep(samples, [(1.2, 1.5)], sr=48000)                                   # a mix alone: the span becomes the tone
+bleep("song.wav", words, separator="htdemucs", widen_floor_db=None, output="clean.wav")  # split the mix inside the spans only
+bleep(samples, [(1.2, 1.5)], sr=48000, widen_floor_db=None)              # a mix alone: the span becomes the tone
 ```
 
-Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of the word's peak, so a held sung word's tail is covered, but never past `max_end` (the next word's onset; without it the widening swallows the next word in connected singing). `widen_floor_db=None` keeps the spans as given; `beep_db`, `tone_hz`, `fade_s` tune the beep. Whisper word times are off by up to ~0.3 s on sung vocals; MMS forced alignment of the phrase gives usable bounds.
+Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of the word's peak, so a held sung word's tail is covered, but never past `max_end` (the next word's onset; without it the widening swallows the next word in connected singing). Widening measures the input, so it needs a vocal stem: on a whole mix the music never drops 24 dB and every span widens by the full `widen_max_s`, hence `widen_floor_db=None` there. The beep is levelled from the voice the mute removed (with a separator, its speech estimate). `widen_floor_db=None` keeps the spans as given; `beep_db`, `tone_hz`, `fade_s` tune the beep. Whisper word times are off by up to ~0.3 s on sung vocals; MMS forced alignment of the phrase gives usable bounds.
 
 ## Speaker turns: loudness, voice diagnosis, pitch
 

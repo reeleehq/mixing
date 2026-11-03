@@ -148,7 +148,7 @@ def float_input(audio: AudioLike, sr: Optional[int] = None) -> FloatInput:
     An array is float in [-1, 1] or signed-integer PCM (scaled by its full scale)
     and needs ``sr``; for anything else ``sr``, if given, must be its rate.
     Shared by :func:`~mixing.audio.separation.remove_talk` and
-    :func:`~mixing.audio.bleep.bleep`.
+    :func:`~mixing.audio.censor.bleep`.
     """
     if isinstance(audio, np.ndarray):
         return _array_input(audio, sr)

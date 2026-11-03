@@ -116,7 +116,7 @@ from .separation import (
     remove_talk,
     invert_enhancer,
 )
-from .bleep import bleep
+from .censor import bleep
 from .leveling import (
     loudness,
     loudness_range,

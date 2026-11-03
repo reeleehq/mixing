@@ -2,7 +2,7 @@
 
 :func:`as_spans` turns the forms a caller has at hand (talk edges, segments, an
 aligner's words, pairs, arrays) into checked ``(start, end)`` pairs, for
-:func:`~mixing.audio.separation.remove_talk` and :func:`~mixing.audio.bleep.bleep`.
+:func:`~mixing.audio.separation.remove_talk` and :func:`~mixing.audio.censor.bleep`.
 """
 
 from __future__ import annotations
@@ -16,11 +16,16 @@ import numpy as np
 Span = tuple[float, float]
 
 
-def _is_number_pair(obj) -> bool:
+def is_number_pair(obj) -> bool:
+    """A ``(start, end)`` tuple or list of two real numbers (not bools).
+
+    >>> is_number_pair((1, 2.5)), is_number_pair([(1, 2), (3, 4)]), is_number_pair((True, 1))
+    (True, False, False)
+    """
     return (
         isinstance(obj, (tuple, list))
         and len(obj) == 2
-        and all(isinstance(v, Real) for v in obj)
+        and all(isinstance(v, Real) and not isinstance(v, bool) for v in obj)
     )
 
 
@@ -41,12 +46,13 @@ def _raw_spans(obj) -> list[Span]:
         if obj.ndim == 2 and obj.shape[1] == 2:
             return [tuple(row) for row in obj]
         raise ValueError(f"a span array must be (2,) or (k, 2), got {obj.shape}")
-    if _is_number_pair(obj):
+    if is_number_pair(obj):
         return [tuple(obj)]
     if isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
         return [span for item in obj for span in _raw_spans(item)]
     raise TypeError(
-        f"talk spans must be TalkEdges, Segments or (start, end) pairs, got {obj!r}"
+        "spans must be TalkEdges, Segments, {start, end} mappings or (start, end) "
+        f"pairs, got {obj!r}"
     )
 
 
@@ -64,5 +70,5 @@ def as_spans(spans_or_edges) -> list[Span]:
     spans = [(float(s), float(e)) for s, e in _raw_spans(spans_or_edges)]
     for s, e in spans:
         if not (np.isfinite(s) and np.isfinite(e) and e > s):
-            raise ValueError(f"a talk span needs finite end > start, got {(s, e)}")
+            raise ValueError(f"a span needs finite end > start, got {(s, e)}")
     return spans

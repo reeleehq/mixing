@@ -14,7 +14,8 @@ is what gave usable bounds) and
    (everything goes to "speech"), or with a real separator to keep the music of a
    single mix under the beep;
 3. lays a **tone** (:func:`beep_track`) over each widened span at the RMS of the word
-   itself (not of the widened span, whose quiet tail would make a quiet beep),
+   itself (not of the widened span, whose quiet tail would make a quiet beep) as
+   the mute removed it (so with a separator, the speech, not the music under it),
    ``beep_db`` relative to it;
 4. adds ``backing`` (the other stems), untouched, when the voice was given as a stem.
 
@@ -44,7 +45,7 @@ from .separation import (
     SpeechSeparator,
     remove_talk,
 )
-from .spans import Span, as_spans
+from .spans import Span, as_spans, is_number_pair
 
 #: Frequency of the beep (Hz), the broadcast censor tone.
 BEEP_TONE_HZ = 1000.0
@@ -90,9 +91,8 @@ def as_words(spans) -> list[Word]:
     """
     if isinstance(spans, Word):
         return [spans]
-    items = (
-        spans if isinstance(spans, (list, tuple)) and not _is_pair(spans) else [spans]
-    )
+    is_list = isinstance(spans, (list, tuple)) and not is_number_pair(spans)
+    items = spans if is_list else [spans]
     words = []
     for item in items:
         if isinstance(item, Word):
@@ -108,12 +108,9 @@ def as_words(spans) -> list[Word]:
     return words
 
 
-def _is_pair(obj) -> bool:
-    return len(obj) == 2 and all(isinstance(v, (int, float, np.number)) for v in obj)
-
-
 def _envelope(x: np.ndarray, hop: int) -> np.ndarray:
     """RMS over the channels' mean power, per ``hop`` frames (the tail is dropped)."""
+    x = np.asarray(x).reshape(len(x), -1)  # mono (n,) is one channel
     k = len(x) // hop
     power = np.square(x[: k * hop]).mean(axis=1)
     return np.sqrt(power.reshape(k, hop).mean(axis=1))
@@ -128,9 +125,11 @@ def widen_spans(
     max_s: tuple[float, float] = WIDEN_MAX_S,
     hop_s: float = WIDEN_HOP_S,
 ) -> list[Span]:
-    """Each word's span, widened while ``samples`` (the voice, ``(n, channels)``)
-    stays above ``floor_db`` under the word's peak, at most ``max_s`` (before,
-    after) and never past the word's ``max_end`` nor outside the signal.
+    """Each word's span, widened while ``samples`` (the voice, ``(n,)`` or
+    ``(n, channels)``) stays above ``floor_db`` under the word's peak, at most
+    ``max_s`` (before, after) and never past the word's ``max_end`` nor outside
+    the signal. Give it the voice alone: on a whole mix the music rarely drops
+    ``floor_db`` below a word, so every span widens by the whole ``max_s``.
 
     Times are on the envelope's ``hop_s`` grid where widened; a word that cannot
     be widened keeps its own bounds.
@@ -162,10 +161,10 @@ def widen_spans(
     return out
 
 
-def _merge(spans: Sequence[Span], levels: Sequence[float]):
+def _merge(beeps: Sequence[tuple[Span, float]]):
     """Overlapping spans merged (the louder level kept), so tones never beat."""
     merged: list[list] = []
-    for (s, e), level in sorted(zip(spans, levels)):
+    for (s, e), level in sorted(beeps):
         if merged and s <= merged[-1][1]:
             merged[-1][1] = max(merged[-1][1], e)
             merged[-1][2] = max(merged[-1][2], level)
@@ -177,17 +176,17 @@ def _merge(spans: Sequence[Span], levels: Sequence[float]):
 def beep_track(
     n: int,
     sr: int,
-    spans: Sequence[Span],
-    levels: Sequence[float],
+    beeps: Sequence[tuple[Span, float]],
     *,
     tone_hz: float = BEEP_TONE_HZ,
     fade_s: float = BLEEP_FADE_S,
 ) -> np.ndarray:
-    """``n`` mono frames: a sine at RMS ``levels[k]`` over ``spans[k]``, faded over
-    ``fade_s`` inside each span, silence elsewhere. Overlapping spans merge."""
+    """``n`` mono frames: for each ``((start, end), rms)`` in ``beeps``, a sine at
+    that RMS over the span (clipped to the ``n`` frames), faded over ``fade_s``
+    inside it; silence elsewhere. Overlapping spans merge (the louder level)."""
     track = np.zeros(n)
-    for (s, e), level in _merge(spans, levels):
-        a, b = int(round(s * sr)), min(n, int(round(e * sr)))
+    for (s, e), level in _merge(beeps):
+        a, b = _frames((s, e), sr, n)
         if b <= a:
             continue
         tone = (
@@ -202,13 +201,20 @@ def beep_track(
     return track
 
 
-def _word_rms(x: np.ndarray, sr: int, word: Word) -> float:
-    seg = x[int(round(word.start * sr)) : int(round(word.end * sr))]
+def _frames(span: Span, sr: int, n: int) -> tuple[int, int]:
+    """``span`` (s) as a frame range clipped to ``[0, n]`` (a span may overhang)."""
+    a = min(n, max(0, int(round(span[0] * sr))))
+    return a, min(n, max(a, int(round(span[1] * sr))))
+
+
+def _rms(x: np.ndarray, frames: tuple[int, int]) -> float:
+    seg = x[frames[0] : frames[1]]
     return float(np.sqrt(np.square(seg).mean())) if seg.size else 0.0
 
 
-def _fit_backing(backing: AudioLike, sr: int, n: int, channels: int, rate_sr):
-    back = float_input(backing, rate_sr)
+def _fit_backing(backing: AudioLike, sr: int, n: int, channels: int):
+    # an array backing is at the voice's rate; a file's own rate must match
+    back = float_input(backing, sr if isinstance(backing, np.ndarray) else None)
     if back.sr != sr:
         raise ValueError(f"backing is at {back.sr} Hz, the voice at {sr} Hz")
     y = back.samples
@@ -251,10 +257,16 @@ def bleep(
             callable). ``None``: the span is silenced (:data:`MUTE`).
         sr: the sample rate of array inputs.
         tone_hz: the tone's frequency.
-        beep_db: the tone's RMS relative to the word's own RMS.
+        beep_db: the tone's RMS relative to the word's own RMS: of the voice
+            the mute removed there (the vocal stem; with a ``separator``, its
+            speech estimate; a whole mix alone, the mix). A silent word gets a
+            silent beep.
         fade_s: linear ramp of the mute (outside each span) and of the tone
             (inside it).
-        widen_floor_db: see :func:`widen_spans`; ``None`` keeps the spans as given.
+        widen_floor_db: see :func:`widen_spans`; ``None`` keeps the spans as
+            given. Widening measures ``audio``, so it wants a vocal stem: on a
+            whole mix (with or without ``separator``) pass ``None`` and spans
+            that already cover the words.
         widen_max_s: the widening's limit (before, after), in seconds.
         output: ``None`` (return the result in the input's kind), a path, a
             directory (``<stem>_bleeped.wav``) or a callable; see
@@ -290,16 +302,16 @@ def bleep(
         out = remove_talk(
             x, widened, separator=separator or MUTE, margin=fade_s, sr=rate
         )
+        removed = x - out  # the voice the mute took out (all of it, inside a word)
         gain = 10.0 ** (beep_db / 20.0)
-        levels = [gain * _word_rms(x, rate, w) for w in words]
-        out = (
-            out
-            + beep_track(len(x), rate, widened, levels, tone_hz=tone_hz, fade_s=fade_s)[
-                :, None
-            ]
-        )
+        beeps = [
+            (span, gain * _rms(removed, _frames((w.start, w.end), rate, len(x))))
+            for span, w in zip(widened, words)
+        ]
+        tone = beep_track(len(x), rate, beeps, tone_hz=tone_hz, fade_s=fade_s)
+        out = out + tone[:, None]
     if backing is not None:
-        out = out + _fit_backing(backing, rate, len(x), x.shape[1], sr)
+        out = out + _fit_backing(backing, rate, len(x), x.shape[1])
     return deliver(
         source.restore(out),
         output,
