@@ -490,3 +490,106 @@ def test_a_real_pan_is_one_shot_under_spike_and_a_cut_after_it_is_kept(tmp_path)
     assert shots(pan, fps=5, rule="spike") == [(0.0, pytest.approx(4.0, abs=0.1))]
     spans = shots(cut, fps=5, rule="spike")
     assert len(spans) == 2 and spans[0][1] == pytest.approx(4.0, abs=0.25)
+
+
+# --- the "histogram" strategy (#164, from reeleehq/cutan#151) ---------------------
+
+
+def _cutan_histogram_cuts(frames, *, l1=0.6, mean_diff=8.0, dedupe=5, bits=5):
+    """cutan's detector as it ran there (the issue's starter), for equivalence."""
+    q = (frames >> bits).astype(np.int32)
+    bins = 256 >> bits
+    key = (q[..., 0] * bins + q[..., 1]) * bins + q[..., 2]
+    per_frame = key.reshape(len(frames), -1)
+    hists = np.stack([np.bincount(k, minlength=bins**3) / k.size for k in per_frame])
+    hist_l1 = np.abs(hists[1:] - hists[:-1]).sum(axis=1)
+    grey = frames.astype(np.float32).mean(axis=3)
+    step_diff = np.abs(grey[1:] - grey[:-1]).mean(axis=(1, 2))
+    cuts = []
+    for i in np.flatnonzero((hist_l1 > l1) & (step_diff > mean_diff)):
+        if not cuts or (i + 1) - cuts[-1] > dedupe:
+            cuts.append(int(i + 1))
+    return cuts
+
+
+def _palette_clip(rng, palettes, frames_each, size=(18, 32)):
+    """Shots of noise drawn from one palette each: a cut at every palette change."""
+    out = []
+    for colours in palettes:
+        idx = rng.integers(0, len(colours), (frames_each, *size))
+        out.append(np.asarray(colours, np.uint8)[idx])
+    return np.concatenate(out)
+
+
+def test_histogram_stages_reproduce_cutans_detector():
+    from mixing.shot_changes import histogram_changes, histogram_cut_indices
+
+    rng = np.random.default_rng(3)
+    palettes = [  # each shot a new palette AND a new grey level
+        [(255, 0, 0), (200, 30, 30)],
+        [(255, 255, 255), (220, 220, 220)],
+        [(0, 0, 80), (20, 20, 60)],
+        [(255, 255, 0), (200, 200, 30)],
+    ]
+    frames = _palette_clip(rng, palettes, frames_each=4)  # cuts 4 apart: dedupe bites
+    cuts = histogram_cut_indices(histogram_changes(frames)) + 1
+    assert cuts.tolist() == _cutan_histogram_cuts(frames) == [4, 12]
+    spread = histogram_cut_indices(histogram_changes(frames), dedupe_frames=0) + 1
+    assert spread.tolist() == [4, 8, 12]
+
+
+def test_both_conditions_are_needed():
+    from mixing.shot_changes import histogram_cut_indices
+
+    steps = np.array(
+        [[1.9, 2.0], [0.1, 90.0], [1.9, 90.0]]
+    )  # palette only, grey only, both
+    assert histogram_cut_indices(steps).tolist() == [2]
+
+
+def test_the_histogram_strategy_through_the_sampler_seam():
+    rng = np.random.default_rng(0)
+    frames = _palette_clip(rng, [[(255, 0, 0)], [(255, 255, 255)]], frames_each=10)
+    seen = {}
+
+    def sampler(video, **kw):
+        seen.update(kw)
+        return iter([frames[:7], frames[7:13], frames[13:]])  # streamed in chunks
+
+    clip = object()  # not a path: the sampler is the only source, nothing to probe
+    spans = shots(clip, strategy="histogram", sampler=sampler, fps=10.0)
+    assert spans == [(0.0, 1.0), (1.0, 2.0)]
+    assert seen == {"fps": 10.0, "size": (320, 180), "pix_fmt": "rgb24"}
+    with pytest.raises(ValueError, match="no frame rate"):
+        shots(clip, strategy="histogram", sampler=sampler)
+
+
+def test_iter_frames_rgb_and_native_rate(tmp_path):
+    from mixing.video.shot_boundaries import iter_frames
+
+    video = _two_colour_video(tmp_path / "rb.mp4", seconds=1, fps=10)
+    chunks = list(iter_frames(video, fps=None, size=(16, 9), pix_fmt="rgb24"))
+    frames = np.concatenate(chunks)
+    assert frames.shape == (20, 9, 16, 3)  # every frame, in colour
+    assert frames[0, 4, 8, 0] > 200 and frames[-1, 4, 8, 2] > 200  # red, then blue
+    with pytest.raises(ValueError, match="pix_fmt"):
+        next(iter_frames(video, pix_fmt="yuv"))
+
+
+def test_a_real_pan_is_one_histogram_shot_and_the_cut_is_frame_exact(tmp_path):
+    from mixing.util import ffmpeg_exe
+
+    cut = tmp_path / "pan_cut.mp4"
+    source = "testsrc2=s=1920x360:r=25:d=4,crop=640:360:x='t*400'"  # 400 px/s
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi", "-i", source,
+         "-f", "lavfi", "-i", "color=c=red:s=640x360:r=25:d=2",
+         "-filter_complex", "[0:v][1:v]concat=n=2:v=1[v]", "-map", "[v]",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(cut)],
+        check=True,
+    )  # fmt: skip
+    assert len(shots(cut, fps=5)) > 3  # diff/level: the pan reads as cuts
+    spans = shots(cut, strategy="histogram")
+    assert len(spans) == 2
+    assert spans[0][1] == pytest.approx(4.0, abs=1e-9)  # frame 100 at 25 fps
+    assert spans[1][1] == pytest.approx(6.0, abs=0.05)
