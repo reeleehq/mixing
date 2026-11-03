@@ -16,7 +16,9 @@ included; a watchdog kills it, and what it started, then, and
 :class:`FfmpegTimeout` is raised: a ``TimeoutError`` and a ``RuntimeError``).
 The runner itself lives in :mod:`mixing.ffmpeg` (stdlib only); ``FfmpegTimeout``
 is re-exported here.
-:func:`stream_kinds` reads a file's stream kinds from ffmpeg's banner.
+:func:`stream_kinds` reads a file's stream kinds from ffmpeg's banner, and
+:func:`refuse_dropping_streams` uses it to stop an audio-only write over its own
+source when that would destroy the source's picture.
 """
 
 from __future__ import annotations
@@ -95,6 +97,29 @@ def stream_kinds(
     except ProbeError:
         return []
     return [stream.kind for stream in found.streams]
+
+
+def refuse_dropping_streams(
+    src, path, *, ffmpeg: Optional[str] = None, timeout: Optional[float] = None
+) -> None:
+    """A ``ValueError`` if writing audio only to ``path`` would replace ``src``
+    and drop its other streams (a video's picture, cover art, subtitles).
+
+    For a writer that decodes ``src``'s audio and encodes it to ``path``
+    (:func:`mixing.loudness.level_file`, :func:`mixing.splice.replace_span_file`):
+    ``path`` may be ``src`` itself, unless ``src`` has more than audio. Compared
+    with ``os.path.samefile``, not resolved names: a case-insensitive filesystem
+    (macOS) spells one file two ways.
+    """
+    path, src = Path(path), Path(src)
+    if not (path.exists() and os.path.samefile(path, src)):
+        return
+    kinds = stream_kinds(src, ffmpeg=ffmpeg, timeout=timeout)
+    if others := sorted({kind for kind in kinds if kind != "audio"}):
+        raise ValueError(
+            f"writing {src.name} in place would drop its {', '.join(others)} "
+            "stream(s): the output is audio only; give another output"
+        )
 
 
 def _decode(
