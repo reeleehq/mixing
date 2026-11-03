@@ -20,7 +20,7 @@ stages below, every one usable on its own:
 any callable, or ``None`` for dry) into the callable, so a host's seam is one line.
 
 Samples are float, mono ``(n,)`` or ``(n, channels)``, full scale 1.0; the shape and
-a float dtype are kept (other dtypes come back float64).
+dtype are kept (integer PCM is refused: scale it first).
 
 >>> import numpy as np
 >>> radio = TREATMENTS["am_radio"]
@@ -35,7 +35,7 @@ a float dtype are kept (other dtypes come back float64).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Mapping, Optional, Union
+from typing import Callable, Mapping, Union
 
 from mixing.util import LOUDNESS_EXTRA, install_hint, require_package
 
@@ -47,7 +47,7 @@ except ImportError as e:
         name=e.name,
     ) from e
 
-from mixing.loudness import limit_peaks
+from mixing.loudness import DEFAULT_CEILING_DB, limit_peaks
 
 #: Butterworth order of the band-pass (per edge).
 DEFAULT_FILTER_ORDER = 4
@@ -57,16 +57,40 @@ MAX_CUTOFF_NYQUIST_FRACTION = 0.95
 DEFAULT_DETECTOR_S = 0.02
 #: Floor of the compressor's level detector, so silence has a finite level (dBFS).
 DETECTOR_FLOOR_DB = -120.0
-#: A preset's peak ceiling (dBFS) after make-up gain.
-DEFAULT_TREATMENT_CEILING_DB = -1.0
 
 #: A treatment: float samples and their rate in, the treated samples out.
 TreatmentFunc = Callable[[np.ndarray, int], np.ndarray]
 
 
-def _float(data) -> np.ndarray:
+def _samples(data) -> np.ndarray:
+    """``data`` as a float ``(n,)`` / ``(n, channels)`` array, or an informative error."""
     x = np.asarray(data)
-    return x if np.issubdtype(x.dtype, np.floating) else x.astype(np.float64)
+    if not np.issubdtype(x.dtype, np.floating):
+        raise TypeError(
+            f"samples must be float, full scale 1.0, got {x.dtype}: scale integer "
+            "PCM by its full scale first"
+        )
+    if x.ndim not in (1, 2):
+        raise ValueError(f"samples must be (n,) or (n, channels), got {x.shape}")
+    return x
+
+
+def _band_problems(low_hz: float, high_hz: float, order: int) -> list[str]:
+    checks = (
+        (0 < low_hz < high_hz, "0 < low_hz < high_hz"),
+        (order >= 1, "order >= 1"),
+    )
+    return [why for ok, why in checks if not ok]
+
+
+def _compressor_problems(ratio: float, detector_s: float) -> list[str]:
+    checks = ((ratio >= 1, "ratio >= 1"), (detector_s > 0, "detector_s > 0"))
+    return [why for ok, why in checks if not ok]
+
+
+def _refuse(problems: list[str], subject: str) -> None:
+    if problems:
+        raise ValueError(f"{subject} needs {', '.join(problems)}")
 
 
 def band_pass(
@@ -81,17 +105,20 @@ def band_pass(
 
     ``high_hz`` is held under ``MAX_CUTOFF_NYQUIST_FRACTION`` of Nyquist, so a
     preset made for 44.1 kHz still works at a low rate; a ``ValueError`` when that
-    leaves no band.
+    leaves no band. Float samples, ``(n,)`` or ``(n, channels)``; dtype kept.
 
     >>> import numpy as np
     >>> band_pass(np.zeros(10), 8000, low_hz=300, high_hz=3400).shape
     (10,)
     """
-    sig = require_package("scipy.signal", extra=LOUDNESS_EXTRA)
+    _refuse(_band_problems(low_hz, high_hz, order), "band_pass")
+    x = _samples(data)
     high = min(high_hz, MAX_CUTOFF_NYQUIST_FRACTION * fs / 2.0)
-    if not 0 < low_hz < high:
+    if not low_hz < high:
         raise ValueError(f"the passband {low_hz}-{high} Hz is empty at {fs} Hz")
-    x = _float(data)
+    if not len(x):
+        return x.copy()
+    sig = require_package("scipy.signal", extra=LOUDNESS_EXTRA)
     sos = sig.butter(order, [low_hz, high], btype="bandpass", fs=fs, output="sos")
     return sig.sosfilt(sos, x, axis=0).astype(x.dtype, copy=False)
 
@@ -110,7 +137,10 @@ def compress(
     The level is a one-pole RMS detector (time constant ``detector_s``) over the
     channels' mean power, so the channels are linked (the stereo image holds) and
     out-of-phase channels do not cancel in the detector. Above ``threshold_db``
-    (dBFS of that RMS) the level is reduced by ``1 - 1/ratio`` dB per dB.
+    (dBFS of that RMS) the level is reduced by ``1 - 1/ratio`` dB per dB. The
+    detector starts settled on the first ``detector_s`` of the signal, so a loud
+    start is not let through uncompressed. Float samples, ``(n,)`` or
+    ``(n, channels)``; dtype kept.
 
     >>> import numpy as np
     >>> x = np.full(2000, 0.5)
@@ -118,13 +148,19 @@ def compress(
     >>> bool(y[-1] < x[-1])
     True
     """
-    lfilter = require_package("scipy.signal", extra=LOUDNESS_EXTRA).lfilter
-    x = _float(data)
+    _refuse(_compressor_problems(ratio, detector_s), "compress")
+    x = _samples(data)
+    if not len(x):
+        return x.copy()
+    sig = require_package("scipy.signal", extra=LOUDNESS_EXTRA)
     power = np.square(x, dtype=np.float64)
     if x.ndim == 2:
         power = power.mean(axis=1)
-    a = float(np.exp(-1.0 / max(1.0, detector_s * fs)))
-    power = lfilter([1.0 - a], [1.0, -a], power)
+    settle = max(1, int(round(detector_s * fs)))
+    a = float(np.exp(-1.0 / settle))
+    b, den = [1.0 - a], [1.0, -a]
+    zi = sig.lfilter_zi(b, den) * power[:settle].mean()
+    power, _ = sig.lfilter(b, den, power, zi=zi)
     level_db = 10.0 * np.log10(np.maximum(power, 10.0 ** (DETECTOR_FLOOR_DB / 10.0)))
     over = np.maximum(0.0, level_db - threshold_db)
     gain = 10.0 ** ((makeup_db - over * (1.0 - 1.0 / ratio)) / 20.0)
@@ -137,12 +173,13 @@ class TreatmentPreset:
 
     Callable as ``preset(samples, fs)`` (:func:`apply_treatment`), so a preset is one
     value of a :data:`TreatmentFunc` strategy. Derive a variant with
-    :func:`dataclasses.replace`.
+    :func:`dataclasses.replace`. Its values are checked by the same rules as
+    :func:`band_pass` and :func:`compress`.
 
     Attributes:
         name: The preset's name (a host may record it, as foley does on a licence).
-        highpass_hz: Lower edge of the device's passband (Hz).
-        lowpass_hz: Upper edge of the device's passband (Hz).
+        low_hz: Lower edge of the device's passband (Hz).
+        high_hz: Upper edge of the device's passband (Hz).
         threshold_db: Compressor threshold (dBFS of the RMS detector).
         ratio: Compressor ratio above the threshold (``1``: none).
         makeup_db: Gain after the compressor (dB).
@@ -152,25 +189,22 @@ class TreatmentPreset:
     """
 
     name: str
-    highpass_hz: float
-    lowpass_hz: float
+    low_hz: float
+    high_hz: float
     threshold_db: float
     ratio: float
     makeup_db: float = 0.0
     filter_order: int = DEFAULT_FILTER_ORDER
     detector_s: float = DEFAULT_DETECTOR_S
-    ceiling_db: float = DEFAULT_TREATMENT_CEILING_DB
+    ceiling_db: float = DEFAULT_CEILING_DB
 
     def __post_init__(self):
-        checks = (
-            (0 < self.highpass_hz < self.lowpass_hz, "0 < highpass_hz < lowpass_hz"),
-            (self.ratio >= 1, "ratio >= 1"),
-            (self.filter_order >= 1, "filter_order >= 1"),
-            (self.detector_s > 0, "detector_s > 0"),
-            (self.ceiling_db <= 0, "ceiling_db <= 0"),
-        )
-        if problems := [why for ok, why in checks if not ok]:
-            raise ValueError(f"treatment {self.name!r} needs {', '.join(problems)}")
+        problems = [
+            *_band_problems(self.low_hz, self.high_hz, self.filter_order),
+            *_compressor_problems(self.ratio, self.detector_s),
+            *([] if self.ceiling_db <= 0 else ["ceiling_db <= 0"]),
+        ]
+        _refuse(problems, f"treatment {self.name!r}")
 
     def __call__(self, samples: np.ndarray, fs: int) -> np.ndarray:
         return apply_treatment(samples, fs, self)
@@ -179,20 +213,18 @@ class TreatmentPreset:
 def apply_treatment(
     samples: np.ndarray, fs: int, preset: TreatmentPreset
 ) -> np.ndarray:
-    """``samples`` (mono or ``(n, channels)``) as heard through ``preset``'s device.
+    """``samples`` (float, mono or ``(n, channels)``) as heard through ``preset``'s device.
 
     :func:`band_pass` -> :func:`compress` -> :func:`mixing.loudness.limit_peaks`
-    (sample peak, at ``preset.ceiling_db``). Same shape out; a float dtype is kept.
+    (sample peak, at ``preset.ceiling_db``). Same shape and dtype out. A NaN or
+    infinite sample is refused: the detector and the limiter would spread it over
+    the whole output.
     """
-    x = _float(samples)
-    if x.shape[0] == 0:
-        return x.copy()
+    x = _samples(samples)
+    if not np.isfinite(x).all():
+        raise ValueError("samples hold NaN or infinite values")
     x = band_pass(
-        x,
-        fs,
-        low_hz=preset.highpass_hz,
-        high_hz=preset.lowpass_hz,
-        order=preset.filter_order,
+        x, fs, low_hz=preset.low_hz, high_hz=preset.high_hz, order=preset.filter_order
     )
     x = compress(
         x,
@@ -202,11 +234,9 @@ def apply_treatment(
         makeup_db=preset.makeup_db,
         detector_s=preset.detector_s,
     )
-    limited = limit_peaks(
-        x if x.ndim == 2 else x[:, None],
-        ceiling=10.0 ** (preset.ceiling_db / 20.0),
-        fs=fs,
-    )
+    if not len(x):
+        return x
+    limited = limit_peaks(x, ceiling=10.0 ** (preset.ceiling_db / 20.0), fs=fs)
     return limited if x.ndim == 2 else limited[:, 0]
 
 

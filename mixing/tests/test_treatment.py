@@ -69,8 +69,8 @@ def test_treatment_band_limits_and_ceilings():
     preset = TREATMENTS["phone"]
     y = apply_treatment(x, SR, preset)
     assert y.dtype == np.float32 and y.shape == x.shape
-    inside = _band_energy(y, preset.highpass_hz, preset.lowpass_hz)
-    assert inside > 0.9 > _band_energy(x, preset.highpass_hz, preset.lowpass_hz)
+    inside = _band_energy(y, preset.low_hz, preset.high_hz)
+    assert inside > 0.9 > _band_energy(x, preset.low_hz, preset.high_hz)
     assert np.abs(y).max() <= 10 ** (preset.ceiling_db / 20) + 1e-6
 
 
@@ -113,12 +113,52 @@ def test_out_of_phase_channels_are_still_compressed():
     np.testing.assert_allclose(y[:, 0], mono)
 
 
-def test_a_float64_input_stays_float64_and_ints_become_floats():
+def test_a_float64_input_stays_float64_and_int_pcm_is_refused():
     x = _noise(0.5).astype(np.float64)
     assert apply_treatment(x, SR, TREATMENTS["pa"]).dtype == np.float64
     ints = (x * 1000).astype(np.int16)
-    assert apply_treatment(ints / 32768.0, SR, TREATMENTS["pa"]).dtype == np.float64
-    assert band_pass(ints, SR, low_hz=300.0, high_hz=3400.0).dtype == np.float64
+    for stage in (
+        lambda v: apply_treatment(v, SR, TREATMENTS["pa"]),
+        lambda v: band_pass(v, SR, low_hz=300.0, high_hz=3400.0),
+        lambda v: compress(v, SR, threshold_db=-20.0, ratio=2.0),
+    ):
+        with pytest.raises(TypeError, match="scale integer PCM"):
+            stage(ints)
+
+
+def test_a_loud_start_is_compressed_from_its_first_sample():
+    # the detector starts settled, so the head is not a burst the limiter then pins
+    x = _line(1.0, amp=0.8).astype(np.float64)
+    y = compress(x, SR, threshold_db=-30.0, ratio=6.0, makeup_db=0.0)
+    head, steady = y[: SR // 20], y[SR // 4 : SR // 2]
+    assert np.abs(head).max() < 1.5 * np.abs(steady).max()
+
+
+def test_non_finite_samples_and_bad_shapes_are_refused():
+    x = _noise(0.2)
+    x[100] = np.nan
+    with pytest.raises(ValueError, match="NaN or infinite"):
+        apply_treatment(x, SR, TREATMENTS["tv"])
+    with pytest.raises(ValueError, match=r"\(n,\) or \(n, channels\)"):
+        apply_treatment(np.zeros((10, 2, 2)), SR, TREATMENTS["tv"])
+
+
+@pytest.mark.parametrize(
+    "call, why",
+    [
+        (lambda x: compress(x, SR, threshold_db=-20.0, ratio=0.0), "ratio >= 1"),
+        (lambda x: compress(x, SR, threshold_db=-20.0, ratio=0.5), "ratio >= 1"),
+        (
+            lambda x: compress(x, SR, threshold_db=-20.0, ratio=2.0, detector_s=0.0),
+            "detector_s > 0",
+        ),
+        (lambda x: band_pass(x, SR, low_hz=300.0, high_hz=3400.0, order=0), "order"),
+        (lambda x: band_pass(x, SR, low_hz=3400.0, high_hz=300.0), "low_hz < high_hz"),
+    ],
+)
+def test_the_stages_check_their_own_settings(call, why):
+    with pytest.raises(ValueError, match=why):
+        call(_noise(0.1))
 
 
 def test_empty_input_comes_back_empty():
@@ -138,7 +178,7 @@ def test_the_upper_edge_is_held_under_nyquist_at_a_low_rate():
 @pytest.mark.parametrize(
     "kw",
     [
-        dict(highpass_hz=3000.0, lowpass_hz=300.0),
+        dict(low_hz=3000.0, high_hz=300.0),
         dict(ratio=0.5),
         dict(detector_s=0.0),
         dict(filter_order=0),
@@ -146,14 +186,14 @@ def test_the_upper_edge_is_held_under_nyquist_at_a_low_rate():
     ],
 )
 def test_preset_validates_its_values(kw):
-    base = dict(highpass_hz=300.0, lowpass_hz=3000.0, threshold_db=-20.0, ratio=2.0)
+    base = dict(low_hz=300.0, high_hz=3000.0, threshold_db=-20.0, ratio=2.0)
     with pytest.raises(ValueError, match="needs"):
         TreatmentPreset("bad", **{**base, **kw})
 
 
 def test_a_variant_is_a_replace_away():
     hot = dataclasses.replace(TREATMENTS["am_radio"], name="hot", makeup_db=12.0)
-    assert hot.highpass_hz == TREATMENTS["am_radio"].highpass_hz and hot.name == "hot"
+    assert hot.low_hz == TREATMENTS["am_radio"].low_hz and hot.name == "hot"
 
 
 def test_import_stays_light():
