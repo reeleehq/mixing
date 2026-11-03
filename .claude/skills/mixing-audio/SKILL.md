@@ -556,6 +556,22 @@ r = level_file(
 
 The output is audio only (in place over a video is refused). `sample_rate` resamples while decoding, so the ceiling holds at the rate written. Silence gets no gain; a gain above `max_gain_db` (24 dB) is capped with a warning. `true_peak=False` limits sample peaks; `encode_args=("-c:a", "pcm_s24le")` picks the codec. The pieces are public: `stream_loudness`, `stream_limit_peaks` (the limiter over chunks), `mixing.decode.decode_float_chunks` / `encode_float_chunks`.
 
+## A program heard through a device (radio, TV, PA, phone)
+
+`mixing.treatment` colours a whole program (a voice and the crowd it carries) as "the car radio", "the TV next door", "the stadium PA" or "the phone": band-pass, then a compressor with make-up gain, then the peak limiter. Arrays only, `mixing[loudness]`, no media stack.
+
+```python
+from dataclasses import replace
+from mixing.treatment import TREATMENTS, resolve_treatment
+
+radio = TREATMENTS["am_radio"]       # also "tv", "pa", "phone" (300-3400 Hz)
+out = radio(samples, fs)             # mono (n,) or (n, channels); shape and float dtype kept
+hot = replace(radio, name="hot", makeup_db=12.0)   # a variant
+treat = resolve_treatment(treatment)  # a host's treatment= seam: name, preset, callable, None (dry)
+```
+
+The stages are public on their own: `band_pass(x, fs, low_hz=, high_hz=)`, `compress(x, fs, threshold_db=, ratio=, makeup_db=)` (channels linked by mean power). The presets' compressor numbers were set by ear, not calibrated.
+
 ## Speaker turns: loudness, voice diagnosis, pitch
 
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
