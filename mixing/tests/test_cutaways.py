@@ -1,5 +1,7 @@
 """``mixing.video.cutaways``: the pure plan, and a real single-pass render."""
 
+import subprocess
+
 import pytest
 
 pytest.importorskip("moviepy")
@@ -429,3 +431,137 @@ def test_an_items_own_caption_equal_to_the_plans_is_still_shown():
     fc = plan.filter_complex
     assert "enable='(gte(t,1)*lt(t,2))*not(gte(t,2)*lt(t,3))'" in fc  # the plan's
     assert "enable='gte(t,2)*lt(t,3)'[vout]" in fc  # the item's own, its window
+
+
+# --- a looks.Ripple entrance (#170) ---------------------------------------------
+
+
+def test_a_ripple_enters_by_its_dissolve_and_warps_the_finished_picture():
+    from looks import Ripple
+
+    seen = []
+
+    def compile_effects(effects, info):
+        seen.append(([e.params["start_s"] for e in effects], info))
+        return "WARP"
+
+    items = [
+        Cutaway("a.mp4", 0, 1, 2, transition_in=Ripple(0.5)),
+        Cutaway("b.mp4", 0, 2.5, 3, transition_in=Ripple(0.25)),
+    ]
+    plan = _plan(items, post="negate", compile_effects=compile_effects)
+    fc = plan.filter_complex
+    assert "xfade=transition=fade:duration=0.5:offset=0" in fc  # the dissolve
+    assert "xfade=transition=fade:duration=0.25:offset=0" in fc
+    # one compile for every warp, each at its item's t0, against the base's shape
+    assert seen == [([1.0, 2.5], INFO)]
+    # on the composited picture, then the caller's post
+    assert fc.endswith("[b2]WARP[wp];[wp]negate[vout]")
+
+
+def test_no_ripple_no_compile():
+    from looks import Transition
+
+    def refuse(effects, info):
+        raise AssertionError("compiled without a Ripple")
+
+    plan = _plan(
+        [Cutaway("a.mp4", 0, 1, 2, transition_in=Transition(0.5))],
+        compile_effects=refuse,
+    )
+    assert plan.maps[0] == "[b1]"
+
+
+def test_a_ripple_longer_than_its_window_is_refused():
+    from looks import Ripple
+
+    with pytest.raises(ValueError, match="shorter than the window"):
+        Cutaway("a.mp4", 0, 1, 1.5, transition_in=Ripple(0.5))
+
+
+def test_entrance_and_warp_of_an_item():
+    from looks import Ripple, Transition
+
+    fade = Cutaway("a.mp4", 0, 1, 2, transition_in=Transition(0.5, "wipeleft"))
+    assert fade.entrance == Transition(0.5, "wipeleft") and fade.warp is None
+    r = Ripple(0.5)
+    rippled = Cutaway("a.mp4", 0, 1, 2, transition_in=r)
+    assert rippled.entrance == r.dissolve and rippled.warp == r.effect(offset=1)
+    assert Cutaway("a.mp4", 0, 1, 2).entrance is None
+
+
+def test_captions_go_on_after_the_warp_and_late_items_are_not_compiled():
+    from looks import Ripple
+
+    seen = []
+
+    def compile_effects(effects, info):
+        seen.append([e.params["start_s"] for e in effects])
+        return "WARP"
+
+    items = [
+        Cutaway("a.mp4", 0, 1, 2, transition_in=Ripple(0.5)),
+        Cutaway("b.mp4", 0, 3.5, 4, transition_in=Ripple(0.25)),  # after the base
+    ]
+    with pytest.warns(UserWarning, match="will not show"):
+        plan = _plan(items, overlay="c.png", compile_effects=compile_effects)
+    assert seen == [[1.0]]
+    fc = plan.filter_complex
+    assert fc.index("WARP[wp]") < fc.index("[wp][cap0]overlay")
+
+
+def _textured_video(path, *, seconds=4, rate=24):
+    from mixing.util import ffmpeg_exe
+
+    subprocess.run(
+        [ffmpeg_exe(), "-v", "error", "-y", "-f", "lavfi",
+         "-i", f"testsrc2=s=320x240:r={rate}:d={seconds}",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="ffmpeg needed")
+def test_real_render_ripples_both_shots_only_inside_its_window(
+    make_color_video, tmp_path
+):
+    import cv2
+    import numpy as np
+    from looks import Ripple, Transition
+
+    base = _textured_video(tmp_path / "base.mp4")  # texture a warp must move
+    item = make_color_video(4.0, color=(0, 255, 0))
+    caption = tmp_path / "cap.png"
+    stripes = np.zeros((40, 40, 4), np.uint8)
+    stripes[..., 3] = 255
+    stripes[:, ::2, :3] = 255  # one-pixel stripes: a warp of a pixel would show
+    cv2.imwrite(str(caption), stripes)
+
+    def frame(path, t):
+        cap = cv2.VideoCapture(str(path))
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, f = cap.read()
+        cap.release()
+        assert ok
+        return f.astype(float)
+
+    def render(transition, name):
+        return cutaways(
+            base,
+            [Cutaway(item, 0.0, 1.0, 3.0, transition_in=transition)],
+            overlay=caption,
+            output=tmp_path / name,
+        )
+
+    plain = render(Transition(1.0, "fade"), "plain.mp4")
+    rippled = render(Ripple(1.0, bloom=0.0), "ripple.mp4")  # the warp alone
+    differs = lambda t: np.abs(frame(plain, t) - frame(rippled, t)).mean()  # noqa: E731
+    # early in the window the picture is still mostly the base: the warp moves
+    # it; outside the window only the encoder's own noise differs (measured
+    # 6.9 inside vs 0.3 and 0.0 outside)
+    outside = max(differs(0.5), differs(2.5))
+    assert differs(1.25) > max(10 * outside, 2.0)
+    # the caption sits on top of the warp, unmoved
+    inside = frame(rippled, 1.25)[:40, :40]
+    np.testing.assert_allclose(inside, frame(plain, 1.25)[:40, :40], atol=40)

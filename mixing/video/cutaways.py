@@ -10,8 +10,9 @@ ffmpeg has) and runs it in a single pass:
   frame (``fit``, default ``"fill"``: cover and crop), shifted to its start
   ``t0`` and overlaid on the base only while ``t0 <= t < t1`` (a hard cut, or,
   with ``transition_in`` (a ``looks.Transition``), an ``xfade`` from what is
-  on screen into the item over ``[t0, t0 + duration_s)``; a window outlasting
-  the clip falls back to the base);
+  on screen into the item over ``[t0, t0 + duration_s)``; a ``looks.Ripple``
+  enters by its dissolve and adds its warp to the finished picture; a window
+  outlasting the clip falls back to the base);
 - the base audio keeps playing at full level; a cutaway's own audio is mixed in
   only when it has an ``audio_gain`` (linear), with short fades at its edges;
   ``amix normalize=0`` so mixing does not halve the base level;
@@ -39,9 +40,9 @@ import subprocess
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Union
 
-from looks import Transition
+from looks import Effect, Ripple, Transition
 from looks.geometry import FitMode, Size, ffmpeg_chain, placement
 
 from mixing.egress import Output, write_egress
@@ -71,6 +72,10 @@ DEFAULT_FFMPEG_ARGS = (
 #: Where the ``overlay`` image sits on the frame (ffmpeg ``overlay`` x, y).
 DEFAULT_OVERLAY_XY = ("0", "0")
 
+#: How an item enters: a cross-fade (``looks.Transition``), or a ``looks.Ripple``
+#: (its dissolve, plus its warp on the finished picture).
+Entrance = Union[Transition, Ripple]
+
 
 @dataclass(frozen=True)
 class Cutaway:
@@ -89,6 +94,11 @@ class Cutaway:
     this item's window instead of :func:`plan_cutaways`' ``overlay`` (a big
     caption on one window, the small one elsewhere), at ``overlay_xy`` (default:
     the plan's).
+
+    ``transition_in`` may be a ``looks.Ripple``: the item enters by its
+    ``dissolve``, and :func:`plan_cutaways` runs its warp
+    (``effect(offset=t0)``) on the finished picture, the only stream that holds
+    both shots (the entrance's own ``xfade`` holds the incoming item alone).
     """
 
     src: str | Path
@@ -96,7 +106,7 @@ class Cutaway:
     t0: float
     t1: float
     audio_gain: Optional[float] = None
-    transition_in: Optional[Transition] = None
+    transition_in: Optional[Entrance] = None
     overlay: str | Path | None = None
     overlay_xy: Optional[tuple[str, str]] = None
 
@@ -107,17 +117,29 @@ class Cutaway:
             raise ValueError(f"src_in must be >= 0: {self}")
         if self.audio_gain is not None and self.audio_gain < 0:
             raise ValueError(f"audio_gain must be >= 0: {self}")
-        if self.transition_in is not None and not (
-            self.transition_in.duration_s < self.t1 - self.t0
+        if self.entrance is not None and not (
+            self.entrance.duration_s < self.t1 - self.t0
         ):
             raise ValueError(
-                f"transition_in ({self.transition_in.duration_s}s) must be shorter "
+                f"transition_in ({self.entrance.duration_s}s) must be shorter "
                 f"than the window ({self.t1 - self.t0:g}s): {self}"
             )
 
     @property
     def duration(self) -> float:
         return round(self.t1 - self.t0, 3)
+
+    @property
+    def entrance(self) -> Optional[Transition]:
+        """The cross-fade the item enters by (a ``Ripple``'s ``dissolve``)."""
+        t = self.transition_in
+        return t.dissolve if isinstance(t, Ripple) else t
+
+    @property
+    def warp(self) -> Optional[Effect]:
+        """The ``looks`` effect this item adds to the finished picture, if any."""
+        t = self.transition_in
+        return t.effect(offset=self.t0) if isinstance(t, Ripple) else None
 
     @property
     def is_image(self) -> bool:
@@ -293,7 +315,7 @@ def _entrance(i: int, item: Cutaway, *, fps: float) -> tuple[list[str], str]:
     item (fades, dissolve, wipes, circles) are exact; curves that also move or
     darken the outgoing picture (slides, ``fadeblack``) move only the incoming one.
     """
-    t0, d, rate = _num(item.t0), _num(item.transition_in.duration_s), _num(fps)
+    t0, d, rate = _num(item.t0), _num(item.entrance.duration_s), _num(fps)
     # xfade needs a stated constant rate on both inputs
     head = (
         f"trim=start={t0}:duration={d},setpts=PTS-STARTPTS,fps={rate},format=yuva420p"
@@ -303,7 +325,7 @@ def _entrance(i: int, item: Cutaway, *, fps: float) -> tuple[list[str], str]:
             f"[v{i}]split[w{i}][wx{i}]",
             f"[wx{i}]{head},split[wf{i}][wz{i}]",
             f"[wz{i}]lutyuv=a=0[z{i}]",  # the same picture, fully transparent
-            f"[z{i}][wf{i}]xfade=transition={item.transition_in.curve}:"
+            f"[z{i}][wf{i}]xfade=transition={item.entrance.curve}:"
             f"duration={d}:offset=0,setpts=PTS+{t0}/TB[x{i}]",
         ],
         f"w{i}",
@@ -311,15 +333,49 @@ def _entrance(i: int, item: Cutaway, *, fps: float) -> tuple[list[str], str]:
 
 
 def _window(item: Cutaway, *, after_entrance: bool = False) -> str:
-    if after_entrance and item.transition_in is not None:
-        start = _num(item.t0 + item.transition_in.duration_s)
+    if after_entrance and item.entrance is not None:
+        start = _num(item.t0 + item.entrance.duration_s)
         return f"gte(t,{start})*lt(t,{_num(item.t1)})"
     return f"gte(t,{_num(item.t0)})*lt(t,{_num(item.t1)})"
 
 
 def _entrance_window(item: Cutaway) -> str:
-    end = _num(item.t0 + item.transition_in.duration_s)
+    end = _num(item.t0 + item.entrance.duration_s)
     return f"gte(t,{_num(item.t0)})*lt(t,{end})"
+
+
+#: How ``looks`` effects become one ffmpeg fragment for a picture shaped like the
+#: base: ``(effects, base info) -> filter fragment``.
+EffectCompiler = Callable[[Sequence[Effect], MediaInfo], str]
+
+
+def compile_effects(
+    effects: Sequence[Effect], info: MediaInfo, *, ffmpeg: Optional[str] = None
+) -> str:
+    """``effects`` as one ffmpeg filter fragment for a picture shaped like ``info``.
+
+    Compiled by ``looks.compile_look`` against the ffmpeg that renders
+    (``ffmpeg``, default the one :meth:`CutawayPlan.command` runs by default:
+    running the plan with ``command(ffmpeg=other)`` needs a compiler made for
+    that binary, ``partial(compile_effects, ffmpeg=other)``): a ``looks``
+    step's licence position is a property of the binary, so it is probed
+    (``looks.probe``), once per call. :func:`plan_cutaways` calls it only when
+    some item has a ``Ripple``; pass ``compile_effects=`` there to compile for
+    another binary or to skip the probe.
+    """
+    import looks
+    from looks.spec import ClipSpec
+
+    clip = ClipSpec(
+        width=info.width,
+        height=info.height,
+        fps=info.fps or DEFAULT_FPS,
+        duration_s=info.duration or None,
+    )
+    env = looks.probe(ffmpeg or ffmpeg_exe())
+    return looks.vf(
+        looks.compile_look(looks.Look(steps=tuple(effects)), clip=clip, env=env)
+    )
 
 
 def _check_source(item: Cutaway, info: MediaInfo) -> None:
@@ -354,6 +410,7 @@ def plan_cutaways(
     audio_fade_out_s: float = DEFAULT_AUDIO_FADE_OUT_S,
     ffmpeg_args: Sequence[str] = DEFAULT_FFMPEG_ARGS,
     probe: Callable[[str | Path], MediaInfo] = probe_media,
+    compile_effects: EffectCompiler = compile_effects,
 ) -> CutawayPlan:
     """The :class:`CutawayPlan` of ``items`` over ``base``: nothing is rendered.
 
@@ -366,7 +423,10 @@ def plan_cutaways(
     at ``overlay_xy`` (ffmpeg expressions); an item with its own ``overlay``
     shows that one instead. An item with a ``transition_in`` enters by it.
     ``post`` (a filter fragment, e.g. ``looks.vf(...)``) runs on the finished
-    picture, after every overlay. Items are drawn in order, so a later one wins
+    picture, after every overlay. The warps of items entering by a
+    ``looks.Ripple`` run on the composited picture before the captions go on
+    (so captions stay still), each gated to its own window and compiled
+    together by ``compile_effects``. Items are drawn in order, so a later one wins
     where windows overlap.
 
     Args:
@@ -381,14 +441,24 @@ def plan_cutaways(
             ``looks.vf``) for the base / for the cutaways only.
         audio_fade_in_s, audio_fade_out_s: fades on each mixed cutaway audio.
         ffmpeg_args: Encode arguments (default x264 CRF 18 + AAC).
-        probe: How a file's :class:`MediaInfo` is obtained (the only I/O here).
+        probe: How a file's :class:`MediaInfo` is obtained (the only I/O here,
+            with the ffmpeg probe of the default ``compile_effects``).
+        compile_effects: How the items' ``looks`` effects (a ``Ripple``'s warp)
+            become a filter fragment (default :func:`compile_effects`).
 
     Raises:
         ValueError: no items, or a ``src_in`` past the end of its clip.
+        looks.CompileError: the default ``compile_effects`` cannot compile a
+            ``Ripple``'s warp for the ffmpeg found (no usable ffmpeg).
     """
     if not items:
         raise ValueError("cutaways needs at least one Cutaway")
     base_info = probe(base)
+    shown_at_all = [
+        item for item in items if not base_info.duration or item.t0 < base_info.duration
+    ]
+    warps = [w for item in shown_at_all if (w := item.warp) is not None]
+    warp_fx = compile_effects(warps, base_info) if warps else None
     fps = base_info.fps or DEFAULT_FPS
     infos = [probe(item.src) for item in items]
 
@@ -414,9 +484,7 @@ def plan_cutaways(
                 f"({base_info.duration:.2f}s): it will not show",
                 stacklevel=3,
             )
-        entrance_end = item.t0 + (
-            item.transition_in.duration_s if item.transition_in else 0.0
-        )
+        entrance_end = item.t0 + (item.entrance.duration_s if item.entrance else 0.0)
         if base_info.duration and item.t0 < base_info.duration < entrance_end:
             warnings.warn(
                 f"cutaway entrance runs to {entrance_end:g}s, past the base's end "
@@ -436,7 +504,7 @@ def plan_cutaways(
             )  # fmt: skip
         )
         shown = f"v{i}"
-        if item.transition_in is not None:
+        if item.entrance is not None:
             entrance, shown = _entrance(i, item, fps=fps)
             fc += entrance
             fc.append(
@@ -454,6 +522,10 @@ def plan_cutaways(
                 )
             )
             mixed.append(f"[a{i}]")
+
+    if warp_fx:  # on the picture holding both shots, under the captions
+        fc.append(f"[{last}]{warp_fx}[wp]")
+        last = "wp"
 
     # one overlay per (image, position): the plan's on the items without their
     # own, each item's own on its window
