@@ -22,6 +22,7 @@ is re-exported here.
 from __future__ import annotations
 
 import itertools
+from contextlib import suppress
 import os
 import secrets
 import shutil
@@ -223,8 +224,8 @@ def encode_float_chunks(
 def _remove_partial(
     partial: Path,
     *,
-    attempts: int = PARTIAL_REMOVE_ATTEMPTS,
-    wait_s: float = PARTIAL_REMOVE_WAIT_S,
+    attempts: Optional[int] = None,
+    wait_s: Optional[float] = None,
 ) -> None:
     """Remove a half-written file, never raising: it only exists when the write
     already failed, and that error is the one the caller must see.
@@ -232,8 +233,13 @@ def _remove_partial(
     Windows can refuse the removal for a moment after the ffmpeg writing it has
     exited (``WinError 32``: in use by another process, typically a scanner), so
     that refusal is retried, ``attempts`` times ``wait_s`` apart. A file still
-    refused after that, or any other refusal, is left behind with a warning.
+    refused after that, or any other refusal, is left behind with a warning
+    (suppressed under ``-W error``, so it cannot replace the real error either).
+    ``attempts`` and ``wait_s`` default to the module's constants, read at call
+    time.
     """
+    attempts = PARTIAL_REMOVE_ATTEMPTS if attempts is None else attempts
+    wait_s = PARTIAL_REMOVE_WAIT_S if wait_s is None else wait_s
     for attempt in range(attempts):
         try:
             partial.unlink(missing_ok=True)
@@ -241,6 +247,10 @@ def _remove_partial(
         except PermissionError as e:
             in_use = getattr(e, "winerror", None) == WINDOWS_SHARING_VIOLATION
             if not in_use or attempt == attempts - 1:
-                warnings.warn(f"could not remove the partial file {partial}: {e}")
+                with suppress(Warning):  # -W error must not mask the real error
+                    warnings.warn(
+                        f"could not remove the partial file {partial}: {e}",
+                        stacklevel=3,
+                    )
                 return
             time.sleep(wait_s)
