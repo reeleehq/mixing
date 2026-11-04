@@ -158,3 +158,41 @@ def test_import_stays_light():
         "assert not heavy, heavy"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_a_span_past_the_end_still_fades_the_base_out():
+    base = np.ones((SR, 1))
+    out = replace_span(base, (2.0, 3.0), np.ones((100, 1)), sr=SR)[:, 0]
+    f = int(round(JOIN_FADE_S * SR))
+    assert len(out) == SR + 100
+    assert out[SR - 1] < 0.2 and out[SR] == 0  # no step from 1.0 into the insert
+    np.testing.assert_array_equal(out[: SR - f], 1.0)
+
+
+def test_the_engine_checks_its_cut_and_fade():
+    with pytest.raises(ValueError, match="0 <= start <= end"):
+        list(spliced_chunks([np.zeros((10, 1))], (6, 3), np.zeros(2), fade=1))
+    with pytest.raises(ValueError, match="fade must be >= 0"):
+        list(spliced_chunks([np.zeros((10, 1))], (3, 6), np.zeros(2), fade=-1))
+    with pytest.raises(ValueError, match="fade_s must be >= 0"):
+        replace_span(np.zeros(10), (0.1, 0.2), np.zeros(2), sr=10, fade_s=-1)
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("codec", ["pcm_s24le", "pcm_f32le"])
+def test_a_deep_wav_master_keeps_its_depth_and_its_samples(tmp_path, codec):
+    from mixing.decode import encode_float_chunks
+    from mixing.probe import probe
+
+    src = encode_float_chunks(
+        [_noise(2 * SR)], SR, tmp_path / "m.wav", args=("-c:a", codec)
+    )
+    before, _ = _read(src)
+    replace_span_file(
+        src, (0.5, 1.0), [0.0] * 40, output=src
+    )  # a list insert, in place
+    assert [s.codec for s in probe(src).streams] == [codec]
+    after, _ = _read(src)
+    a, f = SR // 2, int(round(JOIN_FADE_S * SR))
+    np.testing.assert_array_equal(after[: a - f], before[: a - f])  # bit-exact
+    np.testing.assert_array_equal(after[a + 40 + f :], before[SR + f :])
