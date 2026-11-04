@@ -2,7 +2,7 @@
 
 # About this build
 
-This documentation was built on **2026-11-04 04:03 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/be98b470b1aa3c1fc4b1ad22e6927bf52613e483"><code>be98b47</code></a> on branch <code>main</code>, for **mixing 0.0.108** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-04 04:06 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/be98b470b1aa3c1fc4b1ad22e6927bf52613e483"><code>be98b47</code></a> on branch <code>main</code>, for **mixing 0.0.108** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -22,9 +22,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41769436159">41769436159</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41769413949">41769413949</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b</code> (in the history of the built commit) |
+| Event commit | <code>375aeb67d2d96a767c5032cef5952101e8e42aa5</code> (in the history of the built commit) |
 
 ## Tools
 
