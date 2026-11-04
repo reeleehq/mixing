@@ -1,4 +1,4 @@
-> built 2026-11-04 04:02 UTC from bffe37e (main) · mixing 0.0.107. Details: build_info.json
+> built 2026-11-04 04:03 UTC from be98b47 (main) · mixing 0.0.108. Details: build_info.json
 
 # index.html.md
 
@@ -3648,7 +3648,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-04 04:02 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b"><code>bffe37e</code></a> on branch <code>main</code>, for **mixing 0.0.107** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-04 04:03 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/be98b470b1aa3c1fc4b1ad22e6927bf52613e483"><code>be98b47</code></a> on branch <code>main</code>, for **mixing 0.0.108** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -3657,7 +3657,7 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b"><code>bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/be98b470b1aa3c1fc4b1ad22e6927bf52613e483"><code>be98b470b1aa3c1fc4b1ad22e6927bf52613e483</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -3668,9 +3668,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41769366480">41769366480</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41769436159">41769436159</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>df6a109f70416978a6155fbff15dcb38def1eb4b</code> (in the history of the built commit) |
+| Event commit | <code>bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3695,13 +3695,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.107/">0.0.107</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.108/">0.0.108</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b
+git checkout be98b470b1aa3c1fc4b1ad22e6927bf52613e483
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

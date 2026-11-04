@@ -1,32 +1,32 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-04T04:02:00Z",
+  "built_at": "2026-11-04T04:03:18Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.107",
+    "version": "0.0.108",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b",
-    "short_commit": "bffe37e",
+    "commit": "be98b470b1aa3c1fc4b1ad22e6927bf52613e483",
+    "short_commit": "be98b47",
     "branch": "main",
     "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/be98b470b1aa3c1fc4b1ad22e6927bf52613e483",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "df6a109f70416978a6155fbff15dcb38def1eb4b",
+    "sha": "bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41769366480",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41769366480",
+    "run_id": "41769436159",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41769436159",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -60,11 +60,11 @@
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.107",
+    "latest": "0.0.108",
     "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout bffe37e2d8287ef8bc4fe25f7f4f39453ab54d2b\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout be98b470b1aa3c1fc4b1ad22e6927bf52613e483\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": true,
