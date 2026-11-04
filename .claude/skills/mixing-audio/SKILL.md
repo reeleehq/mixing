@@ -564,10 +564,12 @@ The output is audio only (in place over a video is refused). `sample_rate` resam
 from dataclasses import replace
 from mixing.treatment import TREATMENTS, resolve_treatment
 
-radio = TREATMENTS["am_radio"]       # also "tv", "pa", "phone" (300-3400 Hz)
-out = radio(samples, fs)             # mono (n,) or (n, channels); shape and float dtype kept
-hot = replace(radio, name="hot", makeup_db=12.0)   # a variant
-treat = resolve_treatment(treatment)  # a host's treatment= seam: name, preset, callable, None (dry)
+radio = TREATMENTS["am_radio"]  # also "tv", "pa", "phone" (300-3400 Hz)
+out = radio(samples, fs)  # mono (n,) or (n, channels); shape and float dtype kept
+hot = replace(radio, name="hot", makeup_db=12.0)  # a variant
+treat = resolve_treatment(
+    treatment
+)  # a host's treatment= seam: name, preset, callable, None (dry)
 ```
 
 The stages are public on their own: `band_pass(x, fs, low_hz=, high_hz=)`, `compress(x, fs, threshold_db=, ratio=, makeup_db=)` (channels linked by mean power). The presets' compressor numbers were set by ear, not calibrated.
