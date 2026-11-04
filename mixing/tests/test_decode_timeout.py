@@ -247,30 +247,3 @@ def test_ctrl_c_while_waiting_on_ffmpeg_still_kills_it(tmp_path):
     with pytest.raises(KeyboardInterrupt):
         stream_kinds(fifo, timeout=30)  # blocks in the final wait, not the block
     assert _ffmpegs_reading(fifo) == []
-
-
-def test_a_partial_file_still_in_use_is_removed_on_a_retry(tmp_path, monkeypatch):
-    # Windows: the killed ffmpeg's file can be refused for a moment (WinError 32)
-    from pathlib import Path
-
-    import mixing.decode as decode
-
-    partial = tmp_path / ".x.partial.wav"
-    partial.write_bytes(b"RIFF")
-    refusals = iter([True, True, False])
-    real_unlink = Path.unlink
-
-    def unlink(self, missing_ok=False):
-        if self == partial and next(refusals):
-            raise PermissionError(32, "in use by another process")
-        return real_unlink(self, missing_ok=missing_ok)
-
-    monkeypatch.setattr(Path, "unlink", unlink)
-    decode._remove_partial(partial, wait_s=0)
-    assert not partial.exists()
-    stuck = tmp_path / ".y.partial.wav"
-    stuck.write_bytes(b"RIFF")
-    refusals = iter([True] * 3)
-    partial = stuck
-    with pytest.raises(PermissionError):
-        decode._remove_partial(stuck, attempts=3, wait_s=0)

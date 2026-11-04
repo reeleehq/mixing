@@ -28,6 +28,7 @@ import shutil
 import struct
 import subprocess
 import time
+import warnings
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
 
@@ -52,6 +53,8 @@ except ImportError as e:
 #: many times, this far apart: half a second in all.
 PARTIAL_REMOVE_ATTEMPTS = 10
 PARTIAL_REMOVE_WAIT_S = 0.05
+#: Windows' error number for a file in use by another process.
+WINDOWS_SHARING_VIOLATION = 32
 
 #: Seconds of audio per chunk by default.
 DECODE_CHUNK_S = 5.0
@@ -223,15 +226,21 @@ def _remove_partial(
     attempts: int = PARTIAL_REMOVE_ATTEMPTS,
     wait_s: float = PARTIAL_REMOVE_WAIT_S,
 ) -> None:
-    """Remove a half-written file. Windows may still hold it for a moment after
-    the ffmpeg writing it was killed and waited for (``WinError 32``: in use by
-    another process, a killed tree's child or a scanner), so a refused removal is
-    retried, ``attempts`` times ``wait_s`` apart, before the error is raised."""
+    """Remove a half-written file, never raising: it only exists when the write
+    already failed, and that error is the one the caller must see.
+
+    Windows can refuse the removal for a moment after the ffmpeg writing it has
+    exited (``WinError 32``: in use by another process, typically a scanner), so
+    that refusal is retried, ``attempts`` times ``wait_s`` apart. A file still
+    refused after that, or any other refusal, is left behind with a warning.
+    """
     for attempt in range(attempts):
         try:
             partial.unlink(missing_ok=True)
             return
-        except PermissionError:
-            if attempt == attempts - 1:
-                raise
+        except PermissionError as e:
+            in_use = getattr(e, "winerror", None) == WINDOWS_SHARING_VIOLATION
+            if not in_use or attempt == attempts - 1:
+                warnings.warn(f"could not remove the partial file {partial}: {e}")
+                return
             time.sleep(wait_s)
