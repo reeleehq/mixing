@@ -1,32 +1,32 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-04T04:32:45Z",
+  "built_at": "2026-11-04T04:35:23Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.111",
+    "version": "0.0.112",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "07c0cbc2449e9a699befd226fd42d243a9064818",
-    "short_commit": "07c0cbc",
+    "commit": "2851aee5be6382a94d0e5a9af353a598c809f3fc",
+    "short_commit": "2851aee",
     "branch": "main",
     "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/07c0cbc2449e9a699befd226fd42d243a9064818",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/2851aee5be6382a94d0e5a9af353a598c809f3fc",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "6e1bf95d18a3ee94603ca1d35ce209505390dc6c",
+    "sha": "53ab83b16e71dd06207440c807b26fb1297070d5",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "41773071961",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41773071961",
+    "run_id": "41773092781",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/41773092781",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -64,12 +64,12 @@
     "relation": "ahead",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 07c0cbc2449e9a699befd226fd42d243a9064818\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 2851aee5be6382a94d0e5a9af353a598c809f3fc\npip install \"epythet==0.2.22\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": false,
     "notes": [
-      "The documented version (0.0.111) is ahead of the latest release on PyPI (0.0.110): these docs describe unreleased code."
+      "The documented version (0.0.112) is ahead of the latest release on PyPI (0.0.110): these docs describe unreleased code."
     ]
   }
 }
