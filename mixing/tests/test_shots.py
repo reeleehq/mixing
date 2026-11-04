@@ -613,7 +613,8 @@ def test_histogram_cuts_land_on_the_playback_rate_not_r_frame_rate(tmp_path):
         check=True,
     )  # fmt: skip
     found = probe(clip)
-    assert found.variable_rate and float(found.fps) > 100  # the trap is there
+    if not (found.variable_rate and float(found.fps) > 100):  # the trap is there
+        pytest.skip("this ffmpeg did not keep the jittered pts (no trap to test)")
     spans = shots(clip, strategy="histogram")
     assert len(spans) == 2 and spans[0][1] == pytest.approx(4.0, abs=0.05)
 
