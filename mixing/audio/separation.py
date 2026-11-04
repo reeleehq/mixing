@@ -40,6 +40,10 @@ Registered strategies (licences are the checkpoints'):
 - ``"htdemucs"`` (MIT, ``pip install 'mixing[demucs]'``): the ``vocals`` stem of
   Hybrid Transformer Demucs as the speech. **Instrumental beds only**: it removes
   the singing along with the talk.
+- ``"voxy_htdemucs_ft"`` (MIT, ``pip install 'mixing[voxy]'``): the same job by
+  voxy's Demucs (``htdemucs_ft``), run **out of process** in voxy's own
+  environment, so this process imports no torch (:func:`voxy_separator`).
+  Instrumental beds only, as ``"htdemucs"``.
 
 Heavy dependencies (``torch``, ``clearvoice``, ``demucs``) are imported inside the
 strategies, so ``import mixing.audio`` stays light, and a missing one raises an
@@ -67,7 +71,13 @@ from typing import Any, Callable, Optional, Union
 import numpy as np
 
 from ..egress import Output, deliver
-from ..util import DEMUCS_EXTRA, SEPARATION_EXTRA, install_hint, require_extra
+from ..util import (
+    DEMUCS_EXTRA,
+    SEPARATION_EXTRA,
+    VOXY_EXTRA,
+    install_hint,
+    require_extra,
+)
 from ..util import require_package
 from ._pcm import resample
 from .samples import AudioLike, float_input
@@ -474,6 +484,55 @@ def htdemucs_separate(samples: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndar
     return vocals, x - vocals
 
 
+#: The registry name of :func:`voxy_separator`'s default (voxy's default model).
+VOXY_SEPARATOR = "voxy_htdemucs_ft"
+
+
+def voxy_separator(*, name: str = VOXY_SEPARATOR, **options) -> SeparationStrategy:
+    """voxy's Demucs as a strategy, run **out of process** in voxy's own environment.
+
+    ``voxy.separate.speech_separator(**options)`` (thorwhalen/voxy#99) behind the
+    seam: ``htdemucs_ft``'s vocals sub-model by default, the music being the input
+    minus the voice, at Demucs's 44.1 kHz (mixing resamples to and from it, as for
+    ``"htdemucs"``). The host process imports no torch (extra ``voxy``,
+    ``pip install 'mixing[voxy]'``); voxy builds its Demucs environment on first
+    use. ``options`` are ``speech_separator``'s (``stem``, Demucs's ``shifts``,
+    ``overlap``, a ``run`` such as another model's worker: give it its ``name``
+    then), except ``sample_rate``, which is mixing's. Like ``"htdemucs"``, for
+    instrumental beds: the vocals stem holds singing too.
+
+    >>> voxy_separator().name, voxy_separator(shifts=2).context_s
+    ('voxy_htdemucs_ft', 3.0)
+    """
+    if "sample_rate" in options:
+        raise ValueError(
+            "voxy_separator takes no sample_rate: mixing resamples to and from "
+            "the model's rate itself"
+        )
+
+    def separate(samples: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
+        try:  # the extra is checked first; a voxy too old has no speech_separator
+            from voxy.separate import speech_separator
+        except ImportError as e:
+            raise ImportError(
+                f"the {name!r} separator needs a voxy with speech_separator: "
+                f"{install_hint(VOXY_EXTRA)} (upgrades voxy to the floor)",
+                name=e.name,
+            ) from e
+        return speech_separator(**options)(samples, sr)
+
+    return SeparationStrategy(
+        name=name,
+        separate=separate,
+        license="MIT",
+        commercial_ok=True,
+        extra=VOXY_EXTRA,
+        mono=False,
+        sample_rate=HTDEMUCS_RATE,  # Demucs's: mixing resamples around it, as for htdemucs
+        context_s=HTDEMUCS_CONTEXT_S,
+    )
+
+
 #: The registry: ``{name: SeparationStrategy}``. Add an entry to register a
 #: strategy; filter with e.g. ``{k: s for k, s in SEPARATORS.items() if
 #: s.commercial_ok}``. Not registered on purpose: Bandit-v2 (CC-BY-SA weights,
@@ -501,6 +560,7 @@ SEPARATORS: dict[str, SeparationStrategy] = {
         sample_rate=HTDEMUCS_RATE,
         context_s=HTDEMUCS_CONTEXT_S,
     ),
+    VOXY_SEPARATOR: voxy_separator(),
 }
 #: The default strategy: the strongest permissive, pip-installable one (#63, #120).
 DEFAULT_SEPARATOR = "mossformer2_se_48k"
@@ -651,4 +711,6 @@ __all__ = [
     "wiener_split",
     "mossformer2_se_48k_speech",
     "htdemucs_separate",
+    "voxy_separator",
+    "VOXY_SEPARATOR",
 ]

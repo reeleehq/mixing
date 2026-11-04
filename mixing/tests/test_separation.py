@@ -376,7 +376,11 @@ def _run_hidden(body: str, *, hidden) -> dict:
 
 @pytest.mark.parametrize(
     "separator, extra",
-    [("mossformer2_se_48k", "separation"), ("htdemucs", "demucs")],
+    [
+        ("mossformer2_se_48k", "separation"),
+        ("htdemucs", "demucs"),
+        ("voxy_htdemucs_ft", "voxy"),
+    ],
 )
 def test_a_strategy_without_its_extra_names_the_extra(separator, extra):
     out = _run_hidden(
@@ -669,3 +673,79 @@ def test_real_default_strategy_on_a_span_longer_than_20_s():
     tail = slice(-sr // 2, None)
     assert np.std(speech[tail]) > 0.2 * np.std(voice[tail])  # the tail is decoded
     assert _si_sdr(kept, music) > _si_sdr(music + voice, music)
+
+
+# ---------------------------------------------------------------------------
+# voxy's out-of-process Demucs (#168), through voxy's own run seam
+# ---------------------------------------------------------------------------
+
+
+def _voxy_fake_run(calls):
+    """A stand-in Demucs for voxy's ``run`` seam: speech 0.75 x, rest 0.25 x."""
+    voxy_separate = pytest.importorskip("voxy.separate")
+
+    def fake(audio, out_dir, *, stem, sample_rate, **options):
+        calls.append((stem, sample_rate, options.get("shifts")))
+        samples, sr = voxy_separate.read_wav_channels(audio)
+        paths = {}
+        for name, part in ((stem, samples * 0.75), ("rest", samples * 0.25)):
+            paths[name] = f"{out_dir}/{name}.wav"
+            with open(paths[name], "wb") as f:
+                f.write(voxy_separate.write_wav_channels(part, sr))
+        return paths
+
+    return fake
+
+
+def test_voxy_separator_runs_through_voxys_seam_with_resampling():
+    from mixing.audio.separation import VOXY_SEPARATOR, voxy_separator
+
+    calls = []
+    rate = 48000  # not Demucs's 44.1 kHz: mixing resamples there and back
+    t = np.arange(rate // 4) / rate
+    x = np.stack(
+        [0.3 * np.sin(2 * np.pi * 440 * t), 0.2 * np.sin(2 * np.pi * 660 * t)], 1
+    )
+    strategy = voxy_separator(run=_voxy_fake_run(calls), shifts=2)
+    speech, music = separate_speech(x, sr=rate, separator=strategy)
+    assert speech.shape == music.shape == x.shape
+    inner = slice(rate // 50, -rate // 50)  # away from the resampler's edges
+    np.testing.assert_allclose(speech[inner], 0.75 * x[inner], atol=1e-3)
+    np.testing.assert_allclose((speech + music)[inner], x[inner], atol=1e-3)
+    assert calls == [("vocals", 44100, 2)]  # options reach voxy, at Demucs's rate
+    assert SEPARATORS[VOXY_SEPARATOR].extra == "voxy"
+    assert SEPARATORS[VOXY_SEPARATOR].commercial_ok is True
+
+
+def test_voxy_separator_owns_its_name_and_refuses_a_sample_rate():
+    from mixing.audio.separation import voxy_separator
+
+    assert voxy_separator(name="voxy_htdemucs").name == "voxy_htdemucs"
+    with pytest.raises(ValueError, match="takes no sample_rate"):
+        voxy_separator(sample_rate=16000)
+
+
+def test_a_voxy_run_imports_no_torch_here():
+    pytest.importorskip("voxy.separate")
+    out = _run_hidden(
+        """
+        import json
+        import numpy as np
+        from mixing.audio import separate_speech
+        from mixing.audio.separation import voxy_separator
+
+        def fake(audio, out_dir, *, stem, sample_rate, **options):
+            import voxy.separate as v
+            samples, sr = v.read_wav_channels(audio)
+            paths = {}
+            for name in (stem, "rest"):
+                paths[name] = f"{out_dir}/{name}.wav"
+                open(paths[name], "wb").write(v.write_wav_channels(samples / 2, sr))
+            return paths
+
+        separate_speech(np.zeros((4410, 2)), sr=44100, separator=voxy_separator(run=fake))
+        print(json.dumps({"torch": sys.modules.get("torch") is not None}))
+        """,
+        hidden=(),
+    )
+    assert out["torch"] is False
