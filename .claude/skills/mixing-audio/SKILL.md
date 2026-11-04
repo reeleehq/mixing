@@ -605,9 +605,13 @@ Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of t
 ```python
 from mixing.splice import replace_span, replace_span_file
 
-out = replace_span(take, (12.40, 15.05), new_line, sr=44100)        # arrays
-replace_span_file("take.master.flac", (12.40, 15.05), "line.wav",   # files, streamed, encoded once
-                  output="take.master.flac")                         # in place is fine for audio
+out = replace_span(take, (12.40, 15.05), new_line, sr=44100)  # arrays
+replace_span_file(
+    "take.master.flac",
+    (12.40, 15.05),
+    "line.wav",  # files, streamed, encoded once
+    output="take.master.flac",
+)  # in place is fine for audio
 ```
 
 Cut inside the pauses around the line (mid-pause between turns), not on the aligner's word edges, and let the new line bring its own room tone. Run it on a lossless master and encode the deliverable from the result, so unedited lines never degrade. A file insert is resampled to the take's rate; a mono insert goes into every channel.
