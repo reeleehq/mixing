@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import math
 import numbers
-import os
 import re
 import subprocess
 import warnings
@@ -65,7 +64,7 @@ from mixing.decode import (  # noqa: E402
     DECODE_CHUNK_S,
     decode_float_chunks,
     encode_float_chunks,
-    stream_kinds,
+    refuse_dropping_streams,
 )
 from mixing.egress import Output, write_egress  # noqa: E402
 from mixing.resample import resample  # noqa: E402
@@ -1032,15 +1031,7 @@ def level_file(
 
     def write(path: Path) -> None:
         nonlocal output_lufs
-        # samefile, not resolve(): a case-insensitive filesystem (macOS) spells
-        # one file two ways
-        in_place = path.exists() and os.path.samefile(path, src)
-        kinds = stream_kinds(src, ffmpeg=ffmpeg, timeout=timeout) if in_place else []
-        if others := sorted({kind for kind in kinds if kind != "audio"}):
-            raise ValueError(
-                f"leveling {src.name} in place would drop its {', '.join(others)} "
-                "stream(s): level_file writes audio only; give another output"
-            )
+        refuse_dropping_streams(src, path, ffmpeg=ffmpeg, timeout=timeout)
         rate, chunks = decode()
         window = None if window_s is None else max(1, round(window_s * rate))
         with closing(chunks):

@@ -598,6 +598,20 @@ bleep(
 
 Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of the word's peak, so a held sung word's tail is covered, but never past `max_end` (the next word's onset; without it the widening swallows the next word in connected singing). Widening measures the input, so it needs a vocal stem: on a whole mix the music never drops 24 dB and every span widens by the full `widen_max_s`, hence `widen_floor_db=None` there. The beep is levelled from the voice the mute removed (with a separator, its speech estimate). `widen_floor_db=None` keeps the spans as given; `beep_db`, `tone_hz`, `fade_s` tune the beep. Whisper word times are off by up to ~0.3 s on sung vocals; MMS forced alignment of the phrase gives usable bounds.
 
+## Replace one span of a take (re-render a line)
+
+`mixing.splice` cuts a span out of a take and puts new audio in, each join faded (8 ms) so there is no click and no surviving tail; outside the fades every sample is copied exactly. Needs numpy (and an ffmpeg for files), not the media stack.
+
+```python
+from mixing.splice import replace_span, replace_span_file
+
+out = replace_span(take, (12.40, 15.05), new_line, sr=44100)        # arrays
+replace_span_file("take.master.flac", (12.40, 15.05), "line.wav",   # files, streamed, encoded once
+                  output="take.master.flac")                         # in place is fine for audio
+```
+
+Cut inside the pauses around the line (mid-pause between turns), not on the aligner's word edges, and let the new line bring its own room tone. Run it on a lossless master and encode the deliverable from the result, so unedited lines never degrade. A file insert is resampled to the take's rate; a mono insert goes into every channel.
+
 ## Speaker turns: loudness, voice diagnosis, pitch
 
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
