@@ -61,4 +61,5 @@
    loudness
    resample
    shot_changes
+   treatment
    video
