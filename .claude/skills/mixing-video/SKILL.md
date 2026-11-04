@@ -248,7 +248,7 @@ contact_sheet(
 grab_frame("talk.mp4", 12.5, width=320)  # one frame as a PIL image
 ```
 
-- `strategy`: `"diff"` (default: 2 fps grayscale frame differences streamed from ffmpeg, adaptive threshold, cuts accurate to `1/fps`), `"pyscenedetect"`, or any `(video, **kwargs) -> spans` callable. Strategy options go as keywords (`fps`, `threshold`, `sampler` for `"diff"`).
+- `strategy`: `"diff"` (default: 2 fps grayscale frame differences streamed from ffmpeg, adaptive threshold, cuts accurate to `1/fps`), `"histogram"` (every frame at 320x180 in colour: a cut is a colour-histogram jump AND a mean grey change, close cuts merged; frame-accurate, and the best measured on cut-out animation, where camera moves and fast motion fool `"diff"`; it misses cuts between shots of one palette), `"pyscenedetect"`, or any `(video, **kwargs) -> spans` callable. Strategy options go as keywords (`fps`, `threshold`, `sampler` for `"diff"`; `l1`, `mean_diff`, `dedupe_frames`, `fps=None` for `"histogram"`). Holding RGB frames already: `mixing.shot_changes.histogram_changes` + `histogram_cut_indices` + `shots_from_cut_frames`, no video stack.
 - `min_shot_s` merges shorter spans into a neighbour (`merge_short_spans`); without it a dissolve reads as a short fake shot.
 
 ## Subtitles

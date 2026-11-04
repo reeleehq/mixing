@@ -14,6 +14,10 @@ finished video needs, to judge image dwell time and to choose cutaways.
   adaptive (robust to a video's own noise level). Boundaries are accurate to
   about ``1 / fps`` seconds (a cut is reported at the nearest sample); raise
   ``fps`` for finer cuts.
+- ``"histogram"`` (ffmpeg + numpy): every frame, small and in colour; a cut is a
+  colour-histogram jump and a mean grey change (:func:`histogram_shots`).
+  Frame-accurate; measured best on cut-out animation, where camera moves and
+  fast motion fool ``"diff"`` (see :mod:`mixing.shot_changes`).
 - ``"pyscenedetect"``: PySceneDetect's ``ContentDetector`` (``pip install
   scenedetect``), frame-accurate, slower.
 
@@ -35,8 +39,9 @@ import math
 import os
 import subprocess
 import tempfile
+from functools import partial
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Union
+from typing import Callable, Iterable, Iterator, Optional, Union
 
 import numpy as np
 
@@ -45,6 +50,11 @@ from mixing.shot_changes import (  # the array stages, light: re-exported here
     ADAPTIVE_THRESHOLD_SIGMAS,
     CUT_RULES,
     DEFAULT_SHOT_FPS,
+    HISTOGRAM_BITS_DROPPED,
+    HISTOGRAM_DEDUPE_FRAMES,
+    HISTOGRAM_FRAME_SIZE,
+    HISTOGRAM_L1,
+    HISTOGRAM_MEAN_DIFF,
     MAX_SHOT_THRESHOLD,
     MIN_SHOT_THRESHOLD,
     SHOT_FRAME_SIZE,
@@ -52,12 +62,15 @@ from mixing.shot_changes import (  # the array stages, light: re-exported here
     adaptive_threshold,
     cut_indices,
     frame_changes,
+    histogram_changes,
+    histogram_cut_indices,
     merge_short_spans,
     shots_from_changes,
+    shots_from_cut_frames,
     spans_from_changes,
     streamed_changes,
 )
-from mixing.probe import probe_duration  # re-exported: it lives in the light probe
+from mixing.probe import probe, probe_duration  # re-exported: in the light probe
 from mixing.util import ffmpeg_exe, require_package
 
 #: ``diff_shots(duration=SAMPLED_DURATION)``: no probe; spans tile the sampled length.
@@ -72,25 +85,40 @@ CONTACT_SHEET_THUMB_WIDTH = 240
 CONTACT_SHEET_LABEL_PAD = 3
 
 #: ``sampler(video, fps=...)``: grayscale frames as one ``(n, h, w)`` array, or
-#: an iterable of frames ``(h, w)`` or chunks ``(k, h, w)``.
+#: an iterable of frames ``(h, w)`` or chunks ``(k, h, w)`` (RGB for the
+#: ``"histogram"`` strategy: ``(..., 3)``).
 Sampler = Callable[..., Union[np.ndarray, Iterable[np.ndarray]]]
+
+#: Channels per pixel of the raw formats :func:`iter_frames` decodes to.
+PIX_FMT_CHANNELS = {"gray": 1, "rgb24": 3}
 
 
 def iter_frames(
     video,
     *,
-    fps: float = DEFAULT_SHOT_FPS,
+    fps: Optional[float] = DEFAULT_SHOT_FPS,
     size: tuple[int, int] = SHOT_FRAME_SIZE,
     chunk_frames: int = SAMPLE_CHUNK_FRAMES,
+    pix_fmt: str = "gray",
 ) -> Iterator[np.ndarray]:
-    """Decode ``video`` at ``fps`` as tiny grayscale frames, yielded in chunks
-    ``(k, h, w)`` of at most ``chunk_frames``."""
+    """Decode ``video`` at ``fps`` as tiny frames, yielded in chunks of at most
+    ``chunk_frames``: ``(k, h, w)`` grayscale, or ``(k, h, w, 3)`` with
+    ``pix_fmt="rgb24"``. ``fps=None`` decodes every frame (its own rate, frames
+    passed through as they are timed)."""
+    if pix_fmt not in PIX_FMT_CHANNELS:
+        raise ValueError(
+            f"unknown pix_fmt {pix_fmt!r}; one of {sorted(PIX_FMT_CHANNELS)}"
+        )
     width, height = size
-    frame_bytes = width * height
+    channels = PIX_FMT_CHANNELS[pix_fmt]
+    frame_bytes = width * height * channels
+    shape = (height, width) if channels == 1 else (height, width, channels)
+    rate = [] if fps is None else [f"fps={fps}"]
+    timing = ["-fps_mode", "passthrough"] if fps is None else []
     cmd = [
         ffmpeg_exe(), "-v", "error", "-i", str(video),
-        "-vf", f"fps={fps},scale={width}:{height}",
-        "-f", "rawvideo", "-pix_fmt", "gray", "-",
+        "-vf", ",".join([*rate, f"scale={width}:{height}"]), *timing,
+        "-f", "rawvideo", "-pix_fmt", pix_fmt, "-",
     ]  # fmt: skip
     # stderr goes to a file: a pipe nobody reads fills up (~64 KB of decode
     # errors on a damaged file) and blocks ffmpeg, and stdout with it
@@ -98,7 +126,7 @@ def iter_frames(
         with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=errors) as proc:
             while chunk := proc.stdout.read(chunk_frames * frame_bytes):
                 usable = len(chunk) - len(chunk) % frame_bytes
-                yield np.frombuffer(chunk[:usable], np.uint8).reshape(-1, height, width)
+                yield np.frombuffer(chunk[:usable], np.uint8).reshape(-1, *shape)
         errors.seek(0)
         stderr = errors.read()
     if proc.returncode != 0:
@@ -163,14 +191,7 @@ def diff_shots(
     frames = sampler(video, fps=fps)
     chunks = [frames] if isinstance(frames, np.ndarray) else frames
     changes, count = streamed_changes(chunks)
-    if duration is None and isinstance(video, (str, os.PathLike)):
-        probed = probe_duration(video)
-        # a container shorter than what the sampler read is not this video's
-        # length (an image-sequence pattern probes as a short clip): keep the
-        # sampled one rather than drop the cuts past it
-        if probed is not None and probed >= count / fps - 1 / fps:
-            duration = probed
-    duration = duration or None  # SAMPLED_DURATION: the sampled length
+    duration = _tiled_duration(video, duration, count=count, fps=fps)
     if count == 0:
         return [] if not duration else [(0.0, float(duration))]
     return shots_from_changes(
@@ -180,6 +201,90 @@ def diff_shots(
         rule=rule,
         duration=duration,
     )
+
+
+def histogram_shots(
+    video,
+    *,
+    l1: float = HISTOGRAM_L1,
+    mean_diff: float = HISTOGRAM_MEAN_DIFF,
+    dedupe_frames: int = HISTOGRAM_DEDUPE_FRAMES,
+    bits_dropped: int = HISTOGRAM_BITS_DROPPED,
+    size: tuple[int, int] = HISTOGRAM_FRAME_SIZE,
+    fps: Optional[float] = None,
+    sampler: Sampler = iter_frames,
+    duration: Optional[float] = None,
+) -> list[Span]:
+    """The ``"histogram"`` strategy: colour-histogram jumps over every frame.
+
+    A step between frames is a cut when the L1 distance of their colour
+    histograms exceeds ``l1`` **and** their mean grey difference exceeds
+    ``mean_diff``; a cut within ``dedupe_frames`` of the previous one is
+    dropped (:func:`mixing.shot_changes.histogram_cut_indices`). Frames are RGB
+    at ``size``, streamed, so memory stays flat. Best on cut-out animation;
+    it misses cuts between shots of one palette (see :mod:`mixing.shot_changes`).
+
+    Args:
+        video: path to a video file (anything ``sampler`` understands).
+        l1, mean_diff, dedupe_frames, bits_dropped: the cut rule (defaults:
+            reeleehq/cutan#151's measured ones, at :data:`HISTOGRAM_FRAME_SIZE`).
+        size: decode size ``(width, height)``; the defaults hold at 320x180.
+        fps: the frames' rate. ``None`` (default) decodes every frame, at the
+            video's playback rate (probed: frame-accurate, what the defaults
+            were measured on). A number samples at that rate instead, cheaper
+            but not measured with these thresholds, and ``dedupe_frames`` then
+            counts samples; it is also how a ``sampler`` that does not decode a
+            file says what rate its frames are at.
+        sampler: ``sampler(video, fps=, size=, pix_fmt="rgb24")`` -> RGB frames
+            ``(n, h, w, 3)``, or an iterable of frames or chunks.
+        duration: as :func:`diff_shots` (``None`` probes it).
+
+    Returns:
+        Spans tiling ``duration``; one span if there is no cut; ``[]`` if
+        nothing decoded and there is no duration.
+    """
+    if fps is not None and not fps > 0:
+        raise ValueError(f"fps must be > 0 or None, got {fps}")
+    rate = _native_rate(video) if fps is None else fps
+    frames = sampler(video, fps=fps, size=size, pix_fmt="rgb24")
+    chunks = [frames] if isinstance(frames, np.ndarray) else frames
+    changes, count = streamed_changes(
+        chunks,
+        measure=partial(histogram_changes, bits_dropped=bits_dropped),
+        frame_ndim=3,
+    )
+    duration = _tiled_duration(video, duration, count=count, fps=rate)
+    if count == 0:
+        return [] if not duration else [(0.0, float(duration))]
+    cuts = histogram_cut_indices(
+        changes, l1=l1, mean_diff=mean_diff, dedupe_frames=dedupe_frames
+    )
+    return shots_from_cut_frames(cuts + 1, n_frames=count, fps=rate, duration=duration)
+
+
+def _tiled_duration(video, duration, *, count: int, fps: float) -> Optional[float]:
+    """The length the spans tile: ``duration`` as given, else the probed one
+    (``video`` a path), else ``None`` (the sampled length; also for
+    :data:`SAMPLED_DURATION`)."""
+    if duration is None and isinstance(video, (str, os.PathLike)):
+        probed = probe_duration(video)
+        # a container shorter than what the sampler read is not this video's
+        # length (an image-sequence pattern probes as a short clip): keep the
+        # sampled one rather than drop the cuts past it
+        if probed is not None and probed >= count / fps - 1 / fps:
+            duration = probed
+    return duration or None
+
+
+def _native_rate(video) -> float:
+    """The rate ``video``'s frames arrive at when every one is decoded
+    (:attr:`mixing.probe.MediaProbe.playback_fps`), or an informative error."""
+    found = probe(video) if isinstance(video, (str, os.PathLike)) else None
+    if found is None or not found.playback_fps:
+        raise ValueError(
+            f"no frame rate for {video!r}: pass fps= (the rate to sample at)"
+        )
+    return float(found.playback_fps)
 
 
 def pyscenedetect_shots(
@@ -208,6 +313,7 @@ def pyscenedetect_shots(
 #: ``(video, **kwargs) -> [(start, end), ...]``.
 SHOT_STRATEGIES: dict[str, Callable[..., list[Span]]] = {
     "diff": diff_shots,
+    "histogram": histogram_shots,
     "pyscenedetect": pyscenedetect_shots,
 }
 ShotStrategy = Union[str, Callable[..., list[Span]]]
@@ -225,7 +331,8 @@ def shots(
     Args:
         video: path to a video file.
         strategy: a ``SHOT_STRATEGIES`` name (``"diff"``: :func:`diff_shots`,
-            ``"pyscenedetect"``: :func:`pyscenedetect_shots`) or a callable
+            ``"histogram"``: :func:`histogram_shots`, ``"pyscenedetect"``:
+            :func:`pyscenedetect_shots`) or a callable
             ``(video, **strategy_kwargs) -> spans``.
         min_shot_s: merge spans shorter than this into a neighbour
             (:func:`merge_short_spans`); a dissolve otherwise reads as a short
