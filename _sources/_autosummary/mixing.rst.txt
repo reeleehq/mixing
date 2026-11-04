@@ -61,5 +61,6 @@
    loudness
    resample
    shot_changes
+   splice
    treatment
    video

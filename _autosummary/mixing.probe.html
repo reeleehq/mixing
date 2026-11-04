@@ -405,6 +405,23 @@ ffprobe, the packets disagree with the duration).</p>
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">exact</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">bool</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.exact" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.exact'">¶</a></dt>
 <dd><p>Whether this came from ffprobe (exact) rather than the banner.</p>
 </dd></dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mixing.probe.MediaProbe.playback_fps">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">playback_fps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">Optional</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/fractions.html#fractions.Fraction" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">Fraction</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a><span class="p"><span class="pre">]</span></span></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.probe.MediaProbe.playback_fps" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.probe.MediaProbe.playback_fps'">¶</a></dt>
+<dd><p>The rate the frames actually arrive at, decoded one by one.</p>
+<p><code class="docutils literal notranslate"><span class="pre">fps</span></code> (<code class="docutils literal notranslate"><span class="pre">r_frame_rate</span></code>) is the lowest rate that represents every
+timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
+holes between its shots reads <code class="docutils literal notranslate"><span class="pre">120/1</span></code> (reeleehq/an#195, cutan’s
+<code class="docutils literal notranslate"><span class="pre">stream_fps</span></code>). So for a <code class="docutils literal notranslate"><span class="pre">variable_rate</span></code> stream the average rate is
+the playback rate; otherwise <code class="docutils literal notranslate"><span class="pre">fps</span></code> (<code class="docutils literal notranslate"><span class="pre">avg_fps</span></code> when it is unset).</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">MediaProbe</span><span class="p">(</span><span class="s2">"ffprobe"</span><span class="p">,</span> <span class="n">fps</span><span class="o">=</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">120</span><span class="p">),</span> <span class="n">avg_fps</span><span class="o">=</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">5760</span><span class="p">,</span> <span class="mi">239</span><span class="p">),</span>
+</span><span id="line-2"><span class="gp">... </span>           <span class="n">variable_rate</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">playback_fps</span>
+</span><span id="line-3"><span class="go">Fraction(5760, 239)</span>
+</span><span id="line-4"><span class="gp">&gt;&gt;&gt; </span><span class="n">MediaProbe</span><span class="p">(</span><span class="s2">"ffprobe"</span><span class="p">,</span> <span class="n">fps</span><span class="o">=</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">24</span><span class="p">),</span> <span class="n">avg_fps</span><span class="o">=</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">24</span><span class="p">))</span><span class="o">.</span><span class="n">playback_fps</span>
+</span><span id="line-5"><span class="go">Fraction(24, 1)</span>
+</span></code></pre></div>
+</div>
+</dd></dl>
 </dd></dl>
 <dl class="py class">
 <dt class="sig sig-object py" id="mixing.probe.MediaStream">
@@ -601,6 +618,7 @@ mean it; anything else is approximated with a denominator of at most
 <li><a :data-current="activeSection === '#mixing.probe.MediaProbe.audio_offset'" class="reference internal" href="#mixing.probe.MediaProbe.audio_offset"><code class="docutils literal notranslate"><span class="pre">MediaProbe.audio_offset</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.probe.MediaProbe.coded_size'" class="reference internal" href="#mixing.probe.MediaProbe.coded_size"><code class="docutils literal notranslate"><span class="pre">MediaProbe.coded_size</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.probe.MediaProbe.exact'" class="reference internal" href="#mixing.probe.MediaProbe.exact"><code class="docutils literal notranslate"><span class="pre">MediaProbe.exact</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.probe.MediaProbe.playback_fps'" class="reference internal" href="#mixing.probe.MediaProbe.playback_fps"><code class="docutils literal notranslate"><span class="pre">MediaProbe.playback_fps</span></code></a></li>
 </ul>
 </li>
 <li><a :data-current="activeSection === '#mixing.probe.MediaStream'" class="reference internal" href="#mixing.probe.MediaStream"><code class="docutils literal notranslate"><span class="pre">MediaStream</span></code></a><ul>
@@ -627,7 +645,7 @@ mean it; anything else is approximated with a denominator of at most
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=83be8e66"></script>
+<script src="../_static/documentation_options.js?v=609ae934"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

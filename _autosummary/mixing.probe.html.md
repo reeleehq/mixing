@@ -213,6 +213,24 @@ before).
 
 Whether this came from ffprobe (exact) rather than the banner.
 
+#### *property* playback_fps *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Fraction](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]*
+
+The rate the frames actually arrive at, decoded one by one.
+
+`fps` (`r_frame_rate`) is the lowest rate that represents every
+timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
+holes between its shots reads `120/1` (reeleehq/an#195, cutan’s
+`stream_fps`). So for a `variable_rate` stream the average rate is
+the playback rate; otherwise `fps` (`avg_fps` when it is unset).
+
+```pycon
+>>> MediaProbe("ffprobe", fps=Fraction(120), avg_fps=Fraction(5760, 239),
+...            variable_rate=True).playback_fps
+Fraction(5760, 239)
+>>> MediaProbe("ffprobe", fps=Fraction(24), avg_fps=Fraction(24)).playback_fps
+Fraction(24, 1)
+```
+
 ### *class* mixing.probe.MediaStream(kind, codec=None, attached_pic=False)
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
