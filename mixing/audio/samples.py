@@ -12,6 +12,8 @@ share a single implementation instead of each carrying its own copy.
 - :func:`as_audio`: accept a path or an ``Audio``.
 - :func:`resample`: polyphase resampling of a float array.
 - :func:`ffmpeg_float`: float samples through an ffmpeg ``-af`` chain, unclipped.
+- :func:`float_input`: any audio input (``Audio``, path, ``AudioSamples``, or an
+  array + rate) as float samples, with the way back to the input's kind.
 
 >>> from pydub import AudioSegment
 >>> segment_samples(AudioSegment.silent(100, frame_rate=8000)).shape
@@ -22,17 +24,23 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Union
+from dataclasses import dataclass
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 
-from ..util import ffmpeg_exe
-from ._pcm import resample, segment_samples
-from .audio_ops import Audio
+from ..util import ffmpeg_exe, require_package
+from ._pcm import resample, segment_samples  # noqa: F401  (resample re-exported)
+from .audio_ops import Audio, AudioSamples
 
 #: ffmpeg raw sample format used to pipe unclipped float samples.
 FLOAT_PCM = "f64le"
 _INT_DTYPES = {1: np.int8, 2: np.int16, 4: np.int32}  # pydub stores 8-bit signed
+#: Default name stem of a written result when the input has no file name.
+DEFAULT_STEM = "audio"
+#: Sample width (bytes) used when an array result is written to a file: 32-bit
+#: PCM, so writing adds no audible quantisation.
+ARRAY_WRITE_SAMPLE_WIDTH = 4
 
 
 def audio_samples(audio: Audio) -> tuple[np.ndarray, int]:
@@ -77,3 +85,81 @@ def ffmpeg_float(data: np.ndarray, fs: int, filters: str) -> np.ndarray:
         )
     out = np.frombuffer(proc.stdout, dtype="<f8")
     return out[: len(out) // ch * ch].reshape(-1, ch)
+
+
+# ---------------------------------------------------------------------------
+# Inputs: Audio, path, AudioSamples, or array + sr
+# ---------------------------------------------------------------------------
+
+AudioLike = Union[str, Path, Audio, AudioSamples, np.ndarray, Any]
+
+
+@dataclass(frozen=True)
+class FloatInput:
+    """Float samples of an input, and how to give a result back in its kind
+    (:func:`float_input`)."""
+
+    samples: np.ndarray  # (n, channels), float64 in [-1, 1]
+    sr: int
+    restore: Callable[[np.ndarray], Any]  # float result -> the input's kind
+    as_audio: Callable[[np.ndarray], Audio]  # float result -> a writable Audio
+    stem: str  # name stem for a written result
+
+
+def _array_input(array: np.ndarray, sr: Optional[int]) -> FloatInput:
+    if sr is None:
+        raise ValueError("an array input needs its sample rate: pass sr=")
+    if array.ndim not in (1, 2):
+        raise ValueError(f"samples must be (n,) or (n, channels), got {array.shape}")
+    dtype = array.dtype
+    if np.issubdtype(dtype, np.signedinteger):  # PCM: scale like segment_samples
+        full_scale = float(np.iinfo(dtype).max) + 1
+    elif np.issubdtype(dtype, np.floating):
+        full_scale = None
+    else:
+        raise TypeError(f"samples must be float or signed-integer PCM, got {dtype}")
+    x = np.asarray(array, dtype=np.float64) / (full_scale or 1.0)
+    x = x[:, None] if array.ndim == 1 else x
+
+    def restore(y):
+        y = y[:, 0] if array.ndim == 1 else y
+        if full_scale is None:
+            return y.astype(dtype)
+        info = np.iinfo(dtype)
+        return np.clip(np.round(y * full_scale), info.min, info.max).astype(dtype)
+
+    def audio(y):
+        AudioSegment = require_package("pydub").AudioSegment
+        like = AudioSegment(
+            data=b"",
+            sample_width=ARRAY_WRITE_SAMPLE_WIDTH,
+            frame_rate=int(sr),
+            channels=x.shape[1],
+        )
+        return to_audio(y, like)
+
+    return FloatInput(x, int(sr), restore, audio, DEFAULT_STEM)
+
+
+def float_input(audio: AudioLike, sr: Optional[int] = None) -> FloatInput:
+    """``audio`` (Audio, path, AudioSamples, pydub segment, or array + ``sr``) as
+    float samples ``(n, channels)``, with the way back to its kind.
+
+    An array is float in [-1, 1] or signed-integer PCM (scaled by its full scale)
+    and needs ``sr``; for anything else ``sr``, if given, must be its rate.
+    Shared by :func:`~mixing.audio.separation.remove_talk` and
+    :func:`~mixing.audio.censor.bleep`.
+    """
+    if isinstance(audio, np.ndarray):
+        return _array_input(audio, sr)
+    if isinstance(audio, AudioSamples):
+        segment = audio._audio.get_sample_slice(audio.start_sample, audio.end_sample)
+        audio = Audio(segment)
+    audio = as_audio(audio)
+    samples, rate = audio_samples(audio)
+    if sr is not None and sr != rate:
+        raise ValueError(f"sr={sr} given for audio at {rate} Hz")
+    segment = audio._get_segment()
+    restore = lambda y: to_audio(y, segment, time_unit=audio.time_unit)
+    stem = Path(audio.src_path).stem if audio.src_path else DEFAULT_STEM
+    return FloatInput(samples, rate, restore, restore, stem)

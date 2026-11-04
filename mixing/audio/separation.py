@@ -62,9 +62,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from functools import lru_cache
-from numbers import Real
-from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 
@@ -72,16 +70,14 @@ from ..egress import Output, deliver
 from ..util import DEMUCS_EXTRA, SEPARATION_EXTRA, install_hint, require_extra
 from ..util import require_package
 from ._pcm import resample
-from .audio_ops import Audio, AudioSamples
-from .samples import as_audio, audio_samples, to_audio
+from .samples import AudioLike, float_input
+from .spans import Span, as_spans
 
 #: The separator seam: ``(float samples (n, channels), sr) -> (speech, music)``,
 #: both shaped like the input and at the same rate.
 SpeechSeparator = Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
 #: A speech enhancer: ``(float samples (n, channels), sr) -> speech estimate``.
 SpeechEnhancer = Callable[[np.ndarray, int], np.ndarray]
-#: A talk span in seconds.
-Span = tuple[float, float]
 
 #: Each talk span is widened by this much (seconds) on both sides, and the music
 #: estimate fades in (out) linearly over that widening, so the span itself is all
@@ -104,13 +100,8 @@ WIENER_WINDOW_S = 0.04
 #: Floor on the Wiener mask's denominator (power), so silent bins do not divide by
 #: zero (they get mask 0, which is harmless: both sources are silent there).
 WIENER_EPS = 1e-20
-#: Default name stem of a written result when the input has no file name.
-DEFAULT_STEM = "audio"
 #: Suffix of a written result's name (``<stem>_talk_removed.wav``).
 OUTPUT_SUFFIX = "_talk_removed.wav"
-#: Sample width (bytes) used when an array result is written to a file: 32-bit
-#: PCM, so writing adds no audible quantisation.
-ARRAY_WRITE_SAMPLE_WIDTH = 4
 
 #: Hugging Face repo of the MossFormer2-SE-48K checkpoint (Apache-2.0, ~220 MB).
 MOSSFORMER2_SE_48K_REPO = "alibabasglab/MossFormer2_SE_48K"
@@ -515,76 +506,6 @@ SEPARATORS: dict[str, SeparationStrategy] = {
 DEFAULT_SEPARATOR = "mossformer2_se_48k"
 
 
-# ---------------------------------------------------------------------------
-# Inputs: Audio, path, AudioSamples, or array + sr
-# ---------------------------------------------------------------------------
-
-AudioLike = Union[str, Path, Audio, AudioSamples, np.ndarray, Any]
-
-
-@dataclass(frozen=True)
-class _Input:
-    """Float samples of an input, and how to give a result back in its kind."""
-
-    samples: np.ndarray  # (n, channels), float64 in [-1, 1]
-    sr: int
-    restore: Callable[[np.ndarray], Any]  # float result -> the input's kind
-    as_audio: Callable[[np.ndarray], Audio]  # float result -> a writable Audio
-    stem: str  # name stem for a written result
-
-
-def _array_input(array: np.ndarray, sr: Optional[int]) -> _Input:
-    if sr is None:
-        raise ValueError("an array input needs its sample rate: pass sr=")
-    if array.ndim not in (1, 2):
-        raise ValueError(f"samples must be (n,) or (n, channels), got {array.shape}")
-    dtype = array.dtype
-    if np.issubdtype(dtype, np.signedinteger):  # PCM: scale like segment_samples
-        full_scale = float(np.iinfo(dtype).max) + 1
-    elif np.issubdtype(dtype, np.floating):
-        full_scale = None
-    else:
-        raise TypeError(f"samples must be float or signed-integer PCM, got {dtype}")
-    x = np.asarray(array, dtype=np.float64) / (full_scale or 1.0)
-    x = x[:, None] if array.ndim == 1 else x
-
-    def restore(y):
-        y = y[:, 0] if array.ndim == 1 else y
-        if full_scale is None:
-            return y.astype(dtype)
-        info = np.iinfo(dtype)
-        return np.clip(np.round(y * full_scale), info.min, info.max).astype(dtype)
-
-    def audio(y):
-        AudioSegment = require_package("pydub").AudioSegment
-        like = AudioSegment(
-            data=b"",
-            sample_width=ARRAY_WRITE_SAMPLE_WIDTH,
-            frame_rate=int(sr),
-            channels=x.shape[1],
-        )
-        return to_audio(y, like)
-
-    return _Input(x, int(sr), restore, audio, DEFAULT_STEM)
-
-
-def _as_input(audio: AudioLike, sr: Optional[int]) -> _Input:
-    """``audio`` (Audio, path, AudioSamples, pydub segment, or array + ``sr``)."""
-    if isinstance(audio, np.ndarray):
-        return _array_input(audio, sr)
-    if isinstance(audio, AudioSamples):
-        segment = audio._audio.get_sample_slice(audio.start_sample, audio.end_sample)
-        audio = Audio(segment)
-    audio = as_audio(audio)
-    samples, rate = audio_samples(audio)
-    if sr is not None and sr != rate:
-        raise ValueError(f"sr={sr} given for audio at {rate} Hz")
-    segment = audio._get_segment()
-    restore = lambda y: to_audio(y, segment, time_unit=audio.time_unit)
-    stem = Path(audio.src_path).stem if audio.src_path else DEFAULT_STEM
-    return _Input(samples, rate, restore, restore, stem)
-
-
 def separate_speech(
     audio: AudioLike,
     *,
@@ -613,7 +534,7 @@ def separate_speech(
     [1.0, 1.0, 1.0, 1.0]
     """
     strategy = _resolve(separator)
-    source = _as_input(audio, sr)
+    source = float_input(audio, sr)
     speech, music = strategy(source.samples, source.sr)
     return source.restore(speech), source.restore(music)
 
@@ -621,47 +542,6 @@ def separate_speech(
 # ---------------------------------------------------------------------------
 # remove_talk: separation inside spans, spliced with linear fades
 # ---------------------------------------------------------------------------
-
-
-def _is_number_pair(obj) -> bool:
-    return (
-        isinstance(obj, (tuple, list))
-        and len(obj) == 2
-        and all(isinstance(v, Real) for v in obj)
-    )
-
-
-def _raw_spans(obj) -> list[Span]:
-    """``(start, end)`` pairs, unvalidated, from TalkEdges (its intro/outro),
-    Segments, pairs, ``(2,)`` / ``(k, 2)`` arrays, or an iterable of these."""
-    if obj is None:
-        return []
-    if hasattr(obj, "intro") and hasattr(obj, "outro"):  # TalkEdges
-        return [(s.start, s.end) for s in (obj.intro, obj.outro) if s is not None]
-    if hasattr(obj, "start") and hasattr(obj, "end"):  # Segment-like
-        return [(obj.start, obj.end)]
-    if isinstance(obj, np.ndarray):
-        if obj.shape == (2,):
-            return [tuple(obj)]
-        if obj.ndim == 2 and obj.shape[1] == 2:
-            return [tuple(row) for row in obj]
-        raise ValueError(f"a span array must be (2,) or (k, 2), got {obj.shape}")
-    if _is_number_pair(obj):
-        return [tuple(obj)]
-    if isinstance(obj, Iterable) and not isinstance(obj, (str, bytes)):
-        return [span for item in obj for span in _raw_spans(item)]
-    raise TypeError(
-        f"talk spans must be TalkEdges, Segments or (start, end) pairs, got {obj!r}"
-    )
-
-
-def _as_spans(spans_or_edges) -> list[Span]:
-    """Talk spans in seconds, each checked to be finite with ``end > start``."""
-    spans = [(float(s), float(e)) for s, e in _raw_spans(spans_or_edges)]
-    for s, e in spans:
-        if not (np.isfinite(s) and np.isfinite(e) and e > s):
-            raise ValueError(f"a talk span needs finite end > start, got {(s, e)}")
-    return spans
 
 
 def _splice_plan(spans: list[Span], *, margin: float, sr: int, n: int):
@@ -739,9 +619,9 @@ def remove_talk(
     """
     if margin < 0:
         raise ValueError(f"margin must be >= 0, got {margin}")
-    source = _as_input(audio, sr)
+    source = float_input(audio, sr)
     x, rate = source.samples, source.sr
-    plan = _splice_plan(_as_spans(spans_or_edges), margin=margin, sr=rate, n=len(x))
+    plan = _splice_plan(as_spans(spans_or_edges), margin=margin, sr=rate, n=len(x))
     out = x.copy()
     if plan:
         strategy = _resolve(separator)

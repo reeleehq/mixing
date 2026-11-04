@@ -24,6 +24,8 @@ Main exports:
   MossFormer2-SE inverted by default, extra ``separation``; htdemucs for
   instrumental beds, extra ``demucs``), and remove a host's talk inside given
   spans while keeping the music (sample-identical outside them)
+- bleep: beep chosen words (mute the voice over each, tone at the word's level,
+  backing stems or a separator keep the music)
 - voice_profile, shift_pitch: per-speaker median f0, loudness, spectral centroid
   and low-band (boom) ratio; pitch shift by semitones (ffmpeg rubberband with
   formant preservation, stock-ffmpeg resample, or librosa -- extra ``beats``)
@@ -114,6 +116,7 @@ from .separation import (
     remove_talk,
     invert_enhancer,
 )
+from .censor import bleep
 from .leveling import (
     loudness,
     loudness_range,
@@ -209,6 +212,7 @@ __all__ = [
     "separate_speech",
     "remove_talk",
     "invert_enhancer",
+    "bleep",
     "contains_song",
     "landmarks",
     "song_verdict",
