@@ -154,7 +154,9 @@ def test_a_big_positive_gain_is_limited_not_clipped(tmp_path):
     assert np.abs(samples).max() < 10 ** (-1.4 / 20)  # nothing at full scale
     # the limiter took loudness off, and the result says so
     assert result.output_lufs < -9.0 - 0.5
-    assert result.output_lufs == pytest.approx(file_loudness(result.output).integrated_lufs)
+    assert result.output_lufs == pytest.approx(
+        file_loudness(result.output).integrated_lufs
+    )
 
 
 @needs_ffmpeg
@@ -268,7 +270,9 @@ def test_in_place_refuses_a_file_with_a_picture(tmp_path):
     assert beside.name == f"clip{LEVELED_SUFFIX}.mp4"
     from mixing.decode import stream_kinds
 
-    assert stream_kinds(clip) == ["video", "audio"] and stream_kinds(beside) == ["audio"]
+    assert stream_kinds(clip) == ["video", "audio"] and stream_kinds(beside) == [
+        "audio"
+    ]
 
 
 @needs_ffmpeg
@@ -292,7 +296,9 @@ def test_a_failed_encode_leaves_no_file_behind(tmp_path):
     from mixing.decode import encode_float_chunks
 
     with pytest.raises(RuntimeError, match="could not write"):
-        encode_float_chunks([np.zeros((100, 1))], FS, tmp_path / "x.wav", args=("-c:a", "nope"))
+        encode_float_chunks(
+            [np.zeros((100, 1))], FS, tmp_path / "x.wav", args=("-c:a", "nope")
+        )
     with pytest.raises(ValueError, match="no audio"):
         encode_float_chunks([np.zeros((0, 2))], FS, tmp_path / "y.wav")
 
@@ -305,17 +311,86 @@ def test_a_failed_encode_leaves_no_file_behind(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def _in_use(winerror=32):
+    e = PermissionError(13, "The process cannot access the file")
+    e.winerror = winerror  # what Windows sets; the retry keys on it
+    return e
+
+
+@needs_ffmpeg
+def test_a_partial_file_windows_still_holds_is_removed_on_a_retry(
+    tmp_path, monkeypatch
+):
+    from pathlib import Path
+
+    import mixing.decode as decode
+    from mixing.decode import encode_float_chunks
+
+    monkeypatch.setattr(decode, "PARTIAL_REMOVE_WAIT_S", 0.0)
+    real, refused = Path.unlink, []
+
+    def unlink(self, missing_ok=False):
+        if self.name.endswith(".partial.wav") and len(refused) < 2:
+            refused.append(self)
+            raise _in_use()
+        return real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+
+    def broken():
+        yield np.zeros((100, 2))
+        raise KeyError("upstream")
+
+    with pytest.raises(KeyError):  # the real error, not the cleanup's
+        encode_float_chunks(broken(), FS, tmp_path / "z.wav")
+    assert len(refused) == 2 and list(tmp_path.iterdir()) == []
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("winerror", [32, None])  # held for good / not a sharing error
+def test_a_partial_file_that_cannot_go_never_hides_the_real_error(
+    tmp_path, monkeypatch, winerror
+):
+    from pathlib import Path
+
+    import mixing.decode as decode
+    from mixing.decode import encode_float_chunks
+
+    monkeypatch.setattr(decode, "PARTIAL_REMOVE_WAIT_S", 0.0)
+    real, calls = Path.unlink, []
+
+    def unlink(self, missing_ok=False):
+        if self.name.endswith(".partial.wav"):
+            calls.append(self)
+            raise _in_use(winerror)
+        return real(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+
+    def broken():
+        yield np.zeros((100, 2))
+        raise KeyError("upstream")
+
+    with pytest.warns(UserWarning, match="could not remove the partial file"):
+        with pytest.raises(KeyError):
+            encode_float_chunks(broken(), FS, tmp_path / "z.wav")
+    # a sharing violation is retried; anything else is not
+    assert len(calls) == (decode.PARTIAL_REMOVE_ATTEMPTS if winerror else 1)
+
+
 @needs_ffmpeg
 @pytest.mark.skipif(sys.platform == "win32", reason="a shell-script ffmpeg")
 @pytest.mark.parametrize("frames", [1, 100, FS])
-def test_an_ffmpeg_that_dies_midway_raises_its_message_and_leaves_no_file(tmp_path, frames):
+def test_an_ffmpeg_that_dies_midway_raises_its_message_and_leaves_no_file(
+    tmp_path, frames
+):
     # it stops reading with data still buffered: closing stdin used to raise
     # BrokenPipeError past the cleanup, leaving the partial file behind
     from mixing.decode import encode_float_chunks
 
     fake = tmp_path / "fake-ffmpeg"
     fake.write_text(
-        '#!/bin/sh\nhead -c 300000 > /dev/null\nfor last; do :; done\n'
+        "#!/bin/sh\nhead -c 300000 > /dev/null\nfor last; do :; done\n"
         'echo partial > "$last"\necho "fake ffmpeg gave up" >&2\nexit 1\n'
     )
     fake.chmod(0o755)
@@ -333,7 +408,9 @@ def test_level_file_memory_does_not_grow_with_the_file(tmp_path):
 
     def peak_bytes(seconds):
         src = _lavfi(
-            tmp_path / f"n{seconds}.wav", f"anoisesrc=r={FS}:a=0.1:seed=1", seconds=seconds
+            tmp_path / f"n{seconds}.wav",
+            f"anoisesrc=r={FS}:a=0.1:seed=1",
+            seconds=seconds,
         )
         tracemalloc.start()
         with warnings.catch_warnings():

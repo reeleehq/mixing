@@ -22,11 +22,14 @@ is re-exported here.
 from __future__ import annotations
 
 import itertools
+from contextlib import suppress
 import os
 import secrets
 import shutil
 import struct
 import subprocess
+import time
+import warnings
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Sequence
 
@@ -46,6 +49,13 @@ except ImportError as e:
     raise ImportError(
         f"mixing.decode needs numpy: {install_hint(LOUDNESS_EXTRA)}", name=e.name
     ) from e
+
+#: A half-written file Windows refuses to remove (still in use) is retried this
+#: many times, this far apart: half a second in all.
+PARTIAL_REMOVE_ATTEMPTS = 10
+PARTIAL_REMOVE_WAIT_S = 0.05
+#: Windows' error number for a file in use by another process.
+WINDOWS_SHARING_VIOLATION = 32
 
 #: Seconds of audio per chunk by default.
 DECODE_CHUNK_S = 5.0
@@ -207,5 +217,40 @@ def encode_float_chunks(
             shutil.copymode(target, partial)
         os.replace(partial, target)
     finally:
-        partial.unlink(missing_ok=True)
+        _remove_partial(partial)
     return path
+
+
+def _remove_partial(
+    partial: Path,
+    *,
+    attempts: Optional[int] = None,
+    wait_s: Optional[float] = None,
+) -> None:
+    """Remove a half-written file, never raising: it only exists when the write
+    already failed, and that error is the one the caller must see.
+
+    Windows can refuse the removal for a moment after the ffmpeg writing it has
+    exited (``WinError 32``: in use by another process, typically a scanner), so
+    that refusal is retried, ``attempts`` times ``wait_s`` apart. A file still
+    refused after that, or any other refusal, is left behind with a warning
+    (suppressed under ``-W error``, so it cannot replace the real error either).
+    ``attempts`` and ``wait_s`` default to the module's constants, read at call
+    time.
+    """
+    attempts = PARTIAL_REMOVE_ATTEMPTS if attempts is None else attempts
+    wait_s = PARTIAL_REMOVE_WAIT_S if wait_s is None else wait_s
+    for attempt in range(attempts):
+        try:
+            partial.unlink(missing_ok=True)
+            return
+        except PermissionError as e:
+            in_use = getattr(e, "winerror", None) == WINDOWS_SHARING_VIOLATION
+            if not in_use or attempt == attempts - 1:
+                with suppress(Warning):  # -W error must not mask the real error
+                    warnings.warn(
+                        f"could not remove the partial file {partial}: {e}",
+                        stacklevel=3,
+                    )
+                return
+            time.sleep(wait_s)
