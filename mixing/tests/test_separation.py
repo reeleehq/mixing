@@ -307,6 +307,27 @@ def test_stems_sum_to_the_input_whatever_the_rates(sr):
     np.testing.assert_allclose(speech + music, x, rtol=0, atol=1e-9)
 
 
+@pytest.mark.parametrize(
+    "sr, native, tone_hz",
+    [
+        (16000, 44100, 7600),  # up: on the input's own Nyquist slope
+        (22050, 48000, 10600),
+        (48000, 16000, 7600),  # down: on the model's Nyquist slope
+    ],
+)
+def test_what_resampling_weakened_goes_back_to_the_stem_it_came_from(
+    sr, native, tone_hz
+):
+    """#185 review: the residual near a Nyquist slope is split like the stems,
+    so an all-speech model puts no sibilant into the music."""
+    talk = 0.1 * np.sin(2 * np.pi * tone_hz * np.arange(sr) / sr)[:, None]
+    all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
+    speech, music = separate_speech(talk, separator=all_speech, sr=sr)
+    np.testing.assert_allclose(speech + music, talk, rtol=0, atol=1e-9)
+    leak_db = 10 * np.log10(np.mean(music**2) / np.mean(talk**2))
+    assert leak_db < -60
+
+
 def test_resampling_up_to_a_higher_rate_strategy():
     rec = _Recorder(music=lambda a: a)
     strategy = SeparationStrategy("rec", rec, sample_rate=48000)
