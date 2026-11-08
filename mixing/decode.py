@@ -19,6 +19,10 @@ is re-exported here.
 :func:`stream_kinds` reads a file's stream kinds from ffmpeg's banner, and
 :func:`refuse_dropping_streams` uses it to stop an audio-only write over its own
 source when that would destroy the source's picture.
+:func:`same_pcm_args` / :func:`resolve_encode_args` give a writer that
+re-encodes a file the options that keep its PCM sample format (a 24-bit WAV
+master stays 24-bit), the ``encode_args=None`` default of
+:func:`mixing.loudness.level_file` and :func:`mixing.splice.replace_span_file`.
 """
 
 from __future__ import annotations
@@ -130,6 +134,43 @@ def refuse_dropping_streams(
             f"writing {src.name} in place would drop its {', '.join(others)} "
             "stream(s): the output is audio only; give another output"
         )
+
+
+def same_pcm_args(
+    src, path, *, ffmpeg: Optional[str] = None, timeout: Optional[float] = None
+) -> tuple[str, ...]:
+    """ffmpeg output options that keep ``src``'s PCM sample format in ``path``.
+
+    Encoding float chunks to ``.wav`` defaults to 16-bit, so a 24-bit or float
+    master would lose depth on a rewrite. When ``path`` has ``src``'s suffix and
+    ``src``'s first audio stream is PCM, this is ``("-c:a", <its codec>)``;
+    otherwise ``()`` (FLAC and lossy formats keep ffmpeg's default encoder).
+    """
+    if Path(path).suffix.lower() != Path(src).suffix.lower():
+        return ()
+    found = probe(src, ffmpeg=ffmpeg, timeout=timeout)
+    codecs = [s.codec for s in found.streams if s.kind == "audio" and s.codec]
+    return ("-c:a", codecs[0]) if codecs and codecs[0].startswith("pcm_") else ()
+
+
+def resolve_encode_args(
+    encode_args: Optional[Sequence[str]],
+    src,
+    path,
+    *,
+    ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> tuple[str, ...]:
+    """The ffmpeg output options a writer that re-encodes ``src`` to ``path`` uses.
+
+    The ``encode_args=`` seam of :func:`mixing.loudness.level_file` and
+    :func:`mixing.splice.replace_span_file`: ``None`` keeps ``src``'s PCM
+    format (:func:`same_pcm_args`), anything else is used as given (``()`` is
+    ffmpeg's default encoder for ``path``'s suffix, 16-bit for ``.wav``).
+    """
+    if encode_args is None:
+        return same_pcm_args(src, path, ffmpeg=ffmpeg, timeout=timeout)
+    return tuple(encode_args)
 
 
 def _decode(

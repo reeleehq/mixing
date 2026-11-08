@@ -41,6 +41,15 @@ except ImportError as e:
         f"mixing.splice needs numpy: {install_hint(LOUDNESS_EXTRA)}", name=e.name
     ) from e
 
+from mixing.decode import (  # noqa: E402  (after the numpy check: it needs numpy)
+    decode_float_chunks,
+    encode_float_chunks,
+    refuse_dropping_streams,
+    resolve_encode_args,
+    same_pcm_args,  # re-exported: it lives beside the encoder it feeds
+)
+from mixing.probe import probe  # noqa: E402
+
 #: Suffix on a written result's stem (``take.flac`` -> ``take_spliced.flac``).
 SPLICED_SUFFIX = "_spliced"
 
@@ -178,23 +187,6 @@ def replace_span(
     return out[:, 0] if x.ndim == 1 else out
 
 
-def same_pcm_args(src, path, *, ffmpeg: Optional[str] = None, timeout=None):
-    """ffmpeg output options that keep ``src``'s PCM sample format in ``path``.
-
-    Encoding float chunks to ``.wav`` defaults to 16-bit, so a 24-bit or float
-    master would lose depth on a rewrite. When ``path`` has ``src``'s suffix and
-    ``src``'s audio is PCM, this is ``("-c:a", <its codec>)``; otherwise ``()``
-    (FLAC and lossy formats keep ffmpeg's default encoder).
-    """
-    from mixing.probe import probe
-
-    if Path(path).suffix.lower() != Path(src).suffix.lower():
-        return ()
-    found = probe(src, ffmpeg=ffmpeg, timeout=timeout)
-    codecs = [s.codec for s in found.streams if s.kind == "audio" and s.codec]
-    return ("-c:a", codecs[0]) if codecs and codecs[0].startswith("pcm_") else ()
-
-
 def _insert_samples(insert: Insert, *, rate: int, decode) -> np.ndarray:
     if not isinstance(insert, (str, os.PathLike)):
         return np.asarray(insert)
@@ -221,7 +213,7 @@ def replace_span_file(
     re-encoded once (:func:`mixing.decode.encode_float_chunks`), so memory is
     bounded by a chunk and the insert. ``encode_args`` are extra ffmpeg output
     options; ``None`` (default) keeps ``src``'s PCM format when writing its own
-    format (:func:`same_pcm_args`: a 24-bit WAV master stays 24-bit). ``insert``
+    format (:func:`mixing.decode.same_pcm_args`: a 24-bit WAV master stays 24-bit). ``insert``
     is float samples at ``src``'s rate or a file (decoded and resampled to it),
     mono or with ``src``'s channels. ``output`` follows mixing's ``output``
     protocol (default: beside ``src`` with ``SPLICED_SUFFIX``, same format):
@@ -233,13 +225,6 @@ def replace_span_file(
 
     Returns the ``Path`` written (or what a callable ``output`` returns).
     """
-    from mixing.decode import (
-        decode_float_chunks,
-        encode_float_chunks,
-        refuse_dropping_streams,
-    )
-    from mixing.probe import probe
-
     src = Path(src)
 
     def decode(path, **kw):
@@ -252,10 +237,8 @@ def replace_span_file(
             raise ValueError(f"{src.name} has no audio to splice into")
         fade, cut = _fade_frames(fade_s, rate), _cut_frames(span, rate)
         piece = _insert_samples(insert, rate=rate, decode=decode)
-        args = (
-            same_pcm_args(src, path, ffmpeg=ffmpeg, timeout=timeout)
-            if encode_args is None
-            else tuple(encode_args)
+        args = resolve_encode_args(
+            encode_args, src, path, ffmpeg=ffmpeg, timeout=timeout
         )
         decoded_rate, chunks = decode(src, sample_rate=rate)
         with closing(chunks):

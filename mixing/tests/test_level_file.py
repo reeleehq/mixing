@@ -440,3 +440,40 @@ def test_meter_output_false_skips_the_read_back(tmp_path, monkeypatch):
     assert skipped.output_lufs is None
     assert skipped[:3] == (tmp_path / "b.wav", metered.gain_db, metered.measured_lufs)
     assert (tmp_path / "a.wav").read_bytes() == (tmp_path / "b.wav").read_bytes()
+
+
+def _codecs(path):
+    from mixing.probe import probe
+
+    return [s.codec for s in probe(path).streams if s.kind == "audio"]
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("codec", ["pcm_s24le", "pcm_f32le"])
+def test_a_deep_wav_master_keeps_its_depth_by_default(tmp_path, codec):
+    """#189: the default ``encode_args=None`` writes the source's PCM format back,
+    beside it and in place; an explicit ``()`` is ffmpeg's 16-bit default."""
+    from mixing.decode import encode_float_chunks
+
+    samples, rate = _read(_speechy(tmp_path, seconds=3))
+    master = encode_float_chunks([samples], rate, tmp_path / "m.wav", args=("-c:a", codec))
+    assert _codecs(master) == [codec]
+    assert _codecs(level_file(master, target_lufs=-20.0).output) == [codec]
+    level_file(master, master, target_lufs=-20.0, meter_output=False)
+    assert _codecs(master) == [codec]
+    flat = level_file(master, tmp_path / "flat.wav", target_lufs=-20.0, encode_args=())
+    assert _codecs(flat.output) == ["pcm_s16le"]
+
+
+@needs_ffmpeg
+def test_same_pcm_args_only_for_pcm_written_to_its_own_format(tmp_path):
+    from mixing.decode import encode_float_chunks, resolve_encode_args, same_pcm_args
+
+    src = _speechy(tmp_path, seconds=1)  # 16-bit WAV
+    samples, rate = _read(src)
+    flac = encode_float_chunks([samples], rate, tmp_path / "m.flac")
+    assert same_pcm_args(src, tmp_path / "x.WAV") == ("-c:a", "pcm_s16le")
+    assert same_pcm_args(src, tmp_path / "x.flac") == ()  # another format
+    assert same_pcm_args(flac, tmp_path / "y.flac") == ()  # not PCM
+    assert resolve_encode_args(None, src, tmp_path / "x.flac") == ()
+    assert resolve_encode_args(["-ar", "8000"], src, src) == ("-ar", "8000")
