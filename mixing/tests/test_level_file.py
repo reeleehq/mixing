@@ -440,3 +440,69 @@ def test_meter_output_false_skips_the_read_back(tmp_path, monkeypatch):
     assert skipped.output_lufs is None
     assert skipped[:3] == (tmp_path / "b.wav", metered.gain_db, metered.measured_lufs)
     assert (tmp_path / "a.wav").read_bytes() == (tmp_path / "b.wav").read_bytes()
+
+
+def _codecs(path):
+    from mixing.probe import probe
+
+    return [s.codec for s in probe(path).streams if s.kind == "audio"]
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("codec", ["pcm_s24le", "pcm_f32le"])
+def test_a_deep_wav_master_keeps_its_depth_by_default(tmp_path, codec):
+    """#189: the default ``encode_args=None`` writes the source's lossless codec back,
+    beside it and in place; an explicit ``()`` is ffmpeg's 16-bit default."""
+    from mixing.decode import encode_float_chunks
+
+    samples, rate = _read(_speechy(tmp_path, seconds=3))
+    master = encode_float_chunks(
+        [samples], rate, tmp_path / "m.wav", args=("-c:a", codec)
+    )
+    assert _codecs(master) == [codec]
+    assert _codecs(level_file(master, target_lufs=-20.0).output) == [codec]
+    level_file(master, master, target_lufs=-20.0, meter_output=False)
+    assert _codecs(master) == [codec]
+    flat = level_file(master, tmp_path / "flat.wav", target_lufs=-20.0, encode_args=())
+    assert _codecs(flat.output) == ["pcm_s16le"]
+
+
+@needs_ffmpeg
+def test_an_alac_master_stays_alac_in_place(tmp_path):
+    """#189 review: ffmpeg's default for ``.m4a`` is AAC, a lossy rewrite."""
+    from mixing.decode import encode_float_chunks
+
+    samples, rate = _read(_speechy(tmp_path, seconds=2))
+    master = encode_float_chunks(
+        [samples], rate, tmp_path / "m.m4a", args=("-c:a", "alac")
+    )
+    level_file(master, master, target_lufs=-20.0, meter_output=False)
+    assert _codecs(master) == ["alac"]
+
+
+@needs_ffmpeg
+def test_same_lossless_args_only_for_lossless_written_to_its_own_format(tmp_path):
+    from mixing.decode import (
+        encode_float_chunks,
+        resolve_encode_args,
+        same_lossless_args,
+    )
+
+    src = _speechy(tmp_path, seconds=1)  # 16-bit WAV
+    samples, rate = _read(src)
+    flac = encode_float_chunks([samples], rate, tmp_path / "m.flac")
+    mp3 = encode_float_chunks([samples], rate, tmp_path / "m.mp3")
+    assert same_lossless_args(src, tmp_path / "x.WAV") == ("-c:a", "pcm_s16le")
+    assert same_lossless_args(src, tmp_path / "x.flac") == ()  # another format
+    assert same_lossless_args(flac, tmp_path / "y.flac") == ("-c:a", "flac")
+    assert same_lossless_args(mp3, tmp_path / "y.mp3") == ()  # lossy
+    assert resolve_encode_args(None, src, tmp_path / "x.flac") == ()
+    assert resolve_encode_args(["-ar", "8000"], src, src) == ("-ar", "8000")
+
+
+def test_lossless_codec_names():
+    from mixing.decode import is_lossless_codec
+
+    assert all(map(is_lossless_codec, ["pcm_s24be", "pcm_u8", "flac", "alac"]))
+    lossy = ["aac", "mp3", "vorbis", "", None]
+    assert not any(map(is_lossless_codec, lossy + ["pcm_f16le"]))  # no encoder

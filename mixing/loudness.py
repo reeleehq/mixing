@@ -65,6 +65,7 @@ from mixing.decode import (  # noqa: E402
     decode_float_chunks,
     encode_float_chunks,
     refuse_dropping_streams,
+    resolve_encode_args,
 )
 from mixing.egress import Output, write_egress  # noqa: E402
 from mixing.resample import resample  # noqa: E402
@@ -950,7 +951,7 @@ def level_file(
     method: Optional[str] = None,
     oversampling: Optional[int] = None,
     window_s: Optional[float] = None,
-    encode_args: Sequence[str] = (),
+    encode_args: Optional[Sequence[str]] = None,
     chunk_s: float = DECODE_CHUNK_S,
     ffmpeg: Optional[str] = None,
     timeout: Optional[float] = None,
@@ -963,8 +964,9 @@ def level_file(
     memory is bounded by the chunk and the limiter's block, not the track.
     ``timeout`` bounds each ffmpeg run (see :mod:`mixing.decode`): two
     decodes and an encode, one more decode to meter the output (unless
-    ``meter_output=False``) and one streams check in place, so the whole call
-    is bounded by at most five times it.
+    ``meter_output=False``), one streams check in place and one probe of
+    ``src``'s format (with the default ``encode_args``), so the whole call is
+    bounded by at most six times it.
 
     1. :func:`stream_loudness` measures it; the gain is the one that brings it
        to ``target_lufs`` (as :func:`level_group`'s: 0 for silence, capped at
@@ -974,8 +976,12 @@ def level_file(
        :func:`stream_limit_peaks` holds ``ceiling_db`` (dBTP with
        ``true_peak``, else dBFS; ``method``, ``oversampling`` and the
        lookahead ``window_s``, in seconds, are its), and
-       :func:`mixing.decode.encode_float_chunks` writes it (``encode_args``
-       are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``).
+       :func:`mixing.decode.encode_float_chunks` writes it. ``encode_args``
+       are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``;
+       ``None`` (default) keeps ``src``'s lossless codec when writing its own
+       format (:func:`mixing.decode.same_lossless_args`: a 24-bit or float WAV
+       stays so, an ALAC ``.m4a`` stays ALAC), ``()`` is ffmpeg's default
+       encoder (16-bit for ``.wav``, AAC for ``.m4a``).
 
     The written file is then metered back (``output_lufs``): it reads below
     the target when the limiter took a lot off. That is a third decode;
@@ -1032,6 +1038,9 @@ def level_file(
     def write(path: Path) -> None:
         nonlocal output_lufs
         refuse_dropping_streams(src, path, ffmpeg=ffmpeg, timeout=timeout)
+        args = resolve_encode_args(
+            encode_args, src, path, ffmpeg=ffmpeg, timeout=timeout
+        )
         rate, chunks = decode()
         window = None if window_s is None else max(1, round(window_s * rate))
         with closing(chunks):
@@ -1043,7 +1052,7 @@ def level_file(
                 **limits,
             )
             encode_float_chunks(
-                leveled, rate, path, args=encode_args, ffmpeg=ffmpeg, timeout=timeout
+                leveled, rate, path, args=args, ffmpeg=ffmpeg, timeout=timeout
             )
         if meter_output:
             output_lufs = file_loudness(

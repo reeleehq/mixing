@@ -19,6 +19,10 @@ is re-exported here.
 :func:`stream_kinds` reads a file's stream kinds from ffmpeg's banner, and
 :func:`refuse_dropping_streams` uses it to stop an audio-only write over its own
 source when that would destroy the source's picture.
+:func:`same_lossless_args` / :func:`resolve_encode_args` give a writer that
+re-encodes a file the options that keep its lossless codec (a 24-bit WAV
+master stays 24-bit, an ALAC ``.m4a`` stays ALAC), the ``encode_args=None`` default of
+:func:`mixing.loudness.level_file` and :func:`mixing.splice.replace_span_file`.
 """
 
 from __future__ import annotations
@@ -130,6 +134,70 @@ def refuse_dropping_streams(
             f"writing {src.name} in place would drop its {', '.join(others)} "
             "stream(s): the output is audio only; give another output"
         )
+
+
+#: Lossless audio codecs a rewrite keeps, besides PCM: ffmpeg's default
+#: encoder for their containers can be lossy (an ``.m4a`` -> AAC, an ``.mkv``
+#: -> Vorbis), so re-encoding one would silently degrade it.
+LOSSLESS_CODECS = frozenset({"flac", "alac", "wavpack", "tta"})
+#: PCM codecs ffmpeg decodes but has no encoder for (a half-float WAV, say):
+#: forcing one would fail, so these get ffmpeg's default instead.
+DECODE_ONLY_PCM = frozenset(
+    {"pcm_f16le", "pcm_f24le", "pcm_lxf", "pcm_sga", "pcm_zork"}
+)
+
+
+def is_lossless_codec(codec: Optional[str]) -> bool:
+    """Whether a rewrite should keep ffmpeg's audio ``codec``: any PCM it can
+    encode (the companded ``pcm_alaw``/``pcm_mulaw`` included: same format,
+    nothing further lost) or one of :data:`LOSSLESS_CODECS`."""
+    if not codec or codec in DECODE_ONLY_PCM:
+        return False
+    return codec.startswith("pcm_") or codec in LOSSLESS_CODECS
+
+
+def same_lossless_args(
+    src, path, *, ffmpeg: Optional[str] = None, timeout: Optional[float] = None
+) -> tuple[str, ...]:
+    """ffmpeg output options that keep ``src``'s lossless codec in ``path``.
+
+    Encoding float chunks takes ffmpeg's default codec for ``path``'s suffix:
+    16-bit PCM for ``.wav`` (a 24-bit or float master loses depth), AAC for
+    ``.m4a`` (an ALAC master becomes lossy). When ``path`` has ``src``'s suffix
+    and ``src``'s first audio stream (the one decoded) is lossless
+    (:func:`is_lossless_codec`), this is ``("-c:a", <its codec>)``; otherwise
+    ``()``. The sample format is the encoder's pick for float input: PCM keeps
+    its depth, a 16-bit FLAC or ALAC comes back 24- or 32-bit (larger, never
+    shallower).
+    """
+    if Path(path).suffix.lower() != Path(src).suffix.lower():
+        return ()
+    found = probe(src, ffmpeg=ffmpeg, timeout=timeout)
+    audio = next((s for s in found.streams if s.kind == "audio"), None)
+    codec = audio.codec if audio else None
+    return ("-c:a", codec) if is_lossless_codec(codec) else ()
+
+
+def resolve_encode_args(
+    encode_args: Optional[Sequence[str]],
+    src,
+    path,
+    *,
+    ffmpeg: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> tuple[str, ...]:
+    """The ffmpeg output options a writer that re-encodes ``src`` to ``path`` uses.
+
+    The ``encode_args=`` seam of :func:`mixing.loudness.level_file` and
+    :func:`mixing.splice.replace_span_file`: ``None`` keeps ``src``'s lossless
+    codec (:func:`same_lossless_args`); anything else is used as given and
+    replaces that default rather than adding to it (``()`` is ffmpeg's default
+    encoder for ``path``'s suffix, 16-bit for ``.wav``; pass the codec too, as
+    ``("-c:a", "pcm_s24le", "-ar", "48000")``, to keep it alongside other options).
+    """
+    if encode_args is None:
+        return same_lossless_args(src, path, ffmpeg=ffmpeg, timeout=timeout)
+    return tuple(encode_args)
 
 
 def _decode(
