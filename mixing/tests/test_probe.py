@@ -178,16 +178,34 @@ def test_header_frame_count_without_counting_packets(media):
 
 
 @needs_ffprobe
-def test_variable_rate_is_detected_and_frames_come_from_the_duration(media):
+def test_variable_rate_is_detected_and_frames_are_the_frames_it_holds(media):
     found = probe(media["vfr"])
     assert found.variable_rate
     assert found.fps == VFR_RATE  # r_frame_rate: the nominal rate
     assert found.avg_fps != found.fps  # what gives it away
     kept = sum(n % 4 != 3 for n in range(VFR_RATE * VFR_SECONDS))  # 68 of 90
     assert found.packets == kept
-    # not the packets: the duration (to the last kept frame) at the nominal rate
-    assert found.frames == round(Fraction(found.video_duration) * found.fps)
-    assert found.frames > kept
+    # #186: the frames it plays (the packets), not the duration at r_frame_rate;
+    # that is frames_at(fps), what a timeline at the nominal rate resamples to
+    assert found.frames == kept
+    assert found.frames_at(found.fps) == round(
+        Fraction(found.video_duration) * found.fps
+    )
+    assert found.frames_at(found.fps) > kept
+
+
+def test_uncounted_vfr_frames_come_from_the_playback_rate():
+    """#186: a 24 fps film whose timestamps jitter by 1/120 s reads
+    ``r_frame_rate=120/1``; with no packet count its 8 s hold 192 frames (the
+    duration times ``playback_fps``), not 956 (times ``r_frame_rate``)."""
+    from mixing.probe import MediaProbe, _video_fields
+
+    video = {"r_frame_rate": "120/1", "avg_frame_rate": "24/1", "duration": "8.0",
+             "width": 64, "height": 48}  # fmt: skip
+    fields = _video_fields(video, {}, 0.0, count_packets=False)
+    assert fields["variable_rate"] and fields["packets"] is None
+    assert fields["frames"] == 192
+    assert MediaProbe("ffprobe", **fields).frames_at(120) == 960
 
 
 def test_explicit_ffprobe_path_is_used(media, monkeypatch):
@@ -223,7 +241,9 @@ def test_banner_reads_vfr_from_its_two_rates(media):
     assert found.fps == VFR_RATE  # tbr, like ffprobe's r_frame_rate
     assert found.avg_fps == Fraction(573, 25)  # the printed 22.92 fps
     assert found.variable_rate
-    assert found.frames == round(Fraction(found.duration) * found.fps)
+    # #186: at the playback (average) rate, not tbr
+    assert found.frames == round(Fraction(found.duration) * found.avg_fps)
+    assert found.frames_at(found.fps) == round(Fraction(found.duration) * found.fps)
 
 
 @needs_ffprobe

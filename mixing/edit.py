@@ -720,7 +720,9 @@ def _probe(path) -> SourceInfo:
         width=found.width,
         height=found.height,
         fps=found.fps,
-        frames=found.frames,
+        # the timeline runs at fps: a variable-rate picture is resampled to it
+        # by time, so its count is the duration's at fps, not the frames held
+        frames=found.frames_at(found.fps) if found.variable_rate else found.frames,
         sample_rate=found.sample_rate,
         channels=found.channels,
         video_start=found.video_start,

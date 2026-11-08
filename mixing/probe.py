@@ -163,8 +163,12 @@ class MediaProbe:
             the banner, its ``tbr`` (else its ``fps``) snapped by :func:`snap_rate`.
         avg_fps: ``avg_frame_rate``; from the banner, its ``fps``. ``None``
             when unset.
-        frames: the frame count at ``fps``: the video packets when the rate is
-            constant and they are known, else the video duration times ``fps``.
+        frames: the frame count as the stream plays: the video packets when
+            known, else the video duration times :attr:`playback_fps`. At a
+            constant rate that is the count at ``fps``; for a ``variable_rate``
+            stream it is the frames decoded one by one (a 24 fps film whose
+            ``r_frame_rate`` reads 120 has its 192 frames, not 956), and
+            :meth:`frames_at` gives the count resampled to a timeline rate.
         packets: the video packet count, counted (``count_packets=True``) or
             the container's ``nb_frames`` header; ``None`` when unknown.
         video_start: where the first video frame sits after the file's start
@@ -219,9 +223,22 @@ class MediaProbe:
         >>> MediaProbe("ffprobe", fps=Fraction(24), avg_fps=Fraction(24)).playback_fps
         Fraction(24, 1)
         """
-        if self.variable_rate and self.avg_fps:
-            return self.avg_fps
-        return self.fps or self.avg_fps
+        return _playback_rate(self.fps, self.avg_fps, self.variable_rate)
+
+    def frames_at(self, rate) -> Optional[int]:
+        """The frame count of the video resampled by time to ``rate`` (fps):
+        its duration times ``rate``; ``None`` when the duration is unknown.
+
+        What a renderer with a ``rate`` timeline has from a variable-rate
+        source (each timeline frame the nearest source frame), as opposed to
+        :attr:`frames`, the frames the stream holds.
+
+        >>> MediaProbe("ffprobe", video_duration=8.0).frames_at(120)
+        960
+        """
+        if not self.video_duration:
+            return None
+        return _frames_in(self.video_duration, Fraction(rate))
 
     @property
     def exact(self) -> bool:
@@ -273,6 +290,20 @@ def _is_quarter_turn(degrees: float) -> bool:
 
 def _frames_in(seconds: float, fps: Fraction) -> int:
     return round(Fraction(seconds) * fps)
+
+
+def _frames_in_at(seconds: Optional[float], fps: Optional[Fraction]) -> Optional[int]:
+    """:func:`_frames_in`, or ``None`` when either is unknown (or zero)."""
+    return _frames_in(seconds, fps) if seconds and fps else None
+
+
+def _playback_rate(
+    fps: Optional[Fraction], average: Optional[Fraction], variable: bool
+) -> Optional[Fraction]:
+    """:attr:`MediaProbe.playback_fps` from the nominal and average rates."""
+    if variable and average:
+        return average
+    return fps or average
 
 
 def _ratio(text: Optional[str]) -> Optional[Fraction]:
@@ -482,7 +513,7 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
     tag_end = _clock(video.get("tags", {}).get("DURATION"))
     end = tag_end - origin if tag_end else _seconds(fmt.get("duration"))
     duration = _seconds(video.get("duration")) or (end and end - video_start)
-    timed = _frames_in(duration, fps) if duration and fps else None
+    timed = _frames_in_at(duration, fps)
     # avg_frame_rate is barely filled by mkv: the packet count against the
     # duration is the other witness of a variable rate
     variable = bool(
@@ -499,7 +530,8 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
         rotation=rotation,
         fps=fps,
         avg_fps=average,
-        frames=packets if packets and not variable else timed,
+        frames=packets
+        or _frames_in_at(duration, _playback_rate(fps, average, variable)),
         packets=packets,
         video_start=video_start,
         video_duration=duration or None,
@@ -606,15 +638,16 @@ def parse_banner(text: str) -> MediaProbe:
             width, height = height, width
         average = _banner_rate(_BANNER_FPS, line.group(0))
         fps = _banner_rate(_BANNER_TBR, line.group(0)) or average
+        variable = _rates_disagree(fps, average)
         fields.update(
             width=width,
             height=height,
             rotation=degrees,
             fps=fps,
             avg_fps=average,
-            frames=_frames_in(seconds, fps) if seconds and fps else None,
+            frames=_frames_in_at(seconds, _playback_rate(fps, average, variable)),
             video_duration=seconds,
-            variable_rate=_rates_disagree(fps, average),
+            variable_rate=variable,
         )
     return MediaProbe(**fields)
 
