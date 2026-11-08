@@ -103,9 +103,12 @@ def test_the_cap_warning_names_the_callers_subject():
 
     with pytest.warns(GainCappedWarning) as caught:
         level_group(
-            [_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0,
+            [_voice(2, 0.0005)],
+            FS,
+            target_lufs=-10.0,
+            max_gain_db=6.0,
             subject="voice 'a'",
-        )  # fmt: skip
+        )
     (w,) = [c.message for c in caught if isinstance(c.message, GainCappedWarning)]
     assert w.subject == "voice 'a'" and str(w).startswith("voice 'a' measures ")
 

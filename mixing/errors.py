@@ -136,7 +136,8 @@ class GainCappedWarning(UserWarning):
     this class alone), with the numbers as attributes.
 
     Attributes:
-        subject: what was leveled (``"group"``, or a file's name).
+        subject: what was leveled (``level_group``'s ``subject=``, default
+            ``"group"``; ``level_file``'s source file name).
         measured_lufs: its measured loudness.
         target_lufs: the loudness asked for.
         requested_gain_db: the gain that would have reached it.
