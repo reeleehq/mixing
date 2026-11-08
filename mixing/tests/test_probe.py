@@ -194,15 +194,53 @@ def test_variable_rate_is_detected_and_frames_are_the_frames_it_holds(media):
     assert found.frames_at(found.fps) > kept
 
 
+def _fields(*, count_packets, **video):
+    from mixing.probe import _video_fields
+
+    video = {"width": 64, "height": 48, **video}
+    return _video_fields(video, {}, 0.0, count_packets=count_packets)
+
+
+def test_a_stale_frame_header_alone_does_not_set_the_frame_count():
+    """#186 review: with rates that agree, an uncounted ``nb_frames`` that
+    contradicts the duration is as likely stale as variable: the duration wins."""
+    header = dict(r_frame_rate="25/1", avg_frame_rate="25/1", duration="10.0")
+    stale = _fields(count_packets=False, nb_frames="9999", **header)
+    assert stale["packets"] == 9999 and stale["frames"] == 250
+    counted = _fields(count_packets=True, nb_read_packets="9999", **header)
+    assert counted["frames"] == 9999  # counted packets are the frames
+
+
+def test_a_vfr_mkv_with_no_average_plays_at_its_frames_over_its_duration():
+    """#186 review: mkv states no avg_frame_rate; the counted packets are the
+    other witness, so ``frames``, ``playback_fps`` and ``frames_at`` agree."""
+    from mixing.probe import MediaProbe
+
+    mkv = dict(r_frame_rate="120/1", avg_frame_rate="0/0", duration="8.0")
+    fields = _fields(count_packets=True, nb_read_packets="192", **mkv)
+    found = MediaProbe("ffprobe", **fields)
+    assert found.variable_rate and found.frames == 192
+    assert found.playback_fps == 24
+    assert found.frames_at(found.playback_fps) == found.frames
+
+
+def test_frames_at_snaps_a_float_rate():
+    from mixing.probe import MediaProbe
+
+    hour = MediaProbe("ffprobe", video_duration=3600.0)
+    assert hour.frames_at(29.97) == hour.frames_at(Fraction(30000, 1001)) == 107892
+    assert hour.frames_at("30000/1001") == 107892
+
+
 def test_uncounted_vfr_frames_come_from_the_playback_rate():
     """#186: a 24 fps film whose timestamps jitter by 1/120 s reads
     ``r_frame_rate=120/1``; with no packet count its 8 s hold 192 frames (the
     duration times ``playback_fps``), not 956 (times ``r_frame_rate``)."""
-    from mixing.probe import MediaProbe, _video_fields
+    from mixing.probe import MediaProbe
 
-    video = {"r_frame_rate": "120/1", "avg_frame_rate": "24/1", "duration": "8.0",
-             "width": 64, "height": 48}  # fmt: skip
-    fields = _video_fields(video, {}, 0.0, count_packets=False)
+    fields = _fields(
+        count_packets=False, r_frame_rate="120/1", avg_frame_rate="24/1", duration="8.0"
+    )
     assert fields["variable_rate"] and fields["packets"] is None
     assert fields["frames"] == 192
     assert MediaProbe("ffprobe", **fields).frames_at(120) == 960

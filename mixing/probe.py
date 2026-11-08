@@ -215,7 +215,9 @@ class MediaProbe:
         timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
         holes between its shots reads ``120/1`` (reeleehq/an#195, cutan's
         ``stream_fps``). So for a ``variable_rate`` stream the average rate is
-        the playback rate; otherwise ``fps`` (``avg_fps`` when it is unset).
+        the playback rate (or, when the container states none, as mkv barely
+        does, :attr:`frames` over the duration); otherwise ``fps`` (``avg_fps``
+        when it is unset).
 
         >>> MediaProbe("ffprobe", fps=Fraction(120), avg_fps=Fraction(5760, 239),
         ...            variable_rate=True).playback_fps
@@ -223,7 +225,13 @@ class MediaProbe:
         >>> MediaProbe("ffprobe", fps=Fraction(24), avg_fps=Fraction(24)).playback_fps
         Fraction(24, 1)
         """
-        return _playback_rate(self.fps, self.avg_fps, self.variable_rate)
+        return _playback_rate(
+            self.fps,
+            self.avg_fps,
+            self.variable_rate,
+            frames=self.frames,
+            seconds=self.video_duration,
+        )
 
     def frames_at(self, rate) -> Optional[int]:
         """The frame count of the video resampled by time to ``rate`` (fps):
@@ -233,12 +241,16 @@ class MediaProbe:
         source (each timeline frame the nearest source frame), as opposed to
         :attr:`frames`, the frames the stream holds.
 
+        ``rate`` is exact (a ``Fraction``, an ``int`` or a ``"30000/1001"``
+        string) or a float, snapped by :func:`snap_rate` (``29.97`` is NTSC).
+
         >>> MediaProbe("ffprobe", video_duration=8.0).frames_at(120)
         960
         """
-        if not self.video_duration:
-            return None
-        return _frames_in(self.video_duration, Fraction(rate))
+        exact = isinstance(rate, (Fraction, int, str))
+        return _frames_in_at(
+            self.video_duration, Fraction(rate) if exact else snap_rate(rate)
+        )
 
     @property
     def exact(self) -> bool:
@@ -298,11 +310,19 @@ def _frames_in_at(seconds: Optional[float], fps: Optional[Fraction]) -> Optional
 
 
 def _playback_rate(
-    fps: Optional[Fraction], average: Optional[Fraction], variable: bool
+    fps: Optional[Fraction],
+    average: Optional[Fraction],
+    variable: bool,
+    *,
+    frames: Optional[int] = None,
+    seconds: Optional[float] = None,
 ) -> Optional[Fraction]:
-    """:attr:`MediaProbe.playback_fps` from the nominal and average rates."""
+    """:attr:`MediaProbe.playback_fps` from the nominal and average rates, or,
+    for a variable rate with no average, the counted ``frames`` over ``seconds``."""
     if variable and average:
         return average
+    if variable and frames and seconds:
+        return snap_rate(frames / seconds)
     return fps or average
 
 
@@ -516,10 +536,15 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
     timed = _frames_in_at(duration, fps)
     # avg_frame_rate is barely filled by mkv: the packet count against the
     # duration is the other witness of a variable rate
+    rates_disagree = _rates_disagree(nominal, average)
     variable = bool(
-        _rates_disagree(nominal, average)
-        or (packets and timed and abs(packets - timed) > VFR_FRAME_SLACK)
+        rates_disagree or (packets and timed and abs(packets - timed) > VFR_FRAME_SLACK)
     )
+    # the frames are the packets, unless an uncounted nb_frames header is the
+    # only witness of a variable rate: then it is as likely a stale header (a
+    # remux, an edit list) as a variable picture, and the duration decides
+    trusted = packets if count_packets or rates_disagree or not variable else None
+    playback = _playback_rate(fps, average, variable, frames=trusted, seconds=duration)
     rotation = _rotation(video)
     width, height = int(video["width"]), int(video["height"])
     if _is_quarter_turn(rotation):
@@ -530,8 +555,7 @@ def _video_fields(video: dict, fmt: dict, origin: float, count_packets: bool) ->
         rotation=rotation,
         fps=fps,
         avg_fps=average,
-        frames=packets
-        or _frames_in_at(duration, _playback_rate(fps, average, variable)),
+        frames=trusted or _frames_in_at(duration, playback),
         packets=packets,
         video_start=video_start,
         video_duration=duration or None,
@@ -588,7 +612,7 @@ def parse_banner(text: str) -> MediaProbe:
     audio stream's rate and layout. It has no per-stream start times (both
     streams are **assumed** to start with the file: ``video_start`` and
     ``audio_start`` are ``0.0``) and no packet count (``frames`` is the
-    container duration times ``fps``), so a variable rate is detected only
+    container duration times :attr:`MediaProbe.playback_fps`), so a variable rate is detected only
     when the two printed rates disagree.
 
     >>> found = parse_banner('''Duration: 00:00:10.50, start: 0.0
