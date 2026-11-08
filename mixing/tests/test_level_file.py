@@ -504,4 +504,5 @@ def test_lossless_codec_names():
     from mixing.decode import is_lossless_codec
 
     assert all(map(is_lossless_codec, ["pcm_s24be", "pcm_u8", "flac", "alac"]))
-    assert not any(map(is_lossless_codec, ["aac", "mp3", "vorbis", "", None]))
+    lossy = ["aac", "mp3", "vorbis", "", None]
+    assert not any(map(is_lossless_codec, lossy + ["pcm_f16le"]))  # no encoder

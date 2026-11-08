@@ -136,15 +136,24 @@ def refuse_dropping_streams(
         )
 
 
-#: Lossless audio codecs a rewrite keeps (with every ``pcm_*``): ffmpeg's
-#: default encoder for their containers can be lossy (an ``.m4a`` -> AAC, an
-#: ``.mkv`` -> Vorbis), so re-encoding one would silently degrade it.
+#: Lossless audio codecs a rewrite keeps, besides PCM: ffmpeg's default
+#: encoder for their containers can be lossy (an ``.m4a`` -> AAC, an ``.mkv``
+#: -> Vorbis), so re-encoding one would silently degrade it.
 LOSSLESS_CODECS = frozenset({"flac", "alac", "wavpack", "tta"})
+#: PCM codecs ffmpeg decodes but has no encoder for (a half-float WAV, say):
+#: forcing one would fail, so these get ffmpeg's default instead.
+DECODE_ONLY_PCM = frozenset(
+    {"pcm_f16le", "pcm_f24le", "pcm_lxf", "pcm_sga", "pcm_zork"}
+)
 
 
 def is_lossless_codec(codec: Optional[str]) -> bool:
-    """Whether ffmpeg's audio ``codec`` name is lossless (PCM or :data:`LOSSLESS_CODECS`)."""
-    return bool(codec) and (codec.startswith("pcm_") or codec in LOSSLESS_CODECS)
+    """Whether a rewrite should keep ffmpeg's audio ``codec``: any PCM it can
+    encode (the companded ``pcm_alaw``/``pcm_mulaw`` included: same format,
+    nothing further lost) or one of :data:`LOSSLESS_CODECS`."""
+    if not codec or codec in DECODE_ONLY_PCM:
+        return False
+    return codec.startswith("pcm_") or codec in LOSSLESS_CODECS
 
 
 def same_lossless_args(
