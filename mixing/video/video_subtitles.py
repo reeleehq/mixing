@@ -508,7 +508,7 @@ def write_subtitles_in_video(
     Returns:
         Path to the output video file
     """
-    video_path = process_path(video)
+    video_path = Path(process_path(video))
 
     if not embed_subtitles:
         default_path = _get_output_path(None, video_path, suffix="_copy")
