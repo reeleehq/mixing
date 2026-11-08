@@ -638,6 +638,7 @@ def level_group(
     meter: Meter = "numpy",
     max_gain_db: float = MAX_GAIN_DB,
     min_measure_s: float = MIN_MEASURE_S,
+    subject: str = "group",
 ) -> tuple[float, float]:
     """``(gain_db, measured_lufs)``: the one gain bringing a group to ``target_lufs``.
 
@@ -647,12 +648,14 @@ def level_group(
     looped to that length for the measurement. ``fs`` is one rate, or one per
     segment. Silence (at or below the -70 LUFS gate) gets gain 0. A gain above
     ``max_gain_db`` is capped, with a :class:`GainCappedWarning`, since it would
-    mostly amplify noise. Apply it with ``data * 10 ** (gain_db / 20)`` and
-    :func:`limit_peaks`.
+    mostly amplify noise; the warning names ``subject`` (in its message and as
+    ``.subject``), so a caller leveling many groups says which one was capped
+    (``subject=f"voice {name!r}"``) and can re-issue the message unchanged.
+    Apply the gain with ``data * 10 ** (gain_db / 20)`` and :func:`limit_peaks`.
     """
     measured = group_lufs(segments, fs, meter=meter, min_measure_s=min_measure_s)
     gain = _target_gain(
-        measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject="group"
+        measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject=subject
     )
     return gain, measured
 

@@ -97,6 +97,22 @@ def test_a_capped_gain_warns_with_a_typed_warning_carrying_the_numbers():
             level_group([_voice(2, 0.0005)], FS, target_lufs=-10.0, max_gain_db=6.0)
 
 
+def test_the_cap_warning_names_the_callers_subject():
+    """#171: a caller leveling many groups names the one capped."""
+    from mixing.errors import GainCappedWarning
+
+    with pytest.warns(GainCappedWarning) as caught:
+        level_group(
+            [_voice(2, 0.0005)],
+            FS,
+            target_lufs=-10.0,
+            max_gain_db=6.0,
+            subject="voice 'a'",
+        )
+    (w,) = [c.message for c in caught if isinstance(c.message, GainCappedWarning)]
+    assert w.subject == "voice 'a'" and str(w).startswith("voice 'a' measures ")
+
+
 def test_the_cap_warning_survives_pickle_and_copy():
     import copy
     import pickle
