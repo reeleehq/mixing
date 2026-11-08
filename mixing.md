@@ -1,4 +1,4 @@
-> built 2026-11-04 04:37 UTC from 3532df7 (main) · mixing 0.0.114. Details: build_info.json
+> built 2026-11-08 23:50 UTC from e5a2f02 (main) · mixing 0.0.115. Details: build_info.json
 
 # index.html.md
 
@@ -1444,7 +1444,8 @@ this class alone), with the numbers as attributes.
 
 #### subject
 
-what was leveled (`"group"`, or a file’s name).
+what was leveled (`level_group`’s `subject=`, default
+`"group"`; `level_file`’s source file name).
 
 #### measured_lufs
 
@@ -1829,7 +1830,8 @@ this class alone), with the numbers as attributes.
 
 #### subject
 
-what was leveled (`"group"`, or a file’s name).
+what was leveled (`level_group`’s `subject=`, default
+`"group"`; `level_file`’s source file name).
 
 #### measured_lufs
 
@@ -2344,8 +2346,12 @@ when unset.
 
 #### frames
 
-the frame count at `fps`: the video packets when the rate is
-constant and they are known, else the video duration times `fps`.
+the frame count as the stream plays: the video packets when
+known, else the video duration times [`playback_fps`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.playback_fps). At a
+constant rate that is the count at `fps`; for a `variable_rate`
+stream it is the frames decoded one by one (a 24 fps film whose
+`r_frame_rate` reads 120 has its 192 frames, not 956), and
+[`frames_at()`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.frames_at) gives the count resampled to a timeline rate.
 
 * **Type:**
   [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
@@ -2424,6 +2430,26 @@ before).
 
 Whether this came from ffprobe (exact) rather than the banner.
 
+#### frames_at(rate)
+
+The frame count of the video resampled by time to `rate` (fps):
+its duration times `rate`; `None` when the duration is unknown.
+
+What a renderer with a `rate` timeline has from a variable-rate
+source (each timeline frame the nearest source frame), as opposed to
+[`frames`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.frames), the frames the stream holds.
+
+`rate` is exact (a `Fraction`, an `int` or a `"30000/1001"`
+string) or a float, snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md#mixing.probe.snap_rate) (`29.97` is NTSC).
+
+```pycon
+>>> MediaProbe("ffprobe", video_duration=8.0).frames_at(120)
+960
+```
+
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
+
 #### *property* playback_fps *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Fraction](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]*
 
 The rate the frames actually arrive at, decoded one by one.
@@ -2432,7 +2458,9 @@ The rate the frames actually arrive at, decoded one by one.
 timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
 holes between its shots reads `120/1` (reeleehq/an#195, cutan’s
 `stream_fps`). So for a `variable_rate` stream the average rate is
-the playback rate; otherwise `fps` (`avg_fps` when it is unset).
+the playback rate (or, when the container states none, as mkv barely
+does, [`frames`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.frames) over the duration); otherwise `fps` (`avg_fps`
+when it is unset).
 
 ```pycon
 >>> MediaProbe("ffprobe", fps=Fraction(120), avg_fps=Fraction(5760, 239),
@@ -2491,7 +2519,7 @@ both snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md#mixing.probe.s
 audio stream’s rate and layout. It has no per-stream start times (both
 streams are **assumed** to start with the file: `video_start` and
 `audio_start` are `0.0`) and no packet count (`frames` is the
-container duration times `fps`), so a variable rate is detected only
+container duration times [`MediaProbe.playback_fps`](_autosummary/mixing.probe.html.md#mixing.probe.MediaProbe.playback_fps)), so a variable rate is detected only
 when the two printed rates disagree.
 
 ```pycon
@@ -3666,18 +3694,16 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-04 04:37 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/3532df75893c08ccf6e6f96b1c93e459131d9e83"><code>3532df7</code></a> on branch <code>main</code>, for **mixing 0.0.114** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-08 23:50 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/e5a2f02b267feac5482dd0bc65f3cf9f9070efd2"><code>e5a2f02</code></a> on branch <code>main</code>, for **mixing 0.0.115** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.114) is ahead of the latest release on PyPI (0.0.113): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/3532df75893c08ccf6e6f96b1c93e459131d9e83"><code>3532df75893c08ccf6e6f96b1c93e459131d9e83</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/e5a2f02b267feac5482dd0bc65f3cf9f9070efd2"><code>e5a2f02b267feac5482dd0bc65f3cf9f9070efd2</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -3688,9 +3714,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/41773032553">41773032553</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/42534440298">42534440298</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>c1d661cd2f5dc399f6659207711033f02f5cfbfe</code> (in the history of the built commit) |
+| Event commit | <code>03776070a3ab14eea76977650787ff69240d6f50</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -3699,7 +3725,7 @@ The documentation and the package may be misaligned:
 | epythet  | 0.2.22  |
 | Sphinx   | 9.1.1   |
 | docutils | 0.22.4  |
-| Python   | 3.12.15 |
+| Python   | 3.12.16 |
 
 ## Configuration as resolved
 
@@ -3715,13 +3741,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.113/">0.0.113</a>, older than the documented version (0.0.114).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.115/">0.0.115</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 3532df75893c08ccf6e6f96b1c93e459131d9e83
+git checkout e5a2f02b267feac5482dd0bc65f3cf9f9070efd2
 pip install "epythet==0.2.22"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

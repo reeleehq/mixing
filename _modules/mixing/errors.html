@@ -325,29 +325,30 @@
 </span><span id="line-136"><span class="sd">    this class alone), with the numbers as attributes.</span>
 </span><span id="line-137">
 </span><span id="line-138"><span class="sd">    Attributes:</span>
-</span><span id="line-139"><span class="sd">        subject: what was leveled (``"group"``, or a file's name).</span>
-</span><span id="line-140"><span class="sd">        measured_lufs: its measured loudness.</span>
-</span><span id="line-141"><span class="sd">        target_lufs: the loudness asked for.</span>
-</span><span id="line-142"><span class="sd">        requested_gain_db: the gain that would have reached it.</span>
-</span><span id="line-143"><span class="sd">        max_gain_db: the cap the gain was held to.</span>
-</span><span id="line-144"><span class="sd">    """</span>
-</span><span id="line-145">
-</span><span id="line-146">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-</span><span id="line-147">        <span class="bp">self</span><span class="p">,</span>
-</span><span id="line-148">        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-</span><span id="line-149">        <span class="o">*</span><span class="p">,</span>
-</span><span id="line-150">        <span class="n">subject</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-151">        <span class="n">measured_lufs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-152">        <span class="n">target_lufs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-153">        <span class="n">requested_gain_db</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-154">        <span class="n">max_gain_db</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="line-155">    <span class="p">):</span>  <span class="c1"># defaults, so pickle and copy (which rebuild from ``args``) work</span>
-</span><span id="line-156">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
-</span><span id="line-157">        <span class="bp">self</span><span class="o">.</span><span class="n">subject</span> <span class="o">=</span> <span class="n">subject</span>
-</span><span id="line-158">        <span class="bp">self</span><span class="o">.</span><span class="n">measured_lufs</span> <span class="o">=</span> <span class="n">measured_lufs</span>
-</span><span id="line-159">        <span class="bp">self</span><span class="o">.</span><span class="n">target_lufs</span> <span class="o">=</span> <span class="n">target_lufs</span>
-</span><span id="line-160">        <span class="bp">self</span><span class="o">.</span><span class="n">requested_gain_db</span> <span class="o">=</span> <span class="n">requested_gain_db</span>
-</span><span id="line-161">        <span class="bp">self</span><span class="o">.</span><span class="n">max_gain_db</span> <span class="o">=</span> <span class="n">max_gain_db</span></div>
+</span><span id="line-139"><span class="sd">        subject: what was leveled (``level_group``'s ``subject=``, default</span>
+</span><span id="line-140"><span class="sd">            ``"group"``; ``level_file``'s source file name).</span>
+</span><span id="line-141"><span class="sd">        measured_lufs: its measured loudness.</span>
+</span><span id="line-142"><span class="sd">        target_lufs: the loudness asked for.</span>
+</span><span id="line-143"><span class="sd">        requested_gain_db: the gain that would have reached it.</span>
+</span><span id="line-144"><span class="sd">        max_gain_db: the cap the gain was held to.</span>
+</span><span id="line-145"><span class="sd">    """</span>
+</span><span id="line-146">
+</span><span id="line-147">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="line-148">        <span class="bp">self</span><span class="p">,</span>
+</span><span id="line-149">        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+</span><span id="line-150">        <span class="o">*</span><span class="p">,</span>
+</span><span id="line-151">        <span class="n">subject</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-152">        <span class="n">measured_lufs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-153">        <span class="n">target_lufs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-154">        <span class="n">requested_gain_db</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-155">        <span class="n">max_gain_db</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="line-156">    <span class="p">):</span>  <span class="c1"># defaults, so pickle and copy (which rebuild from ``args``) work</span>
+</span><span id="line-157">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+</span><span id="line-158">        <span class="bp">self</span><span class="o">.</span><span class="n">subject</span> <span class="o">=</span> <span class="n">subject</span>
+</span><span id="line-159">        <span class="bp">self</span><span class="o">.</span><span class="n">measured_lufs</span> <span class="o">=</span> <span class="n">measured_lufs</span>
+</span><span id="line-160">        <span class="bp">self</span><span class="o">.</span><span class="n">target_lufs</span> <span class="o">=</span> <span class="n">target_lufs</span>
+</span><span id="line-161">        <span class="bp">self</span><span class="o">.</span><span class="n">requested_gain_db</span> <span class="o">=</span> <span class="n">requested_gain_db</span>
+</span><span id="line-162">        <span class="bp">self</span><span class="o">.</span><span class="n">max_gain_db</span> <span class="o">=</span> <span class="n">max_gain_db</span></div>
 
 </span></code></pre></div>
     </div></div>
@@ -362,7 +363,7 @@
 </footer>
     </div>
     
-    <script src="../../_static/documentation_options.js?v=3893778a"></script>
+    <script src="../../_static/documentation_options.js?v=9cebf393"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -133,8 +133,12 @@ when unset.
 
 #### frames
 
-the frame count at `fps`: the video packets when the rate is
-constant and they are known, else the video duration times `fps`.
+the frame count as the stream plays: the video packets when
+known, else the video duration times [`playback_fps`](#mixing.probe.MediaProbe.playback_fps). At a
+constant rate that is the count at `fps`; for a `variable_rate`
+stream it is the frames decoded one by one (a 24 fps film whose
+`r_frame_rate` reads 120 has its 192 frames, not 956), and
+[`frames_at()`](#mixing.probe.MediaProbe.frames_at) gives the count resampled to a timeline rate.
 
 * **Type:**
   [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
@@ -213,6 +217,26 @@ before).
 
 Whether this came from ffprobe (exact) rather than the banner.
 
+#### frames_at(rate)
+
+The frame count of the video resampled by time to `rate` (fps):
+its duration times `rate`; `None` when the duration is unknown.
+
+What a renderer with a `rate` timeline has from a variable-rate
+source (each timeline frame the nearest source frame), as opposed to
+[`frames`](#mixing.probe.MediaProbe.frames), the frames the stream holds.
+
+`rate` is exact (a `Fraction`, an `int` or a `"30000/1001"`
+string) or a float, snapped by [`snap_rate()`](#mixing.probe.snap_rate) (`29.97` is NTSC).
+
+```pycon
+>>> MediaProbe("ffprobe", video_duration=8.0).frames_at(120)
+960
+```
+
+* **Return type:**
+  [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
+
 #### *property* playback_fps *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Fraction](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]*
 
 The rate the frames actually arrive at, decoded one by one.
@@ -221,7 +245,9 @@ The rate the frames actually arrive at, decoded one by one.
 timestamp, not the rate frames arrive at: a 24 fps film with sub-frame
 holes between its shots reads `120/1` (reeleehq/an#195, cutan’s
 `stream_fps`). So for a `variable_rate` stream the average rate is
-the playback rate; otherwise `fps` (`avg_fps` when it is unset).
+the playback rate (or, when the container states none, as mkv barely
+does, [`frames`](#mixing.probe.MediaProbe.frames) over the duration); otherwise `fps` (`avg_fps`
+when it is unset).
 
 ```pycon
 >>> MediaProbe("ffprobe", fps=Fraction(120), avg_fps=Fraction(5760, 239),
@@ -280,7 +306,7 @@ both snapped by [`snap_rate()`](#mixing.probe.snap_rate)), the display rotation 
 audio stream’s rate and layout. It has no per-stream start times (both
 streams are **assumed** to start with the file: `video_start` and
 `audio_start` are `0.0`) and no packet count (`frames` is the
-container duration times `fps`), so a variable rate is detected only
+container duration times [`MediaProbe.playback_fps`](#mixing.probe.MediaProbe.playback_fps)), so a variable rate is detected only
 when the two printed rates disagree.
 
 ```pycon

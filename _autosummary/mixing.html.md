@@ -122,7 +122,8 @@ this class alone), with the numbers as attributes.
 
 #### subject
 
-what was leveled (`"group"`, or a file’s name).
+what was leveled (`level_group`’s `subject=`, default
+`"group"`; `level_file`’s source file name).
 
 #### measured_lufs
 
