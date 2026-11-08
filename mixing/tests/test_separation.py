@@ -292,6 +292,21 @@ def test_the_high_band_goes_to_the_music_even_when_it_is_talk():
     assert np.allclose(music[inner], sibilance[inner], atol=1e-3)
 
 
+@pytest.mark.parametrize("sr", [8000, 16000, 22050, 48000])
+def test_stems_sum_to_the_input_whatever_the_rates(sr):
+    """#185: the round trip's residual goes to the music below and above the
+    model's rate, so a model whose stems sum to its input keeps the sum."""
+    x = np.random.default_rng(1).standard_normal((sr, 2)) * 0.3  # white: worst case
+
+    def clip_split(a, r):  # nonlinear, but speech + music == a exactly
+        speech = np.clip(a, -0.1, 0.1)
+        return speech, a - speech
+
+    strategy = SeparationStrategy("clip", clip_split, sample_rate=44100)
+    speech, music = separate_speech(x, separator=strategy, sr=sr)
+    np.testing.assert_allclose(speech + music, x, rtol=0, atol=1e-9)
+
+
 def test_resampling_up_to_a_higher_rate_strategy():
     rec = _Recorder(music=lambda a: a)
     strategy = SeparationStrategy("rec", rec, sample_rate=48000)

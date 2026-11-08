@@ -26,7 +26,9 @@ strategy's rate is below the input's, the band above the model's Nyquist
 frequency (8 kHz for a 16 kHz enhancer) never reaches the model, so it is added
 to the music untouched, *including any talk there* (sibilants, breath). With the
 registered 44.1/48 kHz strategies this does not arise for CD-rate input; it
-matters when plugging in a 16 kHz model.
+matters when plugging in a 16 kHz model. At any other rate, too, what the
+resampling round trip loses is added to the music, so ``speech + music`` is the
+input whenever the model's own stems sum to what it was given.
 
 Registered strategies (licences are the checkpoints'):
 
@@ -251,9 +253,11 @@ def _run_strategy(
         return _fit(resample(y, native, sr), n, ch, sr=sr, what=what)
 
     speech, music = back(speech), back(music)
-    if native < sr:  # the band the model never saw (talk included) goes to music
-        music = music + (x - back(x_native))
-    return speech, music
+    # What the round trip lost goes to the music, so speech + music == x
+    # whenever the model's own stems sum to its input: below the input's rate
+    # that is the band the model never saw (talk included); above it, the bit
+    # the resampler's filter takes off near the input's Nyquist.
+    return speech, music + (x - back(x_native))
 
 
 def _resolve(separator: Union[str, SeparationStrategy, SpeechSeparator]):
