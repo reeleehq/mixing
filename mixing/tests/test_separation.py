@@ -292,6 +292,42 @@ def test_the_high_band_goes_to_the_music_even_when_it_is_talk():
     assert np.allclose(music[inner], sibilance[inner], atol=1e-3)
 
 
+@pytest.mark.parametrize("sr", [8000, 16000, 22050, 48000])
+def test_stems_sum_to_the_input_whatever_the_rates(sr):
+    """#185: the round trip's residual goes to the music below and above the
+    model's rate, so a model whose stems sum to its input keeps the sum."""
+    x = np.random.default_rng(1).standard_normal((sr, 2)) * 0.3  # white: worst case
+
+    def clip_split(a, r):  # nonlinear, but speech + music == a exactly
+        speech = np.clip(a, -0.1, 0.1)
+        return speech, a - speech
+
+    strategy = SeparationStrategy("clip", clip_split, sample_rate=44100)
+    speech, music = separate_speech(x, separator=strategy, sr=sr)
+    np.testing.assert_allclose(speech + music, x, rtol=0, atol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "sr, native, tone_hz",
+    [
+        (16000, 44100, 7600),  # up: on the input's own Nyquist slope
+        (22050, 48000, 10600),
+        (48000, 16000, 7600),  # down: on the model's Nyquist slope
+    ],
+)
+def test_what_resampling_weakened_goes_back_to_the_stem_it_came_from(
+    sr, native, tone_hz
+):
+    """#185 review: the residual near a Nyquist slope is split like the stems,
+    so an all-speech model puts no sibilant into the music."""
+    talk = 0.1 * np.sin(2 * np.pi * tone_hz * np.arange(sr) / sr)[:, None]
+    all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
+    speech, music = separate_speech(talk, separator=all_speech, sr=sr)
+    np.testing.assert_allclose(speech + music, talk, rtol=0, atol=1e-9)
+    leak_db = 10 * np.log10(np.mean(music**2) / np.mean(talk**2))
+    assert leak_db < -60
+
+
 def test_resampling_up_to_a_higher_rate_strategy():
     rec = _Recorder(music=lambda a: a)
     strategy = SeparationStrategy("rec", rec, sample_rate=48000)

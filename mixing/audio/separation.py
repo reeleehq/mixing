@@ -26,7 +26,11 @@ strategy's rate is below the input's, the band above the model's Nyquist
 frequency (8 kHz for a 16 kHz enhancer) never reaches the model, so it is added
 to the music untouched, *including any talk there* (sibilants, breath). With the
 registered 44.1/48 kHz strategies this does not arise for CD-rate input; it
-matters when plugging in a 16 kHz model.
+matters when plugging in a 16 kHz model. What the resampling round trip
+weakens where the model did hear it (the filter's slope near the lower of the
+two Nyquist frequencies) is split between the stems in proportion to them, so
+``speech + music`` is the input whenever the model's own stems sum to what it
+was given, and talk the model found stays out of the music.
 
 Registered strategies (licences are the checkpoints'):
 
@@ -108,8 +112,13 @@ LENGTH_TOLERANCE_S = 0.05
 #: those of the music under it.
 WIENER_WINDOW_S = 0.04
 #: Floor on the Wiener mask's denominator (power), so silent bins do not divide by
-#: zero (they get mask 0, which is harmless: both sources are silent there).
+#: zero (they go to the music, which is harmless: both sources are silent there).
 WIENER_EPS = 1e-20
+#: A bin of the resampling residual whose stems (resampled back) are this far
+#: below it (dB) was not heard by the model (above its Nyquist): it goes to the
+#: music. Above the floor it is split like the stems (a band the resampler only
+#: weakened, or an image it made of them).
+UNHEARD_FLOOR_DB = -40.0
 #: Suffix of a written result's name (``<stem>_talk_removed.wav``).
 OUTPUT_SUFFIX = "_talk_removed.wav"
 
@@ -251,9 +260,16 @@ def _run_strategy(
         return _fit(resample(y, native, sr), n, ch, sr=sr, what=what)
 
     speech, music = back(speech), back(music)
-    if native < sr:  # the band the model never saw (talk included) goes to music
-        music = music + (x - back(x_native))
-    return speech, music
+    # What the round trip lost (x - back(x_native)) is put back, so speech +
+    # music == x whenever the model's own stems sum to its input. Where the
+    # stems are there, it is split like them (a band the resampler's slope
+    # weakened near the lower Nyquist, or the image of them it made above);
+    # where they are not (above the model's Nyquist: never heard), it goes to
+    # the music, talk included.
+    to_speech, to_music = _power_mask_split(
+        x - back(x_native), speech, music, sr, floor_db=UNHEARD_FLOOR_DB
+    )
+    return speech + to_speech, music + to_music
 
 
 def _resolve(separator: Union[str, SeparationStrategy, SpeechSeparator]):
@@ -309,18 +325,38 @@ def wiener_split(
     >>> bool(np.allclose(s + m, x))
     True
     """
-    signal = require_package("scipy.signal")
     mixture = np.asarray(mixture, dtype=np.float64)
     speech = np.asarray(speech, dtype=np.float64)
-    n = len(mixture)
+    return _power_mask_split(mixture, speech, mixture - speech, sr, window_s=window_s)
+
+
+def _power_mask_split(
+    y: np.ndarray,
+    speech_ref: np.ndarray,
+    music_ref: np.ndarray,
+    sr: int,
+    *,
+    window_s: float = WIENER_WINDOW_S,
+    floor_db: Optional[float] = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """``y`` split into ``(speech, music)`` summing to it: in every STFT bin the
+    speech gets ``|S|^2 / (|S|^2 + |M|^2)`` of ``y`` (S, M the references'
+    spectra). A bin where both are silent goes to the music, and so, with
+    ``floor_db``, does a bin where they are that far below ``y`` itself."""
+    signal = require_package("scipy.signal")
+    y = np.asarray(y, dtype=np.float64)
+    n = len(y)
     nperseg = min(_stft_size(sr, window_s), max(1, n))
-    spec = lambda y: signal.stft(y.T, nperseg=nperseg)[2]
-    X, S = spec(mixture), spec(speech)
-    M2, S2 = np.abs(X - S) ** 2, np.abs(S) ** 2
-    mask = M2 / np.maximum(M2 + S2, WIENER_EPS)
-    music = signal.istft(mask * X, nperseg=nperseg)[1].T[:n]
-    music = _fit(music, n, mixture.shape[1], sr=sr, what="the Wiener-masked music")
-    return mixture - music, music
+    spec = lambda a: signal.stft(np.asarray(a, dtype=np.float64).T, nperseg=nperseg)
+    Y = spec(y)[2]
+    S2, M2 = np.abs(spec(speech_ref)[2]) ** 2, np.abs(spec(music_ref)[2]) ** 2
+    floor = WIENER_EPS
+    if floor_db is not None:
+        floor = np.maximum(floor, 10 ** (floor_db / 10) * np.abs(Y) ** 2)
+    mask = S2 / np.maximum(S2 + M2, floor)
+    speech = signal.istft(mask * Y, nperseg=nperseg)[1].T[:n]
+    speech = _fit(speech, n, y.shape[1], sr=sr, what="the masked speech")
+    return speech, y - speech
 
 
 def invert_enhancer(enhance: SpeechEnhancer) -> SpeechSeparator:
