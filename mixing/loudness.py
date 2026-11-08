@@ -978,9 +978,10 @@ def level_file(
        lookahead ``window_s``, in seconds, are its), and
        :func:`mixing.decode.encode_float_chunks` writes it. ``encode_args``
        are extra ffmpeg output options, such as ``("-c:a", "pcm_s24le")``;
-       ``None`` (default) keeps ``src``'s PCM format when writing its own
-       format (:func:`mixing.decode.same_pcm_args`: a 24-bit or float WAV stays
-       24-bit or float), ``()`` is ffmpeg's default encoder (16-bit for ``.wav``).
+       ``None`` (default) keeps ``src``'s lossless codec when writing its own
+       format (:func:`mixing.decode.same_lossless_args`: a 24-bit or float WAV
+       stays so, an ALAC ``.m4a`` stays ALAC), ``()`` is ffmpeg's default
+       encoder (16-bit for ``.wav``, AAC for ``.m4a``).
 
     The written file is then metered back (``output_lufs``): it reads below
     the target when the limiter took a lot off. That is a third decode;

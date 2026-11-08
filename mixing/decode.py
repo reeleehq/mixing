@@ -19,9 +19,9 @@ is re-exported here.
 :func:`stream_kinds` reads a file's stream kinds from ffmpeg's banner, and
 :func:`refuse_dropping_streams` uses it to stop an audio-only write over its own
 source when that would destroy the source's picture.
-:func:`same_pcm_args` / :func:`resolve_encode_args` give a writer that
-re-encodes a file the options that keep its PCM sample format (a 24-bit WAV
-master stays 24-bit), the ``encode_args=None`` default of
+:func:`same_lossless_args` / :func:`resolve_encode_args` give a writer that
+re-encodes a file the options that keep its lossless codec (a 24-bit WAV
+master stays 24-bit, an ALAC ``.m4a`` stays ALAC), the ``encode_args=None`` default of
 :func:`mixing.loudness.level_file` and :func:`mixing.splice.replace_span_file`.
 """
 
@@ -136,21 +136,37 @@ def refuse_dropping_streams(
         )
 
 
-def same_pcm_args(
+#: Lossless audio codecs a rewrite keeps (with every ``pcm_*``): ffmpeg's
+#: default encoder for their containers can be lossy (an ``.m4a`` -> AAC, an
+#: ``.mkv`` -> Vorbis), so re-encoding one would silently degrade it.
+LOSSLESS_CODECS = frozenset({"flac", "alac", "wavpack", "tta"})
+
+
+def is_lossless_codec(codec: Optional[str]) -> bool:
+    """Whether ffmpeg's audio ``codec`` name is lossless (PCM or :data:`LOSSLESS_CODECS`)."""
+    return bool(codec) and (codec.startswith("pcm_") or codec in LOSSLESS_CODECS)
+
+
+def same_lossless_args(
     src, path, *, ffmpeg: Optional[str] = None, timeout: Optional[float] = None
 ) -> tuple[str, ...]:
-    """ffmpeg output options that keep ``src``'s PCM sample format in ``path``.
+    """ffmpeg output options that keep ``src``'s lossless codec in ``path``.
 
-    Encoding float chunks to ``.wav`` defaults to 16-bit, so a 24-bit or float
-    master would lose depth on a rewrite. When ``path`` has ``src``'s suffix and
-    ``src``'s first audio stream is PCM, this is ``("-c:a", <its codec>)``;
-    otherwise ``()`` (FLAC and lossy formats keep ffmpeg's default encoder).
+    Encoding float chunks takes ffmpeg's default codec for ``path``'s suffix:
+    16-bit PCM for ``.wav`` (a 24-bit or float master loses depth), AAC for
+    ``.m4a`` (an ALAC master becomes lossy). When ``path`` has ``src``'s suffix
+    and ``src``'s first audio stream (the one decoded) is lossless
+    (:func:`is_lossless_codec`), this is ``("-c:a", <its codec>)``; otherwise
+    ``()``. The sample format is the encoder's pick for float input: PCM keeps
+    its depth, a 16-bit FLAC or ALAC comes back 24- or 32-bit (larger, never
+    shallower).
     """
     if Path(path).suffix.lower() != Path(src).suffix.lower():
         return ()
     found = probe(src, ffmpeg=ffmpeg, timeout=timeout)
-    codecs = [s.codec for s in found.streams if s.kind == "audio" and s.codec]
-    return ("-c:a", codecs[0]) if codecs and codecs[0].startswith("pcm_") else ()
+    audio = next((s for s in found.streams if s.kind == "audio"), None)
+    codec = audio.codec if audio else None
+    return ("-c:a", codec) if is_lossless_codec(codec) else ()
 
 
 def resolve_encode_args(
@@ -164,12 +180,14 @@ def resolve_encode_args(
     """The ffmpeg output options a writer that re-encodes ``src`` to ``path`` uses.
 
     The ``encode_args=`` seam of :func:`mixing.loudness.level_file` and
-    :func:`mixing.splice.replace_span_file`: ``None`` keeps ``src``'s PCM
-    format (:func:`same_pcm_args`), anything else is used as given (``()`` is
-    ffmpeg's default encoder for ``path``'s suffix, 16-bit for ``.wav``).
+    :func:`mixing.splice.replace_span_file`: ``None`` keeps ``src``'s lossless
+    codec (:func:`same_lossless_args`); anything else is used as given and
+    replaces that default rather than adding to it (``()`` is ffmpeg's default
+    encoder for ``path``'s suffix, 16-bit for ``.wav``; pass the codec too, as
+    ``("-c:a", "pcm_s24le", "-ar", "48000")``, to keep it alongside other options).
     """
     if encode_args is None:
-        return same_pcm_args(src, path, ffmpeg=ffmpeg, timeout=timeout)
+        return same_lossless_args(src, path, ffmpeg=ffmpeg, timeout=timeout)
     return tuple(encode_args)
 
 

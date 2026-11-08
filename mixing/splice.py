@@ -46,7 +46,6 @@ from mixing.decode import (  # noqa: E402  (after the numpy check: it needs nump
     encode_float_chunks,
     refuse_dropping_streams,
     resolve_encode_args,
-    same_pcm_args,  # re-exported: it lives beside the encoder it feeds
 )
 from mixing.probe import probe  # noqa: E402
 
@@ -212,8 +211,8 @@ def replace_span_file(
     ``src`` is decoded in chunks (:func:`mixing.decode.decode_float_chunks`) and
     re-encoded once (:func:`mixing.decode.encode_float_chunks`), so memory is
     bounded by a chunk and the insert. ``encode_args`` are extra ffmpeg output
-    options; ``None`` (default) keeps ``src``'s PCM format when writing its own
-    format (:func:`mixing.decode.same_pcm_args`: a 24-bit WAV master stays 24-bit). ``insert``
+    options; ``None`` (default) keeps ``src``'s lossless codec when writing its own
+    format (:func:`mixing.decode.same_lossless_args`: a 24-bit WAV master stays 24-bit). ``insert``
     is float samples at ``src``'s rate or a file (decoded and resampled to it),
     mono or with ``src``'s channels. ``output`` follows mixing's ``output``
     protocol (default: beside ``src`` with ``SPLICED_SUFFIX``, same format):
@@ -256,6 +255,5 @@ __all__ = [
     "SPLICED_SUFFIX",
     "replace_span",
     "replace_span_file",
-    "same_pcm_args",
     "spliced_chunks",
 ]
