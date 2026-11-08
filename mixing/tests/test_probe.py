@@ -178,16 +178,72 @@ def test_header_frame_count_without_counting_packets(media):
 
 
 @needs_ffprobe
-def test_variable_rate_is_detected_and_frames_come_from_the_duration(media):
+def test_variable_rate_is_detected_and_frames_are_the_frames_it_holds(media):
     found = probe(media["vfr"])
     assert found.variable_rate
     assert found.fps == VFR_RATE  # r_frame_rate: the nominal rate
     assert found.avg_fps != found.fps  # what gives it away
     kept = sum(n % 4 != 3 for n in range(VFR_RATE * VFR_SECONDS))  # 68 of 90
     assert found.packets == kept
-    # not the packets: the duration (to the last kept frame) at the nominal rate
-    assert found.frames == round(Fraction(found.video_duration) * found.fps)
-    assert found.frames > kept
+    # #186: the frames it plays (the packets), not the duration at r_frame_rate;
+    # that is frames_at(fps), what a timeline at the nominal rate resamples to
+    assert found.frames == kept
+    assert found.frames_at(found.fps) == round(
+        Fraction(found.video_duration) * found.fps
+    )
+    assert found.frames_at(found.fps) > kept
+
+
+def _fields(*, count_packets, **video):
+    from mixing.probe import _video_fields
+
+    video = {"width": 64, "height": 48, **video}
+    return _video_fields(video, {}, 0.0, count_packets=count_packets)
+
+
+def test_a_stale_frame_header_alone_does_not_set_the_frame_count():
+    """#186 review: with rates that agree, an uncounted ``nb_frames`` that
+    contradicts the duration is as likely stale as variable: the duration wins."""
+    header = dict(r_frame_rate="25/1", avg_frame_rate="25/1", duration="10.0")
+    stale = _fields(count_packets=False, nb_frames="9999", **header)
+    assert stale["packets"] == 9999 and stale["frames"] == 250
+    counted = _fields(count_packets=True, nb_read_packets="9999", **header)
+    assert counted["frames"] == 9999  # counted packets are the frames
+
+
+def test_a_vfr_mkv_with_no_average_plays_at_its_frames_over_its_duration():
+    """#186 review: mkv states no avg_frame_rate; the counted packets are the
+    other witness, so ``frames``, ``playback_fps`` and ``frames_at`` agree."""
+    from mixing.probe import MediaProbe
+
+    mkv = dict(r_frame_rate="120/1", avg_frame_rate="0/0", duration="8.0")
+    fields = _fields(count_packets=True, nb_read_packets="192", **mkv)
+    found = MediaProbe("ffprobe", **fields)
+    assert found.variable_rate and found.frames == 192
+    assert found.playback_fps == 24
+    assert found.frames_at(found.playback_fps) == found.frames
+
+
+def test_frames_at_snaps_a_float_rate():
+    from mixing.probe import MediaProbe
+
+    hour = MediaProbe("ffprobe", video_duration=3600.0)
+    assert hour.frames_at(29.97) == hour.frames_at(Fraction(30000, 1001)) == 107892
+    assert hour.frames_at("30000/1001") == 107892
+
+
+def test_uncounted_vfr_frames_come_from_the_playback_rate():
+    """#186: a 24 fps film whose timestamps jitter by 1/120 s reads
+    ``r_frame_rate=120/1``; with no packet count its 8 s hold 192 frames (the
+    duration times ``playback_fps``), not 956 (times ``r_frame_rate``)."""
+    from mixing.probe import MediaProbe
+
+    fields = _fields(
+        count_packets=False, r_frame_rate="120/1", avg_frame_rate="24/1", duration="8.0"
+    )
+    assert fields["variable_rate"] and fields["packets"] is None
+    assert fields["frames"] == 192
+    assert MediaProbe("ffprobe", **fields).frames_at(120) == 960
 
 
 def test_explicit_ffprobe_path_is_used(media, monkeypatch):
@@ -223,7 +279,9 @@ def test_banner_reads_vfr_from_its_two_rates(media):
     assert found.fps == VFR_RATE  # tbr, like ffprobe's r_frame_rate
     assert found.avg_fps == Fraction(573, 25)  # the printed 22.92 fps
     assert found.variable_rate
-    assert found.frames == round(Fraction(found.duration) * found.fps)
+    # #186: at the playback (average) rate, not tbr
+    assert found.frames == round(Fraction(found.duration) * found.avg_fps)
+    assert found.frames_at(found.fps) == round(Fraction(found.duration) * found.fps)
 
 
 @needs_ffprobe
