@@ -1,4 +1,4 @@
-> built 2026-11-09 00:00 UTC from 005ccb7 (main) · mixing 0.0.116. Details: build_info.json
+> built 2026-11-09 00:05 UTC from 005ccb7 (main) · mixing 0.0.116. Details: build_info.json
 
 # index.html.md
 
@@ -3694,7 +3694,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-09 00:00 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/005ccb7b60df3c543cca0ff08835484dcea9ff07"><code>005ccb7</code></a> on branch <code>main</code>, for **mixing 0.0.116** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-09 00:05 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/005ccb7b60df3c543cca0ff08835484dcea9ff07"><code>005ccb7</code></a> on branch <code>main</code>, for **mixing 0.0.116** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -3714,9 +3714,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/42535041158">42535041158</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/42536442407">42536442407</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>691115afd0421ae8ddf9cf1abc661df5c67ca040</code> (in the history of the built commit) |
+| Event commit | <code>e0e103bc01c28cce7f0d10a07face3146e62788e</code> (in the history of the built commit) |
 
 ## Tools
 
