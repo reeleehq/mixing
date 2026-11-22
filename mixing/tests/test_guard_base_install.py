@@ -253,8 +253,8 @@ def test_unknown_extra_and_empty_module_list():
 def _deny_imports(monkeypatch):
     import importlib
 
-    def deny(name, *a, **k):
-        raise ImportError(name)
+    def deny(name, *a, **k):  # what an absent module raises
+        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
 
     monkeypatch.setattr(importlib, "import_module", deny)
 

@@ -20,6 +20,8 @@ dependencies = [
     # moviepy / opencv / scipy / pydub / burns live in the ``media`` extra.
     "config2py",
     "dol",
+    # i2.optional (require_package's absent-vs-broken rule) first shipped in 0.1.92
+    "i2>=0.1.92",
     "xdol",
 ]
 
