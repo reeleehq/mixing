@@ -573,7 +573,7 @@ treat = resolve_treatment(
 )  # a host's treatment= seam: name, preset, callable, None (dry)
 ```
 
-The stages are public on their own: `band_pass(x, fs, low_hz=, high_hz=)`, `compress(x, fs, threshold_db=, ratio=, makeup_db=)` (channels linked by mean power). The presets' compressor numbers were set by ear, not calibrated.
+The stages are public on their own: `band_pass(x, fs, low_hz=, high_hz=)`, `compress(x, fs, threshold_db=, ratio=, makeup_db=, attack_s=0, release_s=0)` (channels linked by mean power; a device's fast attack and slow release, e.g. `attack_s=0.005, release_s=0.15`, pumps less on speech over a crowd; also fields on `TreatmentPreset`, via `dataclasses.replace`). The presets' compressor numbers were set by ear, not calibrated, and they keep `attack_s=release_s=0` (unchanged sound) until someone listens.
 
 ## Bleep words (radio edit)
 

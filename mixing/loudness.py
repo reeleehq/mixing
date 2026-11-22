@@ -698,6 +698,47 @@ def _target_gain(
     return float(gain)
 
 
+# --- attack / release ------------------------------------------------------------
+
+
+def _one_pole_coefficient(step_s: float, time_constant_s: float) -> float:
+    """The share of the way a one-pole follower moves per ``step_s``."""
+    if time_constant_s <= 0:
+        return 1.0  # instantaneous
+    return 1.0 - float(np.exp(-step_s / time_constant_s))
+
+
+def attack_release(
+    target: np.ndarray,
+    *,
+    step_s: float,
+    attack_s: float,
+    release_s: float,
+    initial: float = 0.0,
+) -> np.ndarray:
+    """``target`` (one value per ``step_s``, e.g. a gain in dB) smoothed by a
+    one-pole follower with separate time constants: ``attack_s`` while the
+    value falls (a gain being reduced), ``release_s`` while it rises. A time
+    constant of ``0`` follows at once. Starts from ``initial``.
+
+    The coefficient depends on the direction, so this is a loop, not a linear
+    filter: run it on frames (a millisecond or more), not samples at 48 kHz.
+    The one smoother behind :func:`mixing.audio.duck_audio` and
+    :func:`mixing.treatment.compress`.
+
+    >>> attack_release(np.array([-10.0, -10.0, 0.0]), step_s=1.0, attack_s=0.0, release_s=1.0)
+    array([-10.        , -10.        ,  -3.67879441])
+    """
+    attack = _one_pole_coefficient(step_s, attack_s)
+    release = _one_pole_coefficient(step_s, release_s)
+    out = np.empty(len(target), dtype=np.float64)
+    value = float(initial)
+    for i, t in enumerate(np.asarray(target, dtype=np.float64)):
+        value += (t - value) * (attack if t < value else release)
+        out[i] = value
+    return out
+
+
 # --- limiter --------------------------------------------------------------------
 
 
