@@ -35,7 +35,7 @@
 <link href="../_static/epythet.css?v=6b72e7cd" rel="stylesheet" type="text/css"/>
 <link href="../search.html" rel="search" title="Search"/>
 <link href="../genindex.html" rel="index" title="Index"/>
-<link href="mixing.transcript.fillers.html" rel="next" title="mixing.transcript.fillers"/>
+<link href="mixing.transcript.align.html" rel="next" title="mixing.transcript.align"/>
 <link href="mixing.srt.html" rel="prev" title="mixing.srt"/>
 </head>
 <body :class="{ 'overflow-hidden': showSidebar }" class="min-h-screen font-sans antialiased bg-background text-foreground" x-data="{ showSidebar: false, showScrollTop: false }">
@@ -148,6 +148,13 @@ var <code class="code docutils literal notranslate"><span class="pre">ELEVENLABS
 </span><span id="line-4"><span class="gp">... </span><span class="p">)</span>
 </span></code></pre></div>
 </div>
+<p>Time authored text (a script, a cue) by the transcribed words:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">mixing.transcript</span><span class="w"> </span><span class="kn">import</span> <span class="n">align_words</span><span class="p">,</span> <span class="n">tokens_of</span>
+</span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="n">heard</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">"hello"</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">),</span> <span class="p">(</span><span class="s2">"there"</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">)]</span>
+</span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">align_words</span><span class="p">(</span><span class="n">tokens_of</span><span class="p">(</span><span class="s2">"Hello there!"</span><span class="p">),</span> <span class="n">heard</span><span class="p">)</span><span class="o">.</span><span class="n">coverage</span>
+</span><span id="line-4"><span class="go">1.0</span>
+</span></code></pre></div>
+</div>
 <p class="rubric">Functions</p>
 <table class="autosummary longtable docutils align-default">
 <tbody>
@@ -196,6 +203,15 @@ var <code class="code docutils literal notranslate"><span class="pre">ELEVENLABS
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.transcript.remove_fillers" title="mixing.transcript.remove_fillers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_fillers</span></code></a>(input_media, output_dir, *[, ...])</p></td>
 <td><p>End-to-end filler removal.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.transcript.align_words" title="mixing.transcript.align_words"><code class="xref py py-obj docutils literal notranslate"><span class="pre">align_words</span></code></a>(reference, heard, *[, bounds, ...])</p></td>
+<td><p>Time the <code class="docutils literal notranslate"><span class="pre">reference</span></code> tokens (what was meant to be said) by a recogniser's <code class="docutils literal notranslate"><span class="pre">heard</span></code> words of the same audio.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.transcript.normalize_word" title="mixing.transcript.normalize_word"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize_word</span></code></a>(text)</p></td>
+<td><p>The form two words are matched by: <a class="reference internal" href="#mixing.transcript.tokens_of" title="mixing.transcript.tokens_of"><code class="xref py py-func docutils literal notranslate"><span class="pre">tokens_of()</span></code></a> the case-folded <code class="docutils literal notranslate"><span class="pre">text</span></code>, typographic apostrophes made straight, joined by single spaces.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.transcript.tokens_of" title="mixing.transcript.tokens_of"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tokens_of</span></code></a>(text)</p></td>
+<td><p>The words of <code class="docutils literal notranslate"><span class="pre">text</span></code> as written: punctuation dropped, an apostrophe (straight or typographic) inside a word kept, case kept.</p></td>
+</tr>
 </tbody>
 </table>
 <p class="rubric">Classes</p>
@@ -204,14 +220,72 @@ var <code class="code docutils literal notranslate"><span class="pre">ELEVENLABS
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.transcript.FillerRemovalResult" title="mixing.transcript.FillerRemovalResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FillerRemovalResult</span></code></a>(cleaned_media, ...[, ...])</p></td>
 <td><p>Paths and computed ranges produced by <a class="reference internal" href="#mixing.transcript.remove_fillers" title="mixing.transcript.remove_fillers"><code class="xref py py-func docutils literal notranslate"><span class="pre">remove_fillers()</span></code></a>.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.transcript.AlignedWords" title="mixing.transcript.AlignedWords"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AlignedWords</span></code></a>(words, matched, total[, anchors])</p></td>
+<td><p><a class="reference internal" href="#mixing.transcript.align_words" title="mixing.transcript.align_words"><code class="xref py py-func docutils literal notranslate"><span class="pre">align_words()</span></code></a>'s result.</p></td>
+</tr>
 </tbody>
 </table>
+<dl class="py class">
+<dt class="sig sig-object py" id="mixing.transcript.AlignedWords">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">AlignedWords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">words</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matched</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">anchors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">dict()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/align.html#AlignedWords"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.AlignedWords" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.AlignedWords'">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
+<p><a class="reference internal" href="#mixing.transcript.align_words" title="mixing.transcript.align_words"><code class="xref py py-func docutils literal notranslate"><span class="pre">align_words()</span></code></a>’s result.</p>
+<p><code class="docutils literal notranslate"><span class="pre">words</span></code> are the reference tokens timed, in reference order with
+non-decreasing starts; <code class="docutils literal notranslate"><span class="pre">matched</span></code> of the <code class="docutils literal notranslate"><span class="pre">total</span></code> (every reference token,
+those that normalize to nothing included) were anchored by a heard word
+(the rest interpolated); <code class="docutils literal notranslate"><span class="pre">anchors</span></code> maps a reference index to the index,
+in the heard list as given, of the word that anchored it.</p>
+<dl class="field-list simple">
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="mixing.transcript.AlignedWords.coverage">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">coverage</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" rel="nofollow noopener" title="(in Python v3.15)"><span class="pre">float</span><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.AlignedWords.coverage" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.AlignedWords.coverage'">¶</a></dt>
+<dd><p>The share of reference tokens anchored by a heard word, 0..1.</p>
+</dd></dl>
+</dd></dl>
 <dl class="py class">
 <dt class="sig sig-object py" id="mixing.transcript.FillerRemovalResult">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">FillerRemovalResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cleaned_media</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transcript_md</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transcript_srt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cleaned_md</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cleaned_srt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scribe_json</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cuts_json</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keeps_json</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">duration</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cuts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">list()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keeps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">list()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/pipeline.html#FillerRemovalResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.FillerRemovalResult" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.FillerRemovalResult'">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></p>
 <p>Paths and computed ranges produced by <a class="reference internal" href="#mixing.transcript.remove_fillers" title="mixing.transcript.remove_fillers"><code class="xref py py-func docutils literal notranslate"><span class="pre">remove_fillers()</span></code></a>.</p>
 <dl class="field-list simple">
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.transcript.align_words">
+<span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">align_words</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">heard</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;function</span> <span class="pre">normalize_word&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">split</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;function</span> <span class="pre">tokens_of&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/align.html#align_words"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.align_words" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.align_words'">¶</a></dt>
+<dd><p>Time the <code class="docutils literal notranslate"><span class="pre">reference</span></code> tokens (what was meant to be said) by a
+recogniser’s <code class="docutils literal notranslate"><span class="pre">heard</span></code> words of the same audio.</p>
+<p><code class="docutils literal notranslate"><span class="pre">bounds</span></code> (<code class="docutils literal notranslate"><span class="pre">(start,</span> <span class="pre">end)</span></code> of the audio) time the ends when no anchor
+does; without it the first and last heard words do. <code class="docutils literal notranslate"><span class="pre">normalize</span></code> is the
+matching key (default <a class="reference internal" href="#mixing.transcript.normalize_word" title="mixing.transcript.normalize_word"><code class="xref py py-func docutils literal notranslate"><span class="pre">normalize_word()</span></code></a>: case-folded, punctuation
+dropped); pass your own for a language with elisions or a phonetic key.
+<code class="docutils literal notranslate"><span class="pre">split</span></code> cuts a heard word into tokens like the reference’s (default
+<a class="reference internal" href="#mixing.transcript.tokens_of" title="mixing.transcript.tokens_of"><code class="xref py py-func docutils literal notranslate"><span class="pre">tokens_of()</span></code></a>; <code class="docutils literal notranslate"><span class="pre">None</span></code> keeps each heard word whole). Heard words must
+come in time order (overlaps are fine); times must be finite.</p>
+<p>The walk is <code class="docutils literal notranslate"><span class="pre">difflib</span></code>’s, roughly quadratic: about 0.2 s for 5,000 words,
+4 s for 20,000; align long recordings by section.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">heard</span> <span class="o">=</span> <span class="p">[(</span><span class="s2">"i"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span> <span class="p">(</span><span class="s2">"did"</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span> <span class="p">(</span><span class="s2">"ask"</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">)]</span>
+</span><span id="line-2"><span class="gp">&gt;&gt;&gt; </span><span class="n">aligned</span> <span class="o">=</span> <span class="n">align_words</span><span class="p">([</span><span class="s2">"I"</span><span class="p">,</span> <span class="s2">"did"</span><span class="p">,</span> <span class="s2">"NOT"</span><span class="p">,</span> <span class="s2">"ask"</span><span class="p">],</span> <span class="n">heard</span><span class="p">)</span>
+</span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">aligned</span><span class="o">.</span><span class="n">words</span>
+</span><span id="line-4"><span class="go">[('I', 0.0, 0.1), ('did', 0.1, 0.3), ('NOT', 0.3, 0.6), ('ask', 0.6, 0.9)]</span>
+</span><span id="line-5"><span class="gp">&gt;&gt;&gt; </span><span class="n">aligned</span><span class="o">.</span><span class="n">matched</span><span class="p">,</span> <span class="n">aligned</span><span class="o">.</span><span class="n">total</span><span class="p">,</span> <span class="n">aligned</span><span class="o">.</span><span class="n">anchors</span>
+</span><span id="line-6"><span class="go">(3, 4, {0: 0, 1: 1, 3: 2})</span>
+</span></code></pre></div>
+</div>
+<p>Scribe’s word list works as is (spacing and audio events are skipped, and
+<code class="docutils literal notranslate"><span class="pre">anchors</span></code> index the list as given):</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">scribe</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"Hi"</span><span class="p">,</span> <span class="s2">"start"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s2">"end"</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"word"</span><span class="p">},</span>
+</span><span id="line-2"><span class="gp">... </span>          <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">" "</span><span class="p">,</span> <span class="s2">"start"</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span> <span class="s2">"end"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"spacing"</span><span class="p">},</span>
+</span><span id="line-3"><span class="gp">... </span>          <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">"there."</span><span class="p">,</span> <span class="s2">"start"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span> <span class="s2">"end"</span><span class="p">:</span> <span class="mf">0.6</span><span class="p">,</span> <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"word"</span><span class="p">}]</span>
+</span><span id="line-4"><span class="gp">&gt;&gt;&gt; </span><span class="n">align_words</span><span class="p">([</span><span class="s2">"hi"</span><span class="p">,</span> <span class="s2">"there"</span><span class="p">],</span> <span class="n">scribe</span><span class="p">)</span><span class="o">.</span><span class="n">anchors</span>
+</span><span id="line-5"><span class="go">{0: 0, 1: 2}</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="mixing.transcript.align.html#mixing.transcript.align.AlignedWords" title="mixing.transcript.align.AlignedWords"><code class="xref py py-class docutils literal notranslate"><span class="pre">AlignedWords</span></code></a></span></p>
+</dd>
 </dl>
 </dd></dl>
 <dl class="py function">
@@ -339,6 +413,21 @@ and negative inputs clamp to zero.</p>
 </dl>
 </dd></dl>
 <dl class="py function">
+<dt class="sig sig-object py" id="mixing.transcript.normalize_word">
+<span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">normalize_word</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/align.html#normalize_word"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.normalize_word" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.normalize_word'">¶</a></dt>
+<dd><p>The form two words are matched by: <a class="reference internal" href="#mixing.transcript.tokens_of" title="mixing.transcript.tokens_of"><code class="xref py py-func docutils literal notranslate"><span class="pre">tokens_of()</span></code></a> the case-folded
+<code class="docutils literal notranslate"><span class="pre">text</span></code>, typographic apostrophes made straight, joined by single spaces.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">normalize_word</span><span class="p">(</span><span class="s2">" It’s,"</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">"it's"</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
 <dt class="sig sig-object py" id="mixing.transcript.remap_time_after_cuts">
 <span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">remap_time_after_cuts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cuts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/formats.html#remap_time_after_cuts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.remap_time_after_cuts" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.remap_time_after_cuts'">¶</a></dt>
 <dd><p>Map <code class="docutils literal notranslate"><span class="pre">t</span></code> from the original timeline onto the post-cut timeline.</p>
@@ -407,6 +496,22 @@ response cache.</p></li>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>The SRT text and the path it lives at.</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.transcript.tokens_of">
+<span class="sig-prename descclassname"><span class="pre">mixing.transcript.</span></span><span class="sig-name descname"><span class="pre">tokens_of</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/transcript/align.html#tokens_of"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.transcript.tokens_of" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.transcript.tokens_of'">¶</a></dt>
+<dd><p>The words of <code class="docutils literal notranslate"><span class="pre">text</span></code> as written: punctuation dropped, an apostrophe
+(straight or typographic) inside a word kept, case kept. What a line’s
+authored tokens are.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">tokens_of</span><span class="p">(</span><span class="s2">"Hello, there — it’s ME!"</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">['Hello', 'there', 'it’s', 'ME']</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
 </dd>
 </dl>
 </dd></dl>
@@ -499,22 +604,25 @@ the cleaned media.</p>
 <p class="rubric">Modules</p>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.fillers.html#module-mixing.transcript.fillers" title="mixing.transcript.fillers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fillers</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.align.html#module-mixing.transcript.align" title="mixing.transcript.align"><code class="xref py py-obj docutils literal notranslate"><span class="pre">align</span></code></a></p></td>
+<td><p>Time authored words by a recogniser's timed words of the same audio.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.fillers.html#module-mixing.transcript.fillers" title="mixing.transcript.fillers"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fillers</span></code></a></p></td>
 <td><p>Filler-word detection over Scribe-shaped word lists.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.formats.html#module-mixing.transcript.formats" title="mixing.transcript.formats"><code class="xref py py-obj docutils literal notranslate"><span class="pre">formats</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.formats.html#module-mixing.transcript.formats" title="mixing.transcript.formats"><code class="xref py py-obj docutils literal notranslate"><span class="pre">formats</span></code></a></p></td>
 <td><p>Transcript output formats: SRT, plain prose, time remapping.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.media.html#module-mixing.transcript.media" title="mixing.transcript.media"><code class="xref py py-obj docutils literal notranslate"><span class="pre">media</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.media.html#module-mixing.transcript.media" title="mixing.transcript.media"><code class="xref py py-obj docutils literal notranslate"><span class="pre">media</span></code></a></p></td>
 <td><p>ffmpeg-backed audio extraction and timeline-cut application.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.persist.html#module-mixing.transcript.persist" title="mixing.transcript.persist"><code class="xref py py-obj docutils literal notranslate"><span class="pre">persist</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.persist.html#module-mixing.transcript.persist" title="mixing.transcript.persist"><code class="xref py py-obj docutils literal notranslate"><span class="pre">persist</span></code></a></p></td>
 <td><p>Reuse-or-create the SRT that lives next to a media file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.pipeline.html#module-mixing.transcript.pipeline" title="mixing.transcript.pipeline"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.pipeline.html#module-mixing.transcript.pipeline" title="mixing.transcript.pipeline"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pipeline</span></code></a></p></td>
 <td><p>High-level filler-removal pipeline.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="mixing.transcript.scribe.html#module-mixing.transcript.scribe" title="mixing.transcript.scribe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scribe</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="mixing.transcript.scribe.html#module-mixing.transcript.scribe" title="mixing.transcript.scribe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scribe</span></code></a></p></td>
 <td><p>ElevenLabs Scribe (speech-to-text) HTTP client.</p></td>
 </tr>
 </tbody>
@@ -523,7 +631,12 @@ the cleaned media.</p>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
+<li><a :data-current="activeSection === '#mixing.transcript.AlignedWords'" class="reference internal" href="#mixing.transcript.AlignedWords"><code class="docutils literal notranslate"><span class="pre">AlignedWords</span></code></a><ul>
+<li><a :data-current="activeSection === '#mixing.transcript.AlignedWords.coverage'" class="reference internal" href="#mixing.transcript.AlignedWords.coverage"><code class="docutils literal notranslate"><span class="pre">AlignedWords.coverage</span></code></a></li>
+</ul>
+</li>
 <li><a :data-current="activeSection === '#mixing.transcript.FillerRemovalResult'" class="reference internal" href="#mixing.transcript.FillerRemovalResult"><code class="docutils literal notranslate"><span class="pre">FillerRemovalResult</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.transcript.align_words'" class="reference internal" href="#mixing.transcript.align_words"><code class="docutils literal notranslate"><span class="pre">align_words()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.apply_keeps'" class="reference internal" href="#mixing.transcript.apply_keeps"><code class="docutils literal notranslate"><span class="pre">apply_keeps()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.build_cuts'" class="reference internal" href="#mixing.transcript.build_cuts"><code class="docutils literal notranslate"><span class="pre">build_cuts()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.default_cache_dir'" class="reference internal" href="#mixing.transcript.default_cache_dir"><code class="docutils literal notranslate"><span class="pre">default_cache_dir()</span></code></a></li>
@@ -532,9 +645,11 @@ the cleaned media.</p>
 <li><a :data-current="activeSection === '#mixing.transcript.is_filler'" class="reference internal" href="#mixing.transcript.is_filler"><code class="docutils literal notranslate"><span class="pre">is_filler()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.keeps_from_cuts'" class="reference internal" href="#mixing.transcript.keeps_from_cuts"><code class="docutils literal notranslate"><span class="pre">keeps_from_cuts()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.normalize_token'" class="reference internal" href="#mixing.transcript.normalize_token"><code class="docutils literal notranslate"><span class="pre">normalize_token()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.transcript.normalize_word'" class="reference internal" href="#mixing.transcript.normalize_word"><code class="docutils literal notranslate"><span class="pre">normalize_word()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.remap_time_after_cuts'" class="reference internal" href="#mixing.transcript.remap_time_after_cuts"><code class="docutils literal notranslate"><span class="pre">remap_time_after_cuts()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.remove_fillers'" class="reference internal" href="#mixing.transcript.remove_fillers"><code class="docutils literal notranslate"><span class="pre">remove_fillers()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.srt_for_media'" class="reference internal" href="#mixing.transcript.srt_for_media"><code class="docutils literal notranslate"><span class="pre">srt_for_media()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.transcript.tokens_of'" class="reference internal" href="#mixing.transcript.tokens_of"><code class="docutils literal notranslate"><span class="pre">tokens_of()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.transcribe'" class="reference internal" href="#mixing.transcript.transcribe"><code class="docutils literal notranslate"><span class="pre">transcribe()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.words_to_prose'" class="reference internal" href="#mixing.transcript.words_to_prose"><code class="docutils literal notranslate"><span class="pre">words_to_prose()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.transcript.words_to_srt'" class="reference internal" href="#mixing.transcript.words_to_srt"><code class="docutils literal notranslate"><span class="pre">words_to_srt()</span></code></a></li>
@@ -552,7 +667,7 @@ the cleaned media.</p>
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=ab1379f9"></script>
+<script src="../_static/documentation_options.js?v=0f6bfde0"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

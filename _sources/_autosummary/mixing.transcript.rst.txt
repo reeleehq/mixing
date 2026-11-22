@@ -23,12 +23,16 @@ mixing.transcript
       apply_keeps
       srt_for_media
       remove_fillers
+      align_words
+      normalize_word
+      tokens_of
    
    .. rubric:: Classes
 
    .. autosummary::
    
       FillerRemovalResult
+      AlignedWords
    
 .. rubric:: Modules
 
@@ -36,6 +40,7 @@ mixing.transcript
    :toctree:
    :recursive:
 
+   align
    fillers
    formats
    media

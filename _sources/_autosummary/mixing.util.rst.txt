@@ -8,6 +8,7 @@ mixing.util
 
    .. autosummary::
    
+      PACKAGE_NAME
       EXTRAS
    
    .. rubric:: Functions

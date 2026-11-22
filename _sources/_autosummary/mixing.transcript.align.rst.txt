@@ -1,0 +1,32 @@
+mixing.transcript.align
+=======================
+
+.. automodule:: mixing.transcript.align
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      WordTiming
+      HeardWord
+      APOSTROPHES
+      TOKEN_PATTERN
+      SPOKEN_WORD_TYPE
+      TEXT_KEYS
+      TIME_DECIMALS
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      align_words
+      normalize_word
+      tokens_of
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      AlignedWords
+   

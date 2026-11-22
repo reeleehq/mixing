@@ -16,6 +16,7 @@
 - [mixing.probe](mixing.probe.html.md): One light media probe: &#96;ffprobe&#96; first, ffmpeg’s banner as the fallback.
 - [mixing.srt](mixing.srt.html.md): Canonical SRT / timeline parsing and formatting (pure, dependency-free).
 - [mixing.transcript](mixing.transcript.html.md): Transcript-driven media editing.
+- [mixing.transcript.align](mixing.transcript.align.html.md): Time authored words by a recogniser’s timed words of the same audio.
 - [mixing.transcript.fillers](mixing.transcript.fillers.html.md): Filler-word detection over Scribe-shaped word lists.
 - [mixing.transcript.formats](mixing.transcript.formats.html.md): Transcript output formats: SRT, plain prose, time remapping.
 - [mixing.transcript.media](mixing.transcript.media.html.md): ffmpeg-backed audio extraction and timeline-cut application.

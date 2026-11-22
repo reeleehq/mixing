@@ -4,8 +4,9 @@ General utilities for mixing video, audio, etc.
 
 ### Module Attributes
 
-| [`EXTRAS`](#mixing.util.EXTRAS)   | `{extra: import names it supplies}`, each declared by the same-named extra in `pyproject.toml` (a test holds the two equal).   |
-|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| [`PACKAGE_NAME`](#mixing.util.PACKAGE_NAME)   | The distribution whose extras the install hints name.                                                                        |
+|-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| [`EXTRAS`](#mixing.util.EXTRAS)         | `{extra: import names it supplies}`, each declared by the same-named extra in `pyproject.toml` (a test holds the two equal). |
 
 ### Functions
 
@@ -36,6 +37,10 @@ broadest install wins; a caller that knows better names its extra
 
 * **Type:**
   The one table of mixing’s extras
+
+### mixing.util.PACKAGE_NAME *= 'mixing'*
+
+The distribution whose extras the install hints name.
 
 ### mixing.util.copy_to_clipboard(data)
 
@@ -175,10 +180,13 @@ Import a package, raising an informative error if not installed.
 
 The hint names `extra` when given (the extra the caller belongs to: in
 `mixing.loudness`, scipy comes from `loudness`, not `media`), else the
-extra `EXTRAS` maps `package_name` to, else `pip install <package>`.
-The error’s `name` is `package_name`, so a caller can map it to its own
-install hint. An installed package whose own imports fail re-raises that
-error unchanged, rather than claiming the package is missing.
+extra `EXTRAS` maps `package_name` to, else the package’s own pip line.
+The error is a `ModuleNotFoundError` whose `name` is `package_name`,
+so a caller can map it to its own install hint. An installed package whose
+own imports fail re-raises that error unchanged, rather than claiming the
+package is missing: that absent-vs-broken rule is the fleet’s shared one,
+`i2.optional.optional_import` (imported here, on first call, so that
+`import mixing` does not pay for `i2`).
 
 ```pycon
 >>> math = require_package('math')

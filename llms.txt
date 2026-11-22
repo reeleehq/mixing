@@ -18,6 +18,7 @@
 - [mixing.probe](_autosummary/mixing.probe.html.md): One light media probe: &#96;ffprobe&#96; first, ffmpeg’s banner as the fallback.
 - [mixing.srt](_autosummary/mixing.srt.html.md): Canonical SRT / timeline parsing and formatting (pure, dependency-free).
 - [mixing.transcript](_autosummary/mixing.transcript.html.md): Transcript-driven media editing.
+- [mixing.transcript.align](_autosummary/mixing.transcript.align.html.md): Time authored words by a recogniser’s timed words of the same audio.
 - [mixing.transcript.fillers](_autosummary/mixing.transcript.fillers.html.md): Filler-word detection over Scribe-shaped word lists.
 - [mixing.transcript.formats](_autosummary/mixing.transcript.formats.html.md): Transcript output formats: SRT, plain prose, time remapping.
 - [mixing.transcript.media](_autosummary/mixing.transcript.media.html.md): ffmpeg-backed audio extraction and timeline-cut application.
@@ -29,7 +30,7 @@
 - [mixing.ffmpeg](_autosummary/mixing.ffmpeg.html.md): Run one ffmpeg process with a watchdog: the runner &#96;mixing.decode&#96; and
 - [mixing.filtergraph](_autosummary/mixing.filtergraph.html.md): Pure ffmpeg filter-string builders: no media dependency, no I/O.
 - [For AI agents](ai-agents.html.md): &#96;mixing&#96; ships artifacts for coding agents alongside its code. This page lists
-- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-11-09 00:05 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
+- [About this build](about-this-build.html.md): This documentation was built on &#42;&#42;2026-11-22 10:35 UTC&#42;&#42; from commit &lt;a href="https://github.com/ree...
 
 ## Optional
 

@@ -1,4 +1,4 @@
-> built 2026-11-09 00:05 UTC from 005ccb7 (main) · mixing 0.0.116. Details: build_info.json
+> built 2026-11-22 10:35 UTC from bcbcb19 (main) · mixing 0.0.117. Details: build_info.json
 
 # index.html.md
 
@@ -2843,6 +2843,190 @@ and negative inputs clamp to zero.
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
 
+# _autosummary/mixing.transcript.align.html.md
+
+# mixing.transcript.align
+
+Time authored words by a recogniser’s timed words of the same audio.
+
+A script, a cue sheet or a line of dialogue says *what* was meant to be said; a
+transcriber (ElevenLabs Scribe, Whisper, …) says *when* each word it heard was
+said. [`align_words()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.align_words) walks the two in order ([`difflib.SequenceMatcher`](https://docs.python.org/3/library/difflib.html#difflib.SequenceMatcher))
+and gives every authored token a time:
+
+- a token a heard word matches (same [`normalize_word()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.normalize_word) form) takes that
+  word’s times;
+- a run heard differently (`friend` heard as `fred`) is spread over the
+  misheard words’ span;
+- a run not heard at all is spread over the gap to the next anchor;
+
+spreading in proportion to token length, so every token gets a plausible slot,
+and the result says how many were actually anchored (`matched` / `total`,
+`coverage`) and by which heard word (`anchors`).
+
+Heard words are split into tokens the way the reference is (`split=`,
+default [`tokens_of()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.tokens_of)), so a heard `"twenty-five"` or `"U.S."` matches
+the script’s `twenty`, `five` / `U`, `S`: each piece takes its share of
+the word’s span, and anchors the word’s own index.
+
+Stdlib only. Heard words may be `(text, start, end)` triples or mappings
+(Scribe’s `text`/`start`/`end`/`type`, or Whisper’s `word`); Scribe’s
+`spacing` and `audio_event` entries are skipped.
+
+```pycon
+>>> heard = [("i", 0.0, 0.1), ("did", 0.1, 0.3), ("ask", 0.6, 0.9)]
+>>> align_words(["I", "did", "NOT", "ask"], heard).words
+[('I', 0.0, 0.1), ('did', 0.1, 0.3), ('NOT', 0.3, 0.6), ('ask', 0.6, 0.9)]
+```
+
+### Module Attributes
+
+| [`WordTiming`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.WordTiming)       | `(text, start_s, end_s)`.                                                                                                                                         |
+|-------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`HeardWord`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.HeardWord)        | a [`WordTiming`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.WordTiming), or a mapping with `text` (or `word`), `start`, `end` (and optionally `type`, as in Scribe's list). |
+| [`APOSTROPHES`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.APOSTROPHES)      | Apostrophes kept inside a word (straight and typographic).                                                                                                        |
+| [`TOKEN_PATTERN`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.TOKEN_PATTERN)    | letters and digits, an apostrophe inside a word kept.                                                                                                             |
+| [`SPOKEN_WORD_TYPE`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.SPOKEN_WORD_TYPE) | The Scribe word `type` that is speech (`spacing`/`audio_event` are not).                                                                                          |
+| [`TEXT_KEYS`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.TEXT_KEYS)        | Keys a heard-word mapping may carry its text under (Scribe, Whisper).                                                                                             |
+| [`TIME_DECIMALS`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.TIME_DECIMALS)    | Decimals kept on spread (interpolated) times, so sums do not drift visibly.                                                                                       |
+
+### Functions
+
+| [`align_words`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.align_words)(reference, heard, \*[, bounds, ...])   | Time the `reference` tokens (what was meant to be said) by a recogniser's `heard` words of the same audio.                                                                              |
+|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`normalize_word`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.normalize_word)(text)                               | The form two words are matched by: [`tokens_of()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.tokens_of) the case-folded `text`, typographic apostrophes made straight, joined by single spaces. |
+| [`tokens_of`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.tokens_of)(text)                                    | The words of `text` as written: punctuation dropped, an apostrophe (straight or typographic) inside a word kept, case kept.                                                             |
+
+### Classes
+
+| [`AlignedWords`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.AlignedWords)(words, matched, total[, anchors])   | [`align_words()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.align_words)'s result.   |
+|---------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+
+### mixing.transcript.align.APOSTROPHES *= "'’"*
+
+Apostrophes kept inside a word (straight and typographic).
+
+### *class* mixing.transcript.align.AlignedWords(words, matched, total, anchors=dict())
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+[`align_words()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.align_words)’s result.
+
+`words` are the reference tokens timed, in reference order with
+non-decreasing starts; `matched` of the `total` (every reference token,
+those that normalize to nothing included) were anchored by a heard word
+(the rest interpolated); `anchors` maps a reference index to the index,
+in the heard list as given, of the word that anchored it.
+
+#### *property* coverage *: [float](https://docs.python.org/3/builtins/functions.html#float)*
+
+The share of reference tokens anchored by a heard word, 0..1.
+
+### mixing.transcript.align.HeardWord
+
+a [`WordTiming`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.WordTiming), or a mapping with `text` (or
+`word`), `start`, `end` (and optionally `type`, as in Scribe’s list).
+
+* **Type:**
+  A recogniser’s word
+
+alias of [`tuple`](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`float`](https://docs.python.org/3/builtins/functions.html#float), [`float`](https://docs.python.org/3/builtins/functions.html#float)] | [`Mapping`](https://docs.python.org/3/library/typing.html#typing.Mapping)
+
+### mixing.transcript.align.SPOKEN_WORD_TYPE *= 'word'*
+
+The Scribe word `type` that is speech (`spacing`/`audio_event` are not).
+
+### mixing.transcript.align.TEXT_KEYS *= ('text', 'word')*
+
+Keys a heard-word mapping may carry its text under (Scribe, Whisper).
+
+### mixing.transcript.align.TIME_DECIMALS *= 6*
+
+Decimals kept on spread (interpolated) times, so sums do not drift visibly.
+
+### mixing.transcript.align.TOKEN_PATTERN *= re.compile("[^\\\\W_]+(?:['’][^\\\\W_]+)\*")*
+
+letters and digits, an apostrophe inside a word kept.
+
+* **Type:**
+  A word as written
+
+### mixing.transcript.align.WordTiming
+
+`(text, start_s, end_s)`.
+
+* **Type:**
+  One timed word
+
+alias of [`tuple`](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`float`](https://docs.python.org/3/builtins/functions.html#float), [`float`](https://docs.python.org/3/builtins/functions.html#float)]
+
+### mixing.transcript.align.align_words(reference, heard, \*, bounds=None, normalize=<function normalize_word>, split=<function tokens_of>)
+
+Time the `reference` tokens (what was meant to be said) by a
+recogniser’s `heard` words of the same audio.
+
+`bounds` (`(start, end)` of the audio) time the ends when no anchor
+does; without it the first and last heard words do. `normalize` is the
+matching key (default [`normalize_word()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.normalize_word): case-folded, punctuation
+dropped); pass your own for a language with elisions or a phonetic key.
+`split` cuts a heard word into tokens like the reference’s (default
+[`tokens_of()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.tokens_of); `None` keeps each heard word whole). Heard words must
+come in time order (overlaps are fine); times must be finite.
+
+The walk is `difflib`’s, roughly quadratic: about 0.2 s for 5,000 words,
+4 s for 20,000; align long recordings by section.
+
+```pycon
+>>> heard = [("i", 0.0, 0.1), ("did", 0.1, 0.3), ("ask", 0.6, 0.9)]
+>>> aligned = align_words(["I", "did", "NOT", "ask"], heard)
+>>> aligned.words
+[('I', 0.0, 0.1), ('did', 0.1, 0.3), ('NOT', 0.3, 0.6), ('ask', 0.6, 0.9)]
+>>> aligned.matched, aligned.total, aligned.anchors
+(3, 4, {0: 0, 1: 1, 3: 2})
+```
+
+Scribe’s word list works as is (spacing and audio events are skipped, and
+`anchors` index the list as given):
+
+```pycon
+>>> scribe = [{"text": "Hi", "start": 0.0, "end": 0.2, "type": "word"},
+...           {"text": " ", "start": 0.2, "end": 0.3, "type": "spacing"},
+...           {"text": "there.", "start": 0.3, "end": 0.6, "type": "word"}]
+>>> align_words(["hi", "there"], scribe).anchors
+{0: 0, 1: 2}
+```
+
+* **Return type:**
+  [`AlignedWords`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.AlignedWords)
+
+### mixing.transcript.align.normalize_word(text)
+
+The form two words are matched by: [`tokens_of()`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.tokens_of) the case-folded
+`text`, typographic apostrophes made straight, joined by single spaces.
+
+```pycon
+>>> normalize_word(" It’s,")
+"it's"
+```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+### mixing.transcript.align.tokens_of(text)
+
+The words of `text` as written: punctuation dropped, an apostrophe
+(straight or typographic) inside a word kept, case kept. What a line’s
+authored tokens are.
+
+```pycon
+>>> tokens_of("Hello, there — it’s ME!")
+['Hello', 'there', 'it’s', 'ME']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
+
+
 # _autosummary/mixing.transcript.fillers.html.md
 
 # mixing.transcript.fillers
@@ -3007,35 +3191,103 @@ Lower-level building blocks:
 ... )
 ```
 
+Time authored text (a script, a cue) by the transcribed words:
+
+```pycon
+>>> from mixing.transcript import align_words, tokens_of
+>>> heard = [("hello", 0.5, 0.9), ("there", 0.9, 1.3)]
+>>> align_words(tokens_of("Hello there!"), heard).coverage
+1.0
+```
+
 ### Functions
 
-| [`transcribe`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe)(audio, \*[, api_key, model_id, ...])    | Transcribe `audio` with ElevenLabs Scribe.                                      |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| [`default_cache_dir`](_autosummary/mixing.transcript.html.md#mixing.transcript.default_cache_dir)()                                | Default on-disk cache for Scribe responses.                                     |
-| [`is_filler`](_autosummary/mixing.transcript.html.md#mixing.transcript.is_filler)(item, \*[, fillers, audio_events])       | Return `True` if `item` is a filler word or a removable audio event.            |
-| [`build_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.build_cuts)(words, \*[, fillers, ...])              | Compute time ranges to REMOVE.                                                  |
-| [`keeps_from_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.keeps_from_cuts)(cuts, duration)                    | Return ranges to KEEP given the cut ranges and total duration.                  |
-| [`normalize_token`](_autosummary/mixing.transcript.html.md#mixing.transcript.normalize_token)(text)                              | Lowercase and strip non-alpha so `"Uh,"` -> `"uh"`.                             |
-| [`fmt_srt_time`](_autosummary/mixing.transcript.html.md#mixing.transcript.fmt_srt_time)(seconds)                              | Back-compat aliases — historically these names lived in different modules.      |
-| [`words_to_srt`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_srt)(words, \*[, max_chars, ...])          | Render an SRT from a Scribe word list (no filler removal, no remapping).        |
-| [`words_to_srt_remapped`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_srt_remapped)(words, cuts, \*[, ...])      | SRT aligned to a post-cut timeline.                                             |
-| [`words_to_prose`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_prose)(words, \*[, paragraph_pause, ...])  | Render a Scribe word list as plain prose, with paragraph breaks on long pauses. |
-| [`remap_time_after_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.remap_time_after_cuts)(t, cuts)                     | Map `t` from the original timeline onto the post-cut timeline.                  |
-| [`extract_audio`](_autosummary/mixing.transcript.html.md#mixing.transcript.extract_audio)(input_path, output_path, \*[, ...])  | Extract a mono mp3 from `input_path` (suitable for STT).                        |
-| [`apply_keeps`](_autosummary/mixing.transcript.html.md#mixing.transcript.apply_keeps)(input_path, output_path, keeps, \*)    | Re-encode `input_path` keeping only the listed time ranges.                     |
-| [`srt_for_media`](_autosummary/mixing.transcript.html.md#mixing.transcript.srt_for_media)(media, \*[, srt_path, reuse, ...])   | Return `(srt_text, srt_path)` for `media`, transcribing if needed.              |
-| [`remove_fillers`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers)(input_media, output_dir, \*[, ...]) | End-to-end filler removal.                                                      |
+| [`transcribe`](_autosummary/mixing.transcript.html.md#mixing.transcript.transcribe)(audio, \*[, api_key, model_id, ...])    | Transcribe `audio` with ElevenLabs Scribe.                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`default_cache_dir`](_autosummary/mixing.transcript.html.md#mixing.transcript.default_cache_dir)()                                | Default on-disk cache for Scribe responses.                                                                                                                                             |
+| [`is_filler`](_autosummary/mixing.transcript.html.md#mixing.transcript.is_filler)(item, \*[, fillers, audio_events])       | Return `True` if `item` is a filler word or a removable audio event.                                                                                                                    |
+| [`build_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.build_cuts)(words, \*[, fillers, ...])              | Compute time ranges to REMOVE.                                                                                                                                                          |
+| [`keeps_from_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.keeps_from_cuts)(cuts, duration)                    | Return ranges to KEEP given the cut ranges and total duration.                                                                                                                          |
+| [`normalize_token`](_autosummary/mixing.transcript.html.md#mixing.transcript.normalize_token)(text)                              | Lowercase and strip non-alpha so `"Uh,"` -> `"uh"`.                                                                                                                                     |
+| [`fmt_srt_time`](_autosummary/mixing.transcript.html.md#mixing.transcript.fmt_srt_time)(seconds)                              | Back-compat aliases — historically these names lived in different modules.                                                                                                              |
+| [`words_to_srt`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_srt)(words, \*[, max_chars, ...])          | Render an SRT from a Scribe word list (no filler removal, no remapping).                                                                                                                |
+| [`words_to_srt_remapped`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_srt_remapped)(words, cuts, \*[, ...])      | SRT aligned to a post-cut timeline.                                                                                                                                                     |
+| [`words_to_prose`](_autosummary/mixing.transcript.html.md#mixing.transcript.words_to_prose)(words, \*[, paragraph_pause, ...])  | Render a Scribe word list as plain prose, with paragraph breaks on long pauses.                                                                                                         |
+| [`remap_time_after_cuts`](_autosummary/mixing.transcript.html.md#mixing.transcript.remap_time_after_cuts)(t, cuts)                     | Map `t` from the original timeline onto the post-cut timeline.                                                                                                                          |
+| [`extract_audio`](_autosummary/mixing.transcript.html.md#mixing.transcript.extract_audio)(input_path, output_path, \*[, ...])  | Extract a mono mp3 from `input_path` (suitable for STT).                                                                                                                                |
+| [`apply_keeps`](_autosummary/mixing.transcript.html.md#mixing.transcript.apply_keeps)(input_path, output_path, keeps, \*)    | Re-encode `input_path` keeping only the listed time ranges.                                                                                                                             |
+| [`srt_for_media`](_autosummary/mixing.transcript.html.md#mixing.transcript.srt_for_media)(media, \*[, srt_path, reuse, ...])   | Return `(srt_text, srt_path)` for `media`, transcribing if needed.                                                                                                                      |
+| [`remove_fillers`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers)(input_media, output_dir, \*[, ...]) | End-to-end filler removal.                                                                                                                                                              |
+| [`align_words`](_autosummary/mixing.transcript.html.md#mixing.transcript.align_words)(reference, heard, \*[, bounds, ...])   | Time the `reference` tokens (what was meant to be said) by a recogniser's `heard` words of the same audio.                                                                              |
+| [`normalize_word`](_autosummary/mixing.transcript.html.md#mixing.transcript.normalize_word)(text)                               | The form two words are matched by: [`tokens_of()`](_autosummary/mixing.transcript.html.md#mixing.transcript.tokens_of) the case-folded `text`, typographic apostrophes made straight, joined by single spaces. |
+| [`tokens_of`](_autosummary/mixing.transcript.html.md#mixing.transcript.tokens_of)(text)                                    | The words of `text` as written: punctuation dropped, an apostrophe (straight or typographic) inside a word kept, case kept.                                                             |
 
 ### Classes
 
 | [`FillerRemovalResult`](_autosummary/mixing.transcript.html.md#mixing.transcript.FillerRemovalResult)(cleaned_media, ...[, ...])   | Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers).   |
 |---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| [`AlignedWords`](_autosummary/mixing.transcript.html.md#mixing.transcript.AlignedWords)(words, matched, total[, anchors])   | [`align_words()`](_autosummary/mixing.transcript.html.md#mixing.transcript.align_words)'s result.                                   |
+
+### *class* mixing.transcript.AlignedWords(words, matched, total, anchors=dict())
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+[`align_words()`](_autosummary/mixing.transcript.html.md#mixing.transcript.align_words)’s result.
+
+`words` are the reference tokens timed, in reference order with
+non-decreasing starts; `matched` of the `total` (every reference token,
+those that normalize to nothing included) were anchored by a heard word
+(the rest interpolated); `anchors` maps a reference index to the index,
+in the heard list as given, of the word that anchored it.
+
+#### *property* coverage *: [float](https://docs.python.org/3/builtins/functions.html#float)*
+
+The share of reference tokens anchored by a heard word, 0..1.
 
 ### *class* mixing.transcript.FillerRemovalResult(cleaned_media, transcript_md, transcript_srt, cleaned_md, cleaned_srt, scribe_json, cuts_json, keeps_json, duration, cuts=list(), keeps=list())
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Paths and computed ranges produced by [`remove_fillers()`](_autosummary/mixing.transcript.html.md#mixing.transcript.remove_fillers).
+
+### mixing.transcript.align_words(reference, heard, \*, bounds=None, normalize=<function normalize_word>, split=<function tokens_of>)
+
+Time the `reference` tokens (what was meant to be said) by a
+recogniser’s `heard` words of the same audio.
+
+`bounds` (`(start, end)` of the audio) time the ends when no anchor
+does; without it the first and last heard words do. `normalize` is the
+matching key (default [`normalize_word()`](_autosummary/mixing.transcript.html.md#mixing.transcript.normalize_word): case-folded, punctuation
+dropped); pass your own for a language with elisions or a phonetic key.
+`split` cuts a heard word into tokens like the reference’s (default
+[`tokens_of()`](_autosummary/mixing.transcript.html.md#mixing.transcript.tokens_of); `None` keeps each heard word whole). Heard words must
+come in time order (overlaps are fine); times must be finite.
+
+The walk is `difflib`’s, roughly quadratic: about 0.2 s for 5,000 words,
+4 s for 20,000; align long recordings by section.
+
+```pycon
+>>> heard = [("i", 0.0, 0.1), ("did", 0.1, 0.3), ("ask", 0.6, 0.9)]
+>>> aligned = align_words(["I", "did", "NOT", "ask"], heard)
+>>> aligned.words
+[('I', 0.0, 0.1), ('did', 0.1, 0.3), ('NOT', 0.3, 0.6), ('ask', 0.6, 0.9)]
+>>> aligned.matched, aligned.total, aligned.anchors
+(3, 4, {0: 0, 1: 1, 3: 2})
+```
+
+Scribe’s word list works as is (spacing and audio events are skipped, and
+`anchors` index the list as given):
+
+```pycon
+>>> scribe = [{"text": "Hi", "start": 0.0, "end": 0.2, "type": "word"},
+...           {"text": " ", "start": 0.2, "end": 0.3, "type": "spacing"},
+...           {"text": "there.", "start": 0.3, "end": 0.6, "type": "word"}]
+>>> align_words(["hi", "there"], scribe).anchors
+{0: 0, 1: 2}
+```
+
+* **Return type:**
+  [`AlignedWords`](_autosummary/mixing.transcript.align.html.md#mixing.transcript.align.AlignedWords)
 
 ### mixing.transcript.apply_keeps(input_path, output_path, keeps, , video_codec='libx264', audio_codec='aac', crf=20, preset='medium', audio_bitrate='160k', faststart=True, overwrite=True, ffmpeg=None, timeout=None)
 
@@ -3133,6 +3385,19 @@ Lowercase and strip non-alpha so `"Uh,"` -> `"uh"`.
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
 
+### mixing.transcript.normalize_word(text)
+
+The form two words are matched by: [`tokens_of()`](_autosummary/mixing.transcript.html.md#mixing.transcript.tokens_of) the case-folded
+`text`, typographic apostrophes made straight, joined by single spaces.
+
+```pycon
+>>> normalize_word(" It’s,")
+"it's"
+```
+
+* **Return type:**
+  [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
 ### mixing.transcript.remap_time_after_cuts(t, cuts)
 
 Map `t` from the original timeline onto the post-cut timeline.
@@ -3188,6 +3453,20 @@ Return `(srt_text, srt_path)` for `media`, transcribing if needed.
   [`tuple`](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str), [`Path`](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]
 * **Returns:**
   The SRT text and the path it lives at.
+
+### mixing.transcript.tokens_of(text)
+
+The words of `text` as written: punctuation dropped, an apostrophe
+(straight or typographic) inside a word kept, case kept. What a line’s
+authored tokens are.
+
+```pycon
+>>> tokens_of("Hello, there — it’s ME!")
+['Hello', 'there', 'it’s', 'ME']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.transcript.transcribe(audio, , api_key=None, model_id='scribe_v1', timestamps_granularity='word', tag_audio_events=True, diarize=False, language_code=None, extra_fields=None, timeout=600.0, cache=False, refresh=False)
 
@@ -3256,13 +3535,14 @@ the cleaned media.
 
 ### Modules
 
-| [`fillers`](_autosummary/mixing.transcript.fillers.html.md#module-mixing.transcript.fillers)   | Filler-word detection over Scribe-shaped word lists.         |
-|---------------------------------------------------------------------------------------------|--------------------------------------------------------------|
-| [`formats`](_autosummary/mixing.transcript.formats.html.md#module-mixing.transcript.formats)   | Transcript output formats: SRT, plain prose, time remapping. |
-| [`media`](_autosummary/mixing.transcript.media.html.md#module-mixing.transcript.media)       | ffmpeg-backed audio extraction and timeline-cut application. |
-| [`persist`](_autosummary/mixing.transcript.persist.html.md#module-mixing.transcript.persist)   | Reuse-or-create the SRT that lives next to a media file.     |
-| [`pipeline`](_autosummary/mixing.transcript.pipeline.html.md#module-mixing.transcript.pipeline) | High-level filler-removal pipeline.                          |
-| [`scribe`](_autosummary/mixing.transcript.scribe.html.md#module-mixing.transcript.scribe)     | ElevenLabs Scribe (speech-to-text) HTTP client.              |
+| [`align`](_autosummary/mixing.transcript.align.html.md#module-mixing.transcript.align)       | Time authored words by a recogniser's timed words of the same audio.   |
+|---------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| [`fillers`](_autosummary/mixing.transcript.fillers.html.md#module-mixing.transcript.fillers)   | Filler-word detection over Scribe-shaped word lists.                   |
+| [`formats`](_autosummary/mixing.transcript.formats.html.md#module-mixing.transcript.formats)   | Transcript output formats: SRT, plain prose, time remapping.           |
+| [`media`](_autosummary/mixing.transcript.media.html.md#module-mixing.transcript.media)       | ffmpeg-backed audio extraction and timeline-cut application.           |
+| [`persist`](_autosummary/mixing.transcript.persist.html.md#module-mixing.transcript.persist)   | Reuse-or-create the SRT that lives next to a media file.               |
+| [`pipeline`](_autosummary/mixing.transcript.pipeline.html.md#module-mixing.transcript.pipeline) | High-level filler-removal pipeline.                                    |
+| [`scribe`](_autosummary/mixing.transcript.scribe.html.md#module-mixing.transcript.scribe)     | ElevenLabs Scribe (speech-to-text) HTTP client.                        |
 
 
 # _autosummary/mixing.transcript.media.html.md
@@ -3481,8 +3761,9 @@ General utilities for mixing video, audio, etc.
 
 ### Module Attributes
 
-| [`EXTRAS`](_autosummary/mixing.util.html.md#mixing.util.EXTRAS)   | `{extra: import names it supplies}`, each declared by the same-named extra in `pyproject.toml` (a test holds the two equal).   |
-|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| [`PACKAGE_NAME`](_autosummary/mixing.util.html.md#mixing.util.PACKAGE_NAME)   | The distribution whose extras the install hints name.                                                                        |
+|-----------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| [`EXTRAS`](_autosummary/mixing.util.html.md#mixing.util.EXTRAS)         | `{extra: import names it supplies}`, each declared by the same-named extra in `pyproject.toml` (a test holds the two equal). |
 
 ### Functions
 
@@ -3513,6 +3794,10 @@ broadest install wins; a caller that knows better names its extra
 
 * **Type:**
   The one table of mixing’s extras
+
+### mixing.util.PACKAGE_NAME *= 'mixing'*
+
+The distribution whose extras the install hints name.
 
 ### mixing.util.copy_to_clipboard(data)
 
@@ -3652,10 +3937,13 @@ Import a package, raising an informative error if not installed.
 
 The hint names `extra` when given (the extra the caller belongs to: in
 `mixing.loudness`, scipy comes from `loudness`, not `media`), else the
-extra `EXTRAS` maps `package_name` to, else `pip install <package>`.
-The error’s `name` is `package_name`, so a caller can map it to its own
-install hint. An installed package whose own imports fail re-raises that
-error unchanged, rather than claiming the package is missing.
+extra `EXTRAS` maps `package_name` to, else the package’s own pip line.
+The error is a `ModuleNotFoundError` whose `name` is `package_name`,
+so a caller can map it to its own install hint. An installed package whose
+own imports fail re-raises that error unchanged, rather than claiming the
+package is missing: that absent-vs-broken rule is the fleet’s shared one,
+`i2.optional.optional_import` (imported here, on first call, so that
+`import mixing` does not pay for `i2`).
 
 ```pycon
 >>> math = require_package('math')
@@ -3694,7 +3982,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-09 00:05 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/005ccb7b60df3c543cca0ff08835484dcea9ff07"><code>005ccb7</code></a> on branch <code>main</code>, for **mixing 0.0.116** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-22 10:35 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d"><code>bcbcb19</code></a> on branch <code>main</code>, for **mixing 0.0.117** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -3703,7 +3991,7 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/005ccb7b60df3c543cca0ff08835484dcea9ff07"><code>005ccb7b60df3c543cca0ff08835484dcea9ff07</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d"><code>bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -3714,15 +4002,15 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/42536442407">42536442407</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45011842413">45011842413</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>e0e103bc01c28cce7f0d10a07face3146e62788e</code> (in the history of the built commit) |
+| Event commit | <code>ea4d980a820fd89bc171b4149717d15414eef445</code> (in the history of the built commit) |
 
 ## Tools
 
 |          |         |
 |----------|---------|
-| epythet  | 0.2.22  |
+| epythet  | 0.2.23  |
 | Sphinx   | 9.1.1   |
 | docutils | 0.22.4  |
 | Python   | 3.12.16 |
@@ -3741,14 +4029,14 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.116/">0.0.116</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.117/">0.0.117</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 005ccb7b60df3c543cca0ff08835484dcea9ff07
-pip install "epythet==0.2.22"
+git checkout bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d
+pip install "epythet==0.2.23"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
 
