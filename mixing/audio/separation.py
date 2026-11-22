@@ -388,8 +388,12 @@ def _split_round_trip(
         if not everything_heard:
             M_out = np.where(heard, M_out, spec(x[:, c]))
         del M
-        out_speech[:, c] = _fit(inverse(S_out)[:, None], n, 1, sr=sr, what="the speech")[:, 0]
-        out_music[:, c] = _fit(inverse(M_out)[:, None], n, 1, sr=sr, what="the music")[:, 0]
+        out_speech[:, c] = _fit(
+            inverse(S_out)[:, None], n, 1, sr=sr, what="the speech"
+        )[:, 0]
+        out_music[:, c] = _fit(inverse(M_out)[:, None], n, 1, sr=sr, what="the music")[
+            :, 0
+        ]
     return out_speech, out_music
 
 
