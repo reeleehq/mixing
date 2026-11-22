@@ -237,6 +237,10 @@ string) or a float, snapped by [`snap_rate()`](#mixing.probe.snap_rate) (`29.97`
 * **Return type:**
   [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
 
+#### *property* has_video *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
+
+Whether the media has a video picture (a known width).
+
 #### *property* playback_fps *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Fraction](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]*
 
 The rate the frames actually arrive at, decoded one by one.

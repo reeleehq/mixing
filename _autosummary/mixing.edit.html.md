@@ -217,6 +217,14 @@ Frame and sample boundaries of an edit (see [`timeline()`](#mixing.edit.timeline
 `frame_bounds[k]` / `sample_bounds[k]` is where segment `k` starts;
 the last entry is the total.
 
+#### *property* total_frames *: [int](https://docs.python.org/3/builtins/functions.html#int)*
+
+Total number of frames on the timeline.
+
+#### *property* total_samples *: [int](https://docs.python.org/3/builtins/functions.html#int)*
+
+Total number of audio samples on the timeline.
+
 ### mixing.edit.as_rate(value)
 
 A frame rate as an exact [`Fraction`](https://docs.python.org/3/library/fractions.html#fractions.Fraction).

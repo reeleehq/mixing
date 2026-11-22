@@ -1,4 +1,4 @@
-> built 2026-11-22 22:23 UTC from 3539ff7 (main) · mixing 0.0.129. Details: build_info.json
+> built 2026-11-22 23:38 UTC from f1c6863 (main) · mixing 0.0.129. Details: build_info.json
 
 # index.html.md
 
@@ -1227,6 +1227,14 @@ Frame and sample boundaries of an edit (see [`timeline()`](_autosummary/mixing.e
 
 `frame_bounds[k]` / `sample_bounds[k]` is where segment `k` starts;
 the last entry is the total.
+
+#### *property* total_frames *: [int](https://docs.python.org/3/builtins/functions.html#int)*
+
+Total number of frames on the timeline.
+
+#### *property* total_samples *: [int](https://docs.python.org/3/builtins/functions.html#int)*
+
+Total number of audio samples on the timeline.
 
 ### mixing.edit.as_rate(value)
 
@@ -2492,6 +2500,10 @@ string) or a float, snapped by [`snap_rate()`](_autosummary/mixing.probe.html.md
 
 * **Return type:**
   [`Optional`](https://docs.python.org/3/library/typing.html#typing.Optional)[[`int`](https://docs.python.org/3/builtins/functions.html#int)]
+
+#### *property* has_video *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
+
+Whether the media has a video picture (a known width).
 
 #### *property* playback_fps *: [Optional](https://docs.python.org/3/library/typing.html#typing.Optional)[[Fraction](https://docs.python.org/3/library/fractions.html#fractions.Fraction)]*
 
@@ -4065,18 +4077,16 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-22 22:23 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/3539ff74b19fd5f0ea944aa9be1c95cb19be3153"><code>3539ff7</code></a> on branch <code>main</code>, for **mixing 0.0.129** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-22 23:38 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c"><code>f1c6863</code></a> on branch <code>main</code>, for **mixing 0.0.129** (from <code>pyproject.toml</code>).
 
-#### WARNING
-The documentation and the package may be misaligned:
-
-- The documented version (0.0.129) is ahead of the latest release on PyPI (0.0.128): these docs describe unreleased code.
+#### NOTE
+Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/3539ff74b19fd5f0ea944aa9be1c95cb19be3153"><code>3539ff74b19fd5f0ea944aa9be1c95cb19be3153</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c"><code>f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -4087,9 +4097,9 @@ The documentation and the package may be misaligned:
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45076613245">45076613245</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45083384917">45083384917</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>27d35b181e8ff81656fb1e8e39f4f4cbf826c802</code> (in the history of the built commit) |
+| Event commit | <code>f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -4114,13 +4124,13 @@ The documentation and the package may be misaligned:
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.128/">0.0.128</a>, older than the documented version (0.0.129).
+Latest release: <a href="https://pypi.org/project/mixing/0.0.129/">0.0.129</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 3539ff74b19fd5f0ea944aa9be1c95cb19be3153
+git checkout f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c
 pip install "epythet==0.2.23"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
