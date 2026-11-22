@@ -26,7 +26,13 @@ strategy's rate is below the input's, the band above the model's Nyquist
 frequency (8 kHz for a 16 kHz enhancer) never reaches the model, so it is added
 to the music untouched, *including any talk there* (sibilants, breath). With the
 registered 44.1/48 kHz strategies this does not arise for CD-rate input; it
-matters when plugging in a 16 kHz model.
+matters when plugging in a 16 kHz model. What the resampling round trip
+weakens where the model did hear it (the filter's slope near the lower of the
+two Nyquist frequencies) is split between the stems in proportion to them, and
+the images resampling makes of the stems above the model's Nyquist are dropped:
+so ``speech + music`` is the input whenever the model's own stems sum to what
+it was given (a model that drops a stem still drops it), and talk the model
+found stays out of the music, to within about one STFT bin of that line.
 
 Registered strategies (licences are the checkpoints'):
 
@@ -250,10 +256,14 @@ def _run_strategy(
         what = f"separator {strategy.name!r}'s resampled output"
         return _fit(resample(y, native, sr), n, ch, sr=sr, what=what)
 
-    speech, music = back(speech), back(music)
-    if native < sr:  # the band the model never saw (talk included) goes to music
-        music = music + (x - back(x_native))
-    return speech, music
+    return _split_round_trip(
+        x,
+        back(speech),
+        back(music),
+        x - back(x_native),
+        sr,
+        heard_hz=None if native >= sr else native / 2,  # None: it heard it all
+    )
 
 
 def _resolve(separator: Union[str, SeparationStrategy, SpeechSeparator]):
@@ -309,18 +319,78 @@ def wiener_split(
     >>> bool(np.allclose(s + m, x))
     True
     """
-    signal = require_package("scipy.signal")
     mixture = np.asarray(mixture, dtype=np.float64)
     speech = np.asarray(speech, dtype=np.float64)
     n = len(mixture)
-    nperseg = min(_stft_size(sr, window_s), max(1, n))
-    spec = lambda y: signal.stft(y.T, nperseg=nperseg)[2]
+    spec, inverse, _ = _stft_pair(sr, n, window_s=window_s)
     X, S = spec(mixture), spec(speech)
-    M2, S2 = np.abs(X - S) ** 2, np.abs(S) ** 2
-    mask = M2 / np.maximum(M2 + S2, WIENER_EPS)
-    music = signal.istft(mask * X, nperseg=nperseg)[1].T[:n]
+    music = inverse(_power_share(X - S, S) * X)
     music = _fit(music, n, mixture.shape[1], sr=sr, what="the Wiener-masked music")
     return mixture - music, music
+
+
+def _stft_pair(sr: int, n: int, *, window_s: float = WIENER_WINDOW_S):
+    """``(spec, inverse, freqs)``: the STFT of an ``(n, ch)`` array and its
+    inverse (back to ``n`` samples), on one grid, and the grid's bin frequencies."""
+    signal = require_package("scipy.signal")
+    nperseg = min(_stft_size(sr, window_s), max(1, n))
+
+    def spec(a):
+        return signal.stft(np.asarray(a, dtype=np.float64).T, fs=sr, nperseg=nperseg)[2]
+
+    def inverse(z):
+        return signal.istft(z, fs=sr, nperseg=nperseg)[1].T[:n]
+
+    freqs = np.fft.rfftfreq(nperseg, d=1.0 / sr)
+    return spec, inverse, freqs
+
+
+def _power_share(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """``|A|^2 / (|A|^2 + |B|^2)`` per bin, in [0, 1] (0 where both are silent)."""
+    A2, B2 = np.abs(A) ** 2, np.abs(B) ** 2
+    return A2 / np.maximum(A2 + B2, WIENER_EPS)
+
+
+def _split_round_trip(
+    x: np.ndarray,
+    speech: np.ndarray,
+    music: np.ndarray,
+    lost: np.ndarray,
+    sr: int,
+    *,
+    heard_hz: Optional[float],
+    window_s: float = WIENER_WINDOW_S,
+) -> tuple[np.ndarray, np.ndarray]:
+    """A model's stems, resampled back to ``x``'s rate ``sr``, with what the
+    resampling round trip ``lost`` (``x - back(x_native)``) put back.
+
+    Below ``heard_hz`` (the model's Nyquist when it is below the input's: what
+    it heard; ``None`` when it heard every band of ``x``) each stem gets its share of ``lost`` by the stems' power ratio, so
+    what the resampler's slope weakened goes back to the stem it came from. At
+    and above it the speech is silent and the music is ``x``: the model never
+    heard that band (talk there included), and the stems hold only the images
+    resampling made of them. So ``speech + music == x`` whenever the model's own
+    stems sum to its input; a model that leaves something out (a dropped effects
+    stem) still leaves it out. The line is as sharp as one STFT bin: content
+    within about a bin of it is split between the stems.
+    """
+    n, ch = x.shape
+    spec, inverse, freqs = _stft_pair(sr, n, window_s=window_s)
+    everything_heard = heard_hz is None
+    heard = (freqs < (np.inf if everything_heard else heard_hz))[:, None]
+    out_speech, out_music = np.empty_like(x), np.empty_like(x)
+    for c in range(ch):  # one channel at a time: bounds the STFTs' memory
+        S, M, R = (spec(a[:, c]) for a in (speech, music, lost))
+        share = _power_share(S, M)
+        S_out = np.where(heard, S + share * R, 0)
+        M_out = M + (1 - share) * R
+        del S, R, share
+        if not everything_heard:
+            M_out = np.where(heard, M_out, spec(x[:, c]))
+        del M
+        out_speech[:, c] = _fit(inverse(S_out)[:, None], n, 1, sr=sr, what="the speech")[:, 0]
+        out_music[:, c] = _fit(inverse(M_out)[:, None], n, 1, sr=sr, what="the music")[:, 0]
+    return out_speech, out_music
 
 
 def invert_enhancer(enhance: SpeechEnhancer) -> SpeechSeparator:

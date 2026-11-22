@@ -292,6 +292,79 @@ def test_the_high_band_goes_to_the_music_even_when_it_is_talk():
     assert np.allclose(music[inner], sibilance[inner], atol=1e-3)
 
 
+@pytest.mark.parametrize("sr", [8000, 16000, 22050, 48000])
+def test_stems_sum_to_the_input_whatever_the_rates(sr):
+    """#185: the round trip's residual goes to the music below and above the
+    model's rate, so a model whose stems sum to its input keeps the sum."""
+    x = np.random.default_rng(1).standard_normal((sr, 2)) * 0.3  # white: worst case
+
+    def clip_split(a, r):  # nonlinear, but speech + music == a exactly
+        speech = np.clip(a, -0.1, 0.1)
+        return speech, a - speech
+
+    strategy = SeparationStrategy("clip", clip_split, sample_rate=44100)
+    speech, music = separate_speech(x, separator=strategy, sr=sr)
+    np.testing.assert_allclose(speech + music, x, rtol=0, atol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "sr, native, tone_hz",
+    [
+        (16000, 44100, 7600),  # up: on the input's own Nyquist slope
+        (16000, 44100, 7990),  # up: within a bin of the input's Nyquist
+        (22050, 48000, 10600),
+        (48000, 16000, 7600),  # down: on the model's Nyquist slope
+    ],
+)
+def test_what_resampling_weakened_goes_back_to_the_stem_it_came_from(
+    sr, native, tone_hz
+):
+    """#185 review: the residual near a Nyquist slope is split like the stems,
+    so an all-speech model puts no sibilant into the music."""
+    talk = 0.1 * np.sin(2 * np.pi * tone_hz * np.arange(sr) / sr)[:, None]
+    all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
+    speech, music = separate_speech(talk, separator=all_speech, sr=sr)
+    np.testing.assert_allclose(speech + music, talk, rtol=0, atol=1e-9)
+    # The interior: the tone's abrupt onset and end splatter above the lower
+    # Nyquist, a band the model never heard, which rightly goes to the music.
+    inner = slice(sr // 10, -sr // 10)
+    leak_db = 10 * np.log10(np.mean(music[inner] ** 2) / np.mean(talk[inner] ** 2))
+    assert leak_db < -60
+
+
+@pytest.mark.parametrize("heard_hz", [4000, 6000, 7600])
+def test_never_heard_content_at_an_image_frequency_reaches_the_music(heard_hz):
+    """#185 review round 2: a 16 kHz model on 48 kHz audio hears ``heard_hz``;
+    resampling its stem up mirrors it at ``16000 - heard_hz``. A tone there the
+    model never heard must reach the music, not be split like the image."""
+    sr, native = 48000, 16000
+    t = np.arange(sr) / sr
+    heard = 0.3 * np.sin(2 * np.pi * heard_hz * t)[:, None]
+    unheard = 0.03 * np.sin(2 * np.pi * (native - heard_hz) * t)[:, None]
+    all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
+    speech, music = separate_speech(heard + unheard, separator=all_speech, sr=sr)
+    inner = slice(sr // 10, -sr // 10)
+    err_db = 10 * np.log10(
+        np.mean((music - unheard)[inner] ** 2) / np.mean(unheard[inner] ** 2)
+    )
+    assert err_db < -40
+
+
+@pytest.mark.parametrize("sr", [16000, 48000])
+def test_a_stem_the_model_leaves_out_stays_out_at_any_rate(sr):
+    """#185 review round 3: a non-additive model (a DnR model whose effects stem
+    is dropped) keeps its choice when the input rate differs from its own; only
+    what the resampling round trip lost is put back."""
+    x = np.random.default_rng(2).standard_normal((sr, 1)) * 0.1
+    scaled = SeparationStrategy("s", lambda a, r: (0.5 * a, 0.2 * a), sample_rate=44100)
+    speech, music = separate_speech(x, separator=scaled, sr=sr)
+    inner = slice(sr // 10, -sr // 10)
+    gain = lambda y: np.sqrt(np.mean(y[inner] ** 2) / np.mean(x[inner] ** 2))
+    band = min(sr, 44100) / sr  # the share of white noise's power the model heard
+    assert gain(speech) == pytest.approx(0.5 * np.sqrt(band), rel=0.05)
+    assert gain(speech + music) < 0.95  # the 30 % it dropped is not put back
+
+
 def test_resampling_up_to_a_higher_rate_strategy():
     rec = _Recorder(music=lambda a: a)
     strategy = SeparationStrategy("rec", rec, sample_rate=48000)
