@@ -365,6 +365,72 @@ def test_a_stem_the_model_leaves_out_stays_out_at_any_rate(sr):
     assert gain(speech + music) < 0.95  # the 30 % it dropped is not put back
 
 
+def _whole_signal_split(x, speech, music, lost, sr, *, heard_hz):
+    """``_split_round_trip`` as it was before #203: whole-signal STFTs. The
+    reference the block-wise walk must reproduce."""
+    from mixing.audio.separation import _power_share, _stft_pair
+
+    n, ch = x.shape
+    spec, inverse, freqs = _stft_pair(sr, n)
+    heard = (freqs < (np.inf if heard_hz is None else heard_hz))[:, None]
+    out_s, out_m = np.empty_like(x), np.empty_like(x)
+    for c in range(ch):
+        S, M, R = (spec(a[:, c]) for a in (speech, music, lost))
+        share = _power_share(S, M)
+        S_out = np.where(heard, S + share * R, 0)
+        M_out = M + (1 - share) * R
+        if heard_hz is not None:
+            M_out = np.where(heard, M_out, spec(x[:, c]))
+        out_s[:, c], out_m[:, c] = inverse(S_out)[:n], inverse(M_out)[:n]
+    return out_s, out_m
+
+
+@pytest.mark.parametrize("heard_hz", [None, 8000])
+@pytest.mark.parametrize("n", [2048, 2049, 4100, 48000 + 37])
+@pytest.mark.parametrize("block_frames", [1, 3, 256])
+def test_blockwise_round_trip_equals_the_whole_signal_one(heard_hz, n, block_frames):
+    """#203: walking the STFT in blocks of frames changes the memory, not the
+    output (within 1e-9), at any block size and length, heard band or not."""
+    from mixing.audio.separation import _split_round_trip
+
+    sr = 48000
+    rng = np.random.default_rng(n)
+    x, speech, music, lost = (rng.standard_normal((n, 2)) * 0.1 for _ in range(4))
+    want = _whole_signal_split(x, speech, music, lost, sr, heard_hz=heard_hz)
+    got = _split_round_trip(
+        x, speech, music, lost, sr, heard_hz=heard_hz, block_frames=block_frames
+    )
+    for g, w in zip(got, want):
+        np.testing.assert_allclose(g, w, rtol=0, atol=1e-9)
+
+
+def test_blockwise_round_trip_holds_a_block_not_a_signal():
+    """#203: what the round trip holds grows with the input by a handful of
+    real channels (its two stems, two overlap-add buffers, the window
+    normaliser), not by whole complex spectra (~six per channel before)."""
+    import tracemalloc
+
+    from mixing.audio.separation import _split_round_trip
+
+    sr = 48000
+    rng = np.random.default_rng(0)
+
+    def peak(seconds):
+        n = sr * seconds
+        x, speech, music, lost = (rng.standard_normal((n, 1)) * 0.1 for _ in range(4))
+        tracemalloc.start()
+        try:
+            _split_round_trip(x, speech, music, lost, sr, heard_hz=8000)
+            return tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+
+    peak(1)  # imports out of the measure
+    per_channel_second = sr * 8
+    growth = (peak(40) - peak(10)) / (30 * per_channel_second)
+    assert growth < 7  # in real channels; whole spectra made it ~14
+
+
 def test_resampling_up_to_a_higher_rate_strategy():
     rec = _Recorder(music=lambda a: a)
     strategy = SeparationStrategy("rec", rec, sample_rate=48000)
