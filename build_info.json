@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-22T11:29:26Z",
+  "built_at": "2026-11-22T11:57:44Z",
   "package": {
     "name": "mixing",
     "version": "0.0.124",
@@ -9,24 +9,24 @@
   },
   "git": {
     "available": true,
-    "commit": "e1360fa75e9a13e0a7c00df9d220318e1e6c514c",
-    "short_commit": "e1360fa",
+    "commit": "e587f0fc0b74a7cf24d473e55dbd7604d7846907",
+    "short_commit": "e587f0f",
     "branch": "main",
     "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/e1360fa75e9a13e0a7c00df9d220318e1e6c514c",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/e587f0fc0b74a7cf24d473e55dbd7604d7846907",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "edffea190db09bdf8b12115d12ec296885a9d77a",
+    "sha": "e587f0fc0b74a7cf24d473e55dbd7604d7846907",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "45016649974",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/45016649974",
+    "run_id": "45019039845",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/45019039845",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -64,7 +64,7 @@
     "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout e1360fa75e9a13e0a7c00df9d220318e1e6c514c\npip install \"epythet==0.2.23\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout e587f0fc0b74a7cf24d473e55dbd7604d7846907\npip install \"epythet==0.2.23\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": true,
