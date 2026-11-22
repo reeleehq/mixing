@@ -28,11 +28,11 @@ to the music untouched, *including any talk there* (sibilants, breath). With the
 registered 44.1/48 kHz strategies this does not arise for CD-rate input; it
 matters when plugging in a 16 kHz model. What the resampling round trip
 weakens where the model did hear it (the filter's slope near the lower of the
-two Nyquist frequencies) is split between the stems in proportion to them, the
-images resampling makes of the stems above that line are dropped, and the music
-is the input minus the speech: so at any rate other than the model's,
-``speech + music`` is the input exactly, and talk the model found stays out of
-the music.
+two Nyquist frequencies) is split between the stems in proportion to them, and
+the images resampling makes of the stems above the model's Nyquist are dropped:
+so ``speech + music`` is the input whenever the model's own stems sum to what
+it was given (a model that drops a stem still drops it), and talk the model
+found stays out of the music, to within about one STFT bin of that line.
 
 Registered strategies (licences are the checkpoints'):
 
@@ -256,7 +256,14 @@ def _run_strategy(
         what = f"separator {strategy.name!r}'s resampled output"
         return _fit(resample(y, native, sr), n, ch, sr=sr, what=what)
 
-    return _split_round_trip(x, back(speech), back(music), sr, heard_hz=min(sr, native) / 2)
+    return _split_round_trip(
+        x,
+        back(speech),
+        back(music),
+        x - back(x_native),
+        sr,
+        heard_hz=None if native >= sr else native / 2,  # None: it heard it all
+    )
 
 
 def _resolve(separator: Union[str, SeparationStrategy, SpeechSeparator]):
@@ -348,29 +355,42 @@ def _split_round_trip(
     x: np.ndarray,
     speech: np.ndarray,
     music: np.ndarray,
+    lost: np.ndarray,
     sr: int,
     *,
-    heard_hz: float,
+    heard_hz: Optional[float],
     window_s: float = WIENER_WINDOW_S,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """A model's stems, resampled back to ``x``'s rate ``sr``, made to sum to ``x``.
+    """A model's stems, resampled back to ``x``'s rate ``sr``, with what the
+    resampling round trip ``lost`` (``x - back(x_native)``) put back.
 
-    Below ``heard_hz`` (the lower of the two Nyquist frequencies: what the model
-    heard) the speech is the model's, plus its share, by the stems' power ratio,
-    of what the stems miss of ``x`` (what the resampling round trip weakened on
-    its slope). At and above it the speech is silent: the model never heard that
-    band, and what the stems hold there is only the images resampling made of
-    them. The music is ``x`` minus the speech, so the band never heard reaches
-    it untouched, talk included, and ``speech + music == x`` exactly.
+    Below ``heard_hz`` (the model's Nyquist when it is below the input's: what
+    it heard; ``None`` when it heard every band of ``x``) each stem gets its share of ``lost`` by the stems' power ratio, so
+    what the resampler's slope weakened goes back to the stem it came from. At
+    and above it the speech is silent and the music is ``x``: the model never
+    heard that band (talk there included), and the stems hold only the images
+    resampling made of them. So ``speech + music == x`` whenever the model's own
+    stems sum to its input; a model that leaves something out (a dropped effects
+    stem) still leaves it out. The line is as sharp as one STFT bin: content
+    within about a bin of it is split between the stems.
     """
     n, ch = x.shape
     spec, inverse, freqs = _stft_pair(sr, n, window_s=window_s)
-    S, M = spec(speech), spec(music)
-    R = spec(x) - S - M
-    heard = (freqs < heard_hz)[None, :, None]
-    out = inverse(np.where(heard, S + _power_share(S, M) * R, 0))
-    out = _fit(out, n, ch, sr=sr, what="the resampled speech")
-    return out, x - out
+    everything_heard = heard_hz is None
+    heard = (freqs < (np.inf if everything_heard else heard_hz))[:, None]
+    out_speech, out_music = np.empty_like(x), np.empty_like(x)
+    for c in range(ch):  # one channel at a time: bounds the STFTs' memory
+        S, M, R = (spec(a[:, c]) for a in (speech, music, lost))
+        share = _power_share(S, M)
+        S_out = np.where(heard, S + share * R, 0)
+        M_out = M + (1 - share) * R
+        del S, R, share
+        if not everything_heard:
+            M_out = np.where(heard, M_out, spec(x[:, c]))
+        del M
+        out_speech[:, c] = _fit(inverse(S_out)[:, None], n, 1, sr=sr, what="the speech")[:, 0]
+        out_music[:, c] = _fit(inverse(M_out)[:, None], n, 1, sr=sr, what="the music")[:, 0]
+    return out_speech, out_music
 
 
 def invert_enhancer(enhance: SpeechEnhancer) -> SpeechSeparator:

@@ -311,6 +311,7 @@ def test_stems_sum_to_the_input_whatever_the_rates(sr):
     "sr, native, tone_hz",
     [
         (16000, 44100, 7600),  # up: on the input's own Nyquist slope
+        (16000, 44100, 7990),  # up: within a bin of the input's Nyquist
         (22050, 48000, 10600),
         (48000, 16000, 7600),  # down: on the model's Nyquist slope
     ],
@@ -347,6 +348,21 @@ def test_never_heard_content_at_an_image_frequency_reaches_the_music(heard_hz):
         np.mean((music - unheard)[inner] ** 2) / np.mean(unheard[inner] ** 2)
     )
     assert err_db < -40
+
+
+@pytest.mark.parametrize("sr", [16000, 48000])
+def test_a_stem_the_model_leaves_out_stays_out_at_any_rate(sr):
+    """#185 review round 3: a non-additive model (a DnR model whose effects stem
+    is dropped) keeps its choice when the input rate differs from its own; only
+    what the resampling round trip lost is put back."""
+    x = np.random.default_rng(2).standard_normal((sr, 1)) * 0.1
+    scaled = SeparationStrategy("s", lambda a, r: (0.5 * a, 0.2 * a), sample_rate=44100)
+    speech, music = separate_speech(x, separator=scaled, sr=sr)
+    inner = slice(sr // 10, -sr // 10)
+    gain = lambda y: np.sqrt(np.mean(y[inner] ** 2) / np.mean(x[inner] ** 2))
+    band = min(sr, 44100) / sr  # the share of white noise's power the model heard
+    assert gain(speech) == pytest.approx(0.5 * np.sqrt(band), rel=0.05)
+    assert gain(speech + music) < 0.95  # the 30 % it dropped is not put back
 
 
 def test_resampling_up_to_a_higher_rate_strategy():
