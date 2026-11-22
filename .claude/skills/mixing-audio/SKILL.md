@@ -605,9 +605,13 @@ Whole-file ASR fails on a recording that alternates languages (Whisper keeps one
 ```python
 from mixing.audio.code_switch import language_utterances, language_runs, anchored_pairs
 
-utts = language_utterances("lesson.m4a", languages=("fr", "zh"))  # Utterance(start, end, probs, text)
+utts = language_utterances(
+    "lesson.m4a", languages=("fr", "zh")
+)  # Utterance(start, end, probs, text)
 runs = language_runs(utts)  # Segments labelled "fr"/"zh"; junk dropped
-pairs = anchored_pairs(utts, anchor="fr")  # LanguagePair(anchor, other); anchor=None for leftover speech
+pairs = anchored_pairs(
+    utts, anchor="fr"
+)  # LanguagePair(anchor, other); anchor=None for leftover speech
 ```
 
 Seams: `language_id=(samples, sr) -> {lang: p}` (default `whisper_language_id()`) and `transcribe=(samples, sr, lang) -> text` (default `whisper_transcriber()`, the same mlx Whisper model, or `scribed_transcriber()` without mlx); utterances reach them mono at 16 kHz, and the language codes must be the id's own (`zh`, not `zh-cn`). Labels use the id's raw probabilities: a language is decided at p >= 0.5, or when every other is <= 0.1; ambiguous utterances join their run. In `anchored_pairs`, `anchor_junk=is_junk` keeps hallucinated text from becoming an anchor, while `other_junk` (off by default) would drop speech a hallucinated transcript does not prove absent. Speech after the last anchor comes back as `LanguagePair(None, other)`. The steps after the first are pure, so store the utterances and re-tune `language_runs` / `anchored_pairs` without re-running models. `order="anchor-then-other"` when the reliable language comes first. Fine silence splitting (`min_silence_s=0.35`, `-40 dB`) is what separates a phrase from its translation; a speaker who alternates word by word lands both languages in one utterance.

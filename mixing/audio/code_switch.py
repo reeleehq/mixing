@@ -121,7 +121,9 @@ class Utterance:
         if self.probs[top] >= min_probability:
             return top
         for lang in self.probs:
-            if all(p <= max_other_probability for k, p in self.probs.items() if k != lang):
+            if all(
+                p <= max_other_probability for k, p in self.probs.items() if k != lang
+            ):
                 return lang
         return None
 
@@ -200,7 +202,11 @@ def language_utterances(
         named.update(found)
         probs = {lang: float(found.get(lang, 0.0)) for lang in languages}
         best = max(probs, key=probs.get)
-        out.append(Utterance(round(a, 3), round(b, 3), probs, transcribe(clip, rate, best).strip()))
+        out.append(
+            Utterance(
+                round(a, 3), round(b, 3), probs, transcribe(clip, rate, best).strip()
+            )
+        )
     unknown = [lang for lang in languages if lang not in named]
     if out and unknown:
         raise ValueError(
@@ -307,7 +313,9 @@ def anchored_pairs(
     order.
     """
     if order not in ("other-then-anchor", "anchor-then-other"):
-        raise ValueError(f"order is 'other-then-anchor' or 'anchor-then-other', got {order!r}")
+        raise ValueError(
+            f"order is 'other-then-anchor' or 'anchor-then-other', got {order!r}"
+        )
     utts = sorted(utterances, key=lambda u: u.start)
     other = other or _other_language(utts, anchor)
 
@@ -319,7 +327,11 @@ def anchored_pairs(
             p <= max_other_probability for p in rest
         )
 
-    others = [u for u in utts if not is_anchor(u) and (other_junk is None or not other_junk(u))]
+    others = [
+        u
+        for u in utts
+        if not is_anchor(u) and (other_junk is None or not other_junk(u))
+    ]
 
     def speech_between(lo: float, hi: float) -> list[Utterance]:
         return [u for u in others if u.start >= lo and u.end <= hi]
@@ -343,10 +355,18 @@ def anchored_pairs(
     pairs = []
     edges = [-np.inf] + [e for a in anchors for e in a] + [np.inf]
     for k, (a0, a1) in enumerate(anchors):
-        lo, hi = (edges[2 * k], a0) if order == "other-then-anchor" else (a1, edges[2 * k + 3])
-        pairs.append(LanguagePair(Segment(a0, a1, anchor), as_other(speech_between(lo, hi))))
+        lo, hi = (
+            (edges[2 * k], a0)
+            if order == "other-then-anchor"
+            else (a1, edges[2 * k + 3])
+        )
+        pairs.append(
+            LanguagePair(Segment(a0, a1, anchor), as_other(speech_between(lo, hi)))
+        )
     # the speech no anchor claims: after the last anchor, or before the first
-    lo, hi = (edges[-2], np.inf) if order == "other-then-anchor" else (-np.inf, edges[1])
+    lo, hi = (
+        (edges[-2], np.inf) if order == "other-then-anchor" else (-np.inf, edges[1])
+    )
     leftover = as_other(speech_between(lo, hi))
     if leftover is not None:
         if order == "other-then-anchor":
@@ -422,7 +442,10 @@ def whisper_transcriber(model: str = DFLT_WHISPER_MODEL, **options) -> Transcrib
             raise _mlx_missing(e, "whisper_transcriber") from e
         kwargs = {"condition_on_previous_text": False, **options}
         result = mlx_whisper.transcribe(
-            samples.astype(np.float32), path_or_hf_repo=model, language=language, **kwargs
+            samples.astype(np.float32),
+            path_or_hf_repo=model,
+            language=language,
+            **kwargs,
         )
         return result["text"]
 
@@ -439,7 +462,9 @@ def _wav_bytes(samples: np.ndarray, sr: int) -> bytes:
         f.setnchannels(1)
         f.setsampwidth(2)
         f.setframerate(sr)
-        f.writeframes(np.clip(np.round(samples * 32767), -32768, 32767).astype("<i2").tobytes())
+        f.writeframes(
+            np.clip(np.round(samples * 32767), -32768, 32767).astype("<i2").tobytes()
+        )
     return buf.getvalue()
 
 
