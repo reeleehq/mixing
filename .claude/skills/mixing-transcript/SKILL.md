@@ -166,7 +166,7 @@ extract_audio("talk.mp4", "talk.mp3")  # mono 16k mp3 for STT -> Path
   `scribe_data=json.load(open("out/scribe.json"))` and a custom `fillers=` set.
 - **Chapters from an SRT you already have:** `mixing.detect_chapters(open("v.srt").read())`.
 - **Aggressive cut (also drop laughs):** pass `audio_events={"(coughs)", "(laughs)"}`.
-- **Time a script by the recording (forced-alignment-lite):** `align_words(tokens_of(script), words, bounds=(0, duration))` gives every authored token `(token, start, end)`; matched tokens take the heard word's times, misheard or dropped ones are spread over the gap. `.coverage` (matched/total) says how much to trust it, `.anchors` maps reference index to heard index. Takes Scribe's `words` list as is, or `(text, start, end)` triples; `normalize=` swaps the matching key.
+- **Time a script by the recording (forced-alignment-lite):** `align_words(tokens_of(script), words, bounds=(0, duration))` gives every authored token `(token, start, end)`; matched tokens take the heard word's times, misheard or dropped ones are spread over the gap. `.coverage` (matched/total) says how much to trust it, `.anchors` maps reference index to heard index. Takes Scribe's `words` list as is, Whisper dicts (`word`), or `(text, start, end)` triples in time order; heard compounds (`twenty-five`, `U.S.`) are split like the script (`split=`, `None` to keep words whole); `normalize=` swaps the matching key; typographic apostrophes match straight ones.
 
 ## Gotchas
 
