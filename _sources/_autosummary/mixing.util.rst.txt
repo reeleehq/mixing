@@ -16,11 +16,15 @@ mixing.util
    .. autosummary::
    
       copy_to_clipboard
+      db_to_gain
+      db_to_power
       extra_for
       ffmpeg_exe
+      gain_to_db
       get_path_from_clipboard
       has_ffmpeg
       install_hint
+      power_to_db
       require_extra
       require_llm_chat
       require_media_extra

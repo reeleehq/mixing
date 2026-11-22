@@ -145,20 +145,32 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.copy_to_clipboard" title="mixing.util.copy_to_clipboard"><code class="xref py py-obj docutils literal notranslate"><span class="pre">copy_to_clipboard</span></code></a>(data)</p></td>
 <td><p>Copy data to system clipboard.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.db_to_gain" title="mixing.util.db_to_gain"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_to_gain</span></code></a>(db)</p></td>
+<td><p>Amplitude gain of <code class="docutils literal notranslate"><span class="pre">db</span></code> decibels: <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">**</span> <span class="pre">(db</span> <span class="pre">/</span> <span class="pre">20)</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.db_to_power" title="mixing.util.db_to_power"><code class="xref py py-obj docutils literal notranslate"><span class="pre">db_to_power</span></code></a>(db)</p></td>
+<td><p>Power ratio of <code class="docutils literal notranslate"><span class="pre">db</span></code> decibels: <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">**</span> <span class="pre">(db</span> <span class="pre">/</span> <span class="pre">10)</span></code>.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.extra_for" title="mixing.util.extra_for"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extra_for</span></code></a>(module)</p></td>
 <td><p>The extra that supplies <code class="docutils literal notranslate"><span class="pre">module</span></code> (or a parent package of it), or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.ffmpeg_exe" title="mixing.util.ffmpeg_exe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ffmpeg_exe</span></code></a>()</p></td>
 <td><p>Resolve an ffmpeg executable, preferring the pip-bundled binary.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.get_path_from_clipboard" title="mixing.util.get_path_from_clipboard"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_path_from_clipboard</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.gain_to_db" title="mixing.util.gain_to_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gain_to_db</span></code></a>(gain)</p></td>
+<td><p>Decibels of an amplitude <code class="docutils literal notranslate"><span class="pre">gain</span></code> (or peak, RMS): <code class="docutils literal notranslate"><span class="pre">20</span> <span class="pre">log10(gain)</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.get_path_from_clipboard" title="mixing.util.get_path_from_clipboard"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_path_from_clipboard</span></code></a>()</p></td>
 <td><p>Get file path from clipboard and validate it.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.has_ffmpeg" title="mixing.util.has_ffmpeg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_ffmpeg</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.has_ffmpeg" title="mixing.util.has_ffmpeg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_ffmpeg</span></code></a>()</p></td>
 <td><p>Return True if the <code class="docutils literal notranslate"><span class="pre">ffmpeg</span></code> binary is available on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.install_hint" title="mixing.util.install_hint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">install_hint</span></code></a>(extra)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.install_hint" title="mixing.util.install_hint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">install_hint</span></code></a>(extra)</p></td>
 <td><p>The pip line that installs <code class="docutils literal notranslate"><span class="pre">extra</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.util.power_to_db" title="mixing.util.power_to_db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">power_to_db</span></code></a>(power)</p></td>
+<td><p>Decibels of a power ratio (a mean square, an energy share): <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">log10</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#mixing.util.require_extra" title="mixing.util.require_extra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">require_extra</span></code></a>(feature, extra, *[, modules])</p></td>
 <td><p>Raise an informative <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> if <code class="docutils literal notranslate"><span class="pre">extra</span></code> is not installed.</p></td>
@@ -216,6 +228,24 @@ broadest install wins; a caller that knows better names its extra
 </dl>
 </dd></dl>
 <dl class="py function">
+<dt class="sig sig-object py" id="mixing.util.db_to_gain">
+<span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">db_to_gain</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#db_to_gain"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.db_to_gain" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.db_to_gain'">¶</a></dt>
+<dd><p>Amplitude gain of <code class="docutils literal notranslate"><span class="pre">db</span></code> decibels: <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">**</span> <span class="pre">(db</span> <span class="pre">/</span> <span class="pre">20)</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">db_to_gain</span><span class="p">(</span><span class="o">-</span><span class="mf">6.0</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">0.501...</span>
+</span></code></pre></div>
+</div>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.util.db_to_power">
+<span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">db_to_power</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#db_to_power"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.db_to_power" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.db_to_power'">¶</a></dt>
+<dd><p>Power ratio of <code class="docutils literal notranslate"><span class="pre">db</span></code> decibels: <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">**</span> <span class="pre">(db</span> <span class="pre">/</span> <span class="pre">10)</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">db_to_power</span><span class="p">(</span><span class="mf">20.0</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">100.0</span>
+</span></code></pre></div>
+</div>
+</dd></dl>
+<dl class="py function">
 <dt class="sig sig-object py" id="mixing.util.extra_for">
 <span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">extra_for</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">module</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#extra_for"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.extra_for" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.extra_for'">¶</a></dt>
 <dd><p>The extra that supplies <code class="docutils literal notranslate"><span class="pre">module</span></code> (or a parent package of it), or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
@@ -252,6 +282,15 @@ wherever mixing’s video stack is.</p>
 </dl>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">ffmpeg_exe</span><span class="p">(),</span> <span class="nb">str</span><span class="p">)</span>
 </span><span id="line-2"><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.util.gain_to_db">
+<span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">gain_to_db</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gain</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#gain_to_db"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.gain_to_db" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.gain_to_db'">¶</a></dt>
+<dd><p>Decibels of an amplitude <code class="docutils literal notranslate"><span class="pre">gain</span></code> (or peak, RMS): <code class="docutils literal notranslate"><span class="pre">20</span> <span class="pre">log10(gain)</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">float</span><span class="p">(</span><span class="n">gain_to_db</span><span class="p">(</span><span class="mf">10.0</span><span class="p">))</span>
+</span><span id="line-2"><span class="go">20.0</span>
 </span></code></pre></div>
 </div>
 </dd></dl>
@@ -303,6 +342,15 @@ startup and refuse to run rather than emit broken media.</p>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a></span></p>
 </dd>
 </dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.util.power_to_db">
+<span class="sig-prename descclassname"><span class="pre">mixing.util.</span></span><span class="sig-name descname"><span class="pre">power_to_db</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">power</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/util.html#power_to_db"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.util.power_to_db" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.util.power_to_db'">¶</a></dt>
+<dd><p>Decibels of a power ratio (a mean square, an energy share): <code class="docutils literal notranslate"><span class="pre">10</span> <span class="pre">log10</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="nb">float</span><span class="p">(</span><span class="n">power_to_db</span><span class="p">(</span><span class="mf">100.0</span><span class="p">))</span>
+</span><span id="line-2"><span class="go">20.0</span>
+</span></code></pre></div>
+</div>
 </dd></dl>
 <dl class="py function">
 <dt class="sig sig-object py" id="mixing.util.require_extra">
@@ -413,11 +461,15 @@ package is missing: that absent-vs-broken rule is the fleet’s shared one,
 <li><a :data-current="activeSection === '#mixing.util.EXTRAS'" class="reference internal" href="#mixing.util.EXTRAS"><code class="docutils literal notranslate"><span class="pre">EXTRAS</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.PACKAGE_NAME'" class="reference internal" href="#mixing.util.PACKAGE_NAME"><code class="docutils literal notranslate"><span class="pre">PACKAGE_NAME</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.copy_to_clipboard'" class="reference internal" href="#mixing.util.copy_to_clipboard"><code class="docutils literal notranslate"><span class="pre">copy_to_clipboard()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.util.db_to_gain'" class="reference internal" href="#mixing.util.db_to_gain"><code class="docutils literal notranslate"><span class="pre">db_to_gain()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.util.db_to_power'" class="reference internal" href="#mixing.util.db_to_power"><code class="docutils literal notranslate"><span class="pre">db_to_power()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.extra_for'" class="reference internal" href="#mixing.util.extra_for"><code class="docutils literal notranslate"><span class="pre">extra_for()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.ffmpeg_exe'" class="reference internal" href="#mixing.util.ffmpeg_exe"><code class="docutils literal notranslate"><span class="pre">ffmpeg_exe()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.util.gain_to_db'" class="reference internal" href="#mixing.util.gain_to_db"><code class="docutils literal notranslate"><span class="pre">gain_to_db()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.get_path_from_clipboard'" class="reference internal" href="#mixing.util.get_path_from_clipboard"><code class="docutils literal notranslate"><span class="pre">get_path_from_clipboard()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.has_ffmpeg'" class="reference internal" href="#mixing.util.has_ffmpeg"><code class="docutils literal notranslate"><span class="pre">has_ffmpeg()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.install_hint'" class="reference internal" href="#mixing.util.install_hint"><code class="docutils literal notranslate"><span class="pre">install_hint()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.util.power_to_db'" class="reference internal" href="#mixing.util.power_to_db"><code class="docutils literal notranslate"><span class="pre">power_to_db()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.require_extra'" class="reference internal" href="#mixing.util.require_extra"><code class="docutils literal notranslate"><span class="pre">require_extra()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.require_llm_chat'" class="reference internal" href="#mixing.util.require_llm_chat"><code class="docutils literal notranslate"><span class="pre">require_llm_chat()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.util.require_media_extra'" class="reference internal" href="#mixing.util.require_media_extra"><code class="docutils literal notranslate"><span class="pre">require_media_extra()</span></code></a></li>
@@ -437,7 +489,7 @@ package is missing: that absent-vs-broken rule is the fleet’s shared one,
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=cdca99f8"></script>
+<script src="../_static/documentation_options.js?v=5e4a978b"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

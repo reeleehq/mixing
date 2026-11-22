@@ -12,11 +12,15 @@ General utilities for mixing video, audio, etc.
 
 | [`copy_to_clipboard`](#mixing.util.copy_to_clipboard)(data)                      | Copy data to system clipboard.                                                                                                                                                            |
 |-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`db_to_gain`](#mixing.util.db_to_gain)(db)                               | Amplitude gain of `db` decibels: `10 ** (db / 20)`.                                                                                                                                       |
+| [`db_to_power`](#mixing.util.db_to_power)(db)                              | Power ratio of `db` decibels: `10 ** (db / 10)`.                                                                                                                                          |
 | [`extra_for`](#mixing.util.extra_for)(module)                            | The extra that supplies `module` (or a parent package of it), or `None`.                                                                                                                  |
 | [`ffmpeg_exe`](#mixing.util.ffmpeg_exe)()                                 | Resolve an ffmpeg executable, preferring the pip-bundled binary.                                                                                                                          |
+| [`gain_to_db`](#mixing.util.gain_to_db)(gain)                             | Decibels of an amplitude `gain` (or peak, RMS): `20 log10(gain)`.                                                                                                                         |
 | [`get_path_from_clipboard`](#mixing.util.get_path_from_clipboard)()                    | Get file path from clipboard and validate it.                                                                                                                                             |
 | [`has_ffmpeg`](#mixing.util.has_ffmpeg)()                                 | Return True if the `ffmpeg` binary is available on `PATH`.                                                                                                                                |
 | [`install_hint`](#mixing.util.install_hint)(extra)                          | The pip line that installs `extra`.                                                                                                                                                       |
+| [`power_to_db`](#mixing.util.power_to_db)(power)                           | Decibels of a power ratio (a mean square, an energy share): `10 log10`.                                                                                                                   |
 | [`require_extra`](#mixing.util.require_extra)(feature, extra, \*[, modules]) | Raise an informative `ImportError` if `extra` is not installed.                                                                                                                           |
 | [`require_llm_chat`](#mixing.util.require_llm_chat)(feature, \*, alternative)   | `aix.chat`, the LLM call behind `feature`, or an `ImportError` naming the `llm` extra and the `alternative` that needs no LLM.                                                            |
 | [`require_media_extra`](#mixing.util.require_media_extra)(feature, \*[, modules])  | [`require_extra()`](#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub backends that the base `pip install mixing` (pure modules only) lacks. |
@@ -50,6 +54,24 @@ Copy data to system clipboard.
   **data** ([`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes) | [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Bytes (for binary data like images) or string to copy
 * **Return type:**
   [`None`](https://docs.python.org/3/builtins/constants.html#None)
+
+### mixing.util.db_to_gain(db)
+
+Amplitude gain of `db` decibels: `10 ** (db / 20)`.
+
+```pycon
+>>> db_to_gain(-6.0)
+0.501...
+```
+
+### mixing.util.db_to_power(db)
+
+Power ratio of `db` decibels: `10 ** (db / 10)`.
+
+```pycon
+>>> db_to_power(20.0)
+100.0
+```
 
 ### mixing.util.extra_for(module)
 
@@ -85,6 +107,15 @@ wherever mixing’s video stack is.
 ```pycon
 >>> isinstance(ffmpeg_exe(), str)
 True
+```
+
+### mixing.util.gain_to_db(gain)
+
+Decibels of an amplitude `gain` (or peak, RMS): `20 log10(gain)`.
+
+```pycon
+>>> float(gain_to_db(10.0))
+20.0
 ```
 
 ### mixing.util.get_path_from_clipboard()
@@ -129,6 +160,15 @@ The pip line that installs `extra`.
 
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+### mixing.util.power_to_db(power)
+
+Decibels of a power ratio (a mean square, an energy share): `10 log10`.
+
+```pycon
+>>> float(power_to_db(100.0))
+20.0
+```
 
 ### mixing.util.require_extra(feature, extra, , modules=None)
 

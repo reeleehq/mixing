@@ -1,4 +1,4 @@
-> built 2026-11-22 11:14 UTC from ad3cc97 (main) · mixing 0.0.121. Details: build_info.json
+> built 2026-11-22 11:28 UTC from b02ec41 (main) · mixing 0.0.123. Details: build_info.json
 
 # index.html.md
 
@@ -3812,11 +3812,15 @@ General utilities for mixing video, audio, etc.
 
 | [`copy_to_clipboard`](_autosummary/mixing.util.html.md#mixing.util.copy_to_clipboard)(data)                      | Copy data to system clipboard.                                                                                                                                                            |
 |-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`db_to_gain`](_autosummary/mixing.util.html.md#mixing.util.db_to_gain)(db)                               | Amplitude gain of `db` decibels: `10 ** (db / 20)`.                                                                                                                                       |
+| [`db_to_power`](_autosummary/mixing.util.html.md#mixing.util.db_to_power)(db)                              | Power ratio of `db` decibels: `10 ** (db / 10)`.                                                                                                                                          |
 | [`extra_for`](_autosummary/mixing.util.html.md#mixing.util.extra_for)(module)                            | The extra that supplies `module` (or a parent package of it), or `None`.                                                                                                                  |
 | [`ffmpeg_exe`](_autosummary/mixing.util.html.md#mixing.util.ffmpeg_exe)()                                 | Resolve an ffmpeg executable, preferring the pip-bundled binary.                                                                                                                          |
+| [`gain_to_db`](_autosummary/mixing.util.html.md#mixing.util.gain_to_db)(gain)                             | Decibels of an amplitude `gain` (or peak, RMS): `20 log10(gain)`.                                                                                                                         |
 | [`get_path_from_clipboard`](_autosummary/mixing.util.html.md#mixing.util.get_path_from_clipboard)()                    | Get file path from clipboard and validate it.                                                                                                                                             |
 | [`has_ffmpeg`](_autosummary/mixing.util.html.md#mixing.util.has_ffmpeg)()                                 | Return True if the `ffmpeg` binary is available on `PATH`.                                                                                                                                |
 | [`install_hint`](_autosummary/mixing.util.html.md#mixing.util.install_hint)(extra)                          | The pip line that installs `extra`.                                                                                                                                                       |
+| [`power_to_db`](_autosummary/mixing.util.html.md#mixing.util.power_to_db)(power)                           | Decibels of a power ratio (a mean square, an energy share): `10 log10`.                                                                                                                   |
 | [`require_extra`](_autosummary/mixing.util.html.md#mixing.util.require_extra)(feature, extra, \*[, modules]) | Raise an informative `ImportError` if `extra` is not installed.                                                                                                                           |
 | [`require_llm_chat`](_autosummary/mixing.util.html.md#mixing.util.require_llm_chat)(feature, \*, alternative)   | `aix.chat`, the LLM call behind `feature`, or an `ImportError` naming the `llm` extra and the `alternative` that needs no LLM.                                                            |
 | [`require_media_extra`](_autosummary/mixing.util.html.md#mixing.util.require_media_extra)(feature, \*[, modules])  | [`require_extra()`](_autosummary/mixing.util.html.md#mixing.util.require_extra) for `media`: the moviepy / opencv / scipy / pydub backends that the base `pip install mixing` (pure modules only) lacks. |
@@ -3850,6 +3854,24 @@ Copy data to system clipboard.
   **data** ([`bytes`](https://docs.python.org/3/builtins/stdtypes.html#bytes) | [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)) – Bytes (for binary data like images) or string to copy
 * **Return type:**
   [`None`](https://docs.python.org/3/builtins/constants.html#None)
+
+### mixing.util.db_to_gain(db)
+
+Amplitude gain of `db` decibels: `10 ** (db / 20)`.
+
+```pycon
+>>> db_to_gain(-6.0)
+0.501...
+```
+
+### mixing.util.db_to_power(db)
+
+Power ratio of `db` decibels: `10 ** (db / 10)`.
+
+```pycon
+>>> db_to_power(20.0)
+100.0
+```
 
 ### mixing.util.extra_for(module)
 
@@ -3885,6 +3907,15 @@ wherever mixing’s video stack is.
 ```pycon
 >>> isinstance(ffmpeg_exe(), str)
 True
+```
+
+### mixing.util.gain_to_db(gain)
+
+Decibels of an amplitude `gain` (or peak, RMS): `20 log10(gain)`.
+
+```pycon
+>>> float(gain_to_db(10.0))
+20.0
 ```
 
 ### mixing.util.get_path_from_clipboard()
@@ -3929,6 +3960,15 @@ The pip line that installs `extra`.
 
 * **Return type:**
   [`str`](https://docs.python.org/3/builtins/stdtypes.html#str)
+
+### mixing.util.power_to_db(power)
+
+Decibels of a power ratio (a mean square, an energy share): `10 log10`.
+
+```pycon
+>>> float(power_to_db(100.0))
+20.0
+```
 
 ### mixing.util.require_extra(feature, extra, , modules=None)
 
@@ -4025,18 +4065,20 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-22 11:14 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/ad3cc97889452bb109b90d4d53f6c5b01d0db875"><code>ad3cc97</code></a> on branch <code>main</code>, for **mixing 0.0.121** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-22 11:28 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/b02ec41dcb8c050bd2a49641d0eb5b86f50660ab"><code>b02ec41</code></a> on branch <code>main</code>, for **mixing 0.0.123** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.123) is behind the latest release on PyPI (0.0.124): `pip install mixing` gives newer code than these docs describe.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/ad3cc97889452bb109b90d4d53f6c5b01d0db875"><code>ad3cc97889452bb109b90d4d53f6c5b01d0db875</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/b02ec41dcb8c050bd2a49641d0eb5b86f50660ab"><code>b02ec41dcb8c050bd2a49641d0eb5b86f50660ab</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | none                                                                                                                                                   |
+| Tags at this commit | <code>0.0.123</code>                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -4045,9 +4087,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45014591635">45014591635</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45016655265">45016655265</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>c81b3d2b2e9200b5e70b9e4f0829ce409b052a16</code> (in the history of the built commit) |
+| Event commit | <code>34555c2ad0da46694f07bbff2fffae13ec446a1f</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -4072,13 +4114,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.121/">0.0.121</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.124/">0.0.124</a>, newer than the documented version (0.0.123).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout ad3cc97889452bb109b90d4d53f6c5b01d0db875
+git checkout b02ec41dcb8c050bd2a49641d0eb5b86f50660ab
 pip install "epythet==0.2.23"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
