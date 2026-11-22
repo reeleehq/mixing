@@ -423,7 +423,9 @@ def _blockwise_stft_map(
         f1 = min(n_frames, f0 + block_frames)
         lo, hi = f0 * nstep, (f1 - 1) * nstep + nperseg
         spectra = [
-            signal.stft(span(a, lo, hi), fs=sr, nperseg=nperseg, boundary=None, padded=False)[2]
+            signal.stft(
+                span(a, lo, hi), fs=sr, nperseg=nperseg, boundary=None, padded=False
+            )[2]
             for a in inputs
         ]
         results = transform(freqs, *spectra)
