@@ -603,14 +603,14 @@ Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of t
 Whole-file ASR fails on a recording that alternates languages (Whisper keeps one, drops the other). `mixing.audio.code_switch` splits at silences, identifies each utterance's language and transcribes it in that language, then pairs on the language that is identified reliably.
 
 ```python
-from mixing.audio.code_switch import language_utterances, language_runs, anchored_pairs, is_junk
+from mixing.audio.code_switch import language_utterances, language_runs, anchored_pairs
 
 utts = language_utterances("lesson.m4a", languages=("fr", "zh"))  # Utterance(start, end, probs, text)
 runs = language_runs(utts)  # Segments labelled "fr"/"zh"; junk dropped
-pairs = anchored_pairs(utts, anchor="fr", junk=is_junk)  # LanguagePair(anchor=fr Segment, other=zh Segment | None)
+pairs = anchored_pairs(utts, anchor="fr")  # LanguagePair(anchor, other); anchor=None for leftover speech
 ```
 
-Seams: `language_id=(samples, sr) -> {lang: p}` (default `whisper_language_id()`, mlx_whisper on Apple silicon) and `transcribe=(samples, sr, lang) -> text` (default `scribed_transcriber()`, scribed's local backend); utterances reach them mono at 16 kHz. The steps after the first are pure, so store the utterances and re-tune `language_runs` / `anchored_pairs` without re-running models. `order="anchor-then-other"` when the reliable language comes first. Fine silence splitting (`min_silence_s=0.35`, `-40 dB`) is what separates a phrase from its translation; a speaker who alternates word by word lands both languages in one utterance.
+Seams: `language_id=(samples, sr) -> {lang: p}` (default `whisper_language_id()`) and `transcribe=(samples, sr, lang) -> text` (default `whisper_transcriber()`, the same mlx Whisper model, or `scribed_transcriber()` without mlx); utterances reach them mono at 16 kHz, and the language codes must be the id's own (`zh`, not `zh-cn`). Labels use the id's raw probabilities: a language is decided at p >= 0.5, or when every other is <= 0.1; ambiguous utterances join their run. In `anchored_pairs`, `anchor_junk=is_junk` keeps hallucinated text from becoming an anchor, while `other_junk` (off by default) would drop speech a hallucinated transcript does not prove absent. Speech after the last anchor comes back as `LanguagePair(None, other)`. The steps after the first are pure, so store the utterances and re-tune `language_runs` / `anchored_pairs` without re-running models. `order="anchor-then-other"` when the reliable language comes first. Fine silence splitting (`min_silence_s=0.35`, `-40 dB`) is what separates a phrase from its translation; a speaker who alternates word by word lands both languages in one utterance.
 
 ## Replace one span of a take (re-render a line)
 

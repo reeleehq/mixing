@@ -19,10 +19,12 @@ translates the other. What works is three steps, each a function here:
    *between* them as the other language recovers pairs that per-utterance
    labels lose.
 
-The defaults of the seams are local: :func:`whisper_language_id` (Whisper's own
-language id, through ``mlx_whisper``) and :func:`scribed_transcriber` (the
-fleet's ``scribed``, its default local backend). Neither is a mixing
-dependency; both are imported on first use. The steps after the first are pure
+The defaults of the seams are local and share one model:
+:func:`whisper_language_id` (Whisper's own language id) and
+:func:`whisper_transcriber`, both through ``mlx_whisper`` (Apple silicon);
+without it, transcription falls back to :func:`scribed_transcriber` (the
+fleet's ``scribed``, its default local backend). None is a mixing dependency;
+each is imported on first use. The steps after the first are pure
 (no audio, no model), so they can be re-tuned on stored utterances.
 
 >>> utts = [Utterance(0.0, 1.0, {"zh": 0.9, "fr": 0.1}, "ni hao"),
@@ -34,6 +36,7 @@ dependency; both are imported on first use. The steps after the first are pure
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Callable, Mapping, Optional, Sequence
 
 import numpy as np
@@ -58,10 +61,22 @@ DFLT_MIN_UTTERANCE_S = 0.15
 WHISPER_SAMPLE_RATE = 16000
 #: The model the starter measured with (Apple silicon, mlx).
 DFLT_WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
-#: Text a Whisper hallucinates on near-silence or a lone syllable.
-HALLUCINATION_MARKERS: tuple[str, ...] = ("usz", "字幕")
+#: Text a Whisper hallucinates on near-silence or a lone syllable (subtitle
+#: credits, "like and subscribe" in its training captions). Extend with
+#: ``functools.partial(is_junk, markers=HALLUCINATION_MARKERS + (...,))``.
+HALLUCINATION_MARKERS: tuple[str, ...] = (
+    "usz",
+    "字幕",
+    "Sous-titrage",
+    "订阅",
+    "点赞",
+)
 #: An utterance shorter than this whose language is uncertain is junk.
 DFLT_SHORT_UNCERTAIN_S = 0.35
+#: A language is decided when its probability reaches this ...
+DFLT_MIN_PROBABILITY = 0.5
+#: ... or when every other language's is at most this.
+DFLT_MAX_OTHER_PROBABILITY = 0.1
 
 
 @dataclass(frozen=True)
@@ -83,13 +98,42 @@ class Utterance:
     def duration(self) -> float:
         return self.end - self.start
 
+    def decided(
+        self,
+        *,
+        min_probability: float = DFLT_MIN_PROBABILITY,
+        max_other_probability: float = DFLT_MAX_OTHER_PROBABILITY,
+    ) -> Optional[str]:
+        """The language this utterance is, or None when it is ambiguous: the
+        most probable one when it reaches ``min_probability``, else the one
+        every other language is at most ``max_other_probability`` beside.
+        Probabilities are the language id's own (a Whisper spreads mass over
+        languages not asked about), not renormalized.
+
+        >>> Utterance(0, 1, {"fr": 0.3, "zh": 0.05}).decided()
+        'fr'
+        >>> Utterance(0, 1, {"fr": 0.3, "zh": 0.3}).decided() is None
+        True
+        """
+        top = self.language
+        if top is None:
+            return None
+        if self.probs[top] >= min_probability:
+            return top
+        for lang in self.probs:
+            if all(p <= max_other_probability for k, p in self.probs.items() if k != lang):
+                return lang
+        return None
+
 
 @dataclass(frozen=True)
 class LanguagePair:
     """An anchor run (the reliably identified language) and the other
-    language's speech paired with it (None when there was none)."""
+    language's speech paired with it. One side may be None: an anchor with no
+    speech beside it, or other-language speech with no anchor to pair it with
+    (before the first anchor or after the last one)."""
 
-    anchor: Segment
+    anchor: Optional[Segment]
     other: Optional[Segment] = None
 
 
@@ -129,14 +173,15 @@ def language_utterances(
     ``languages`` and transcribed in its language.
 
     ``language_id`` defaults to :func:`whisper_language_id`, ``transcribe`` to
-    :func:`scribed_transcriber`. :func:`anchored_pairs` needs no text: pass
+    :func:`default_transcriber`. A language in ``languages`` that the language
+    id never names (``"zh-cn"`` where Whisper says ``"zh"``) is an error. :func:`anchored_pairs` needs no text: pass
     ``transcribe=lambda samples, sr, language: ""`` to skip it (then give
     :func:`language_runs` ``junk=None``, since its default junk filter drops
     utterances without text). Utterances reach the seams as mono float samples
     at :data:`WHISPER_SAMPLE_RATE`.
     """
     language_id = language_id or whisper_language_id()
-    transcribe = transcribe or scribed_transcriber()
+    transcribe = transcribe or default_transcriber()
     samples, rate = _mono(audio, sr)
     total = len(samples) / rate
     spans = find_segments(
@@ -145,16 +190,23 @@ def language_utterances(
         min_silence_len=min_silence_s,
         silence_thresh_db=silence_thresh_db,
     )
-    out = []
+    out, named = [], set()
     for s in spans:
         a, b = max(0.0, s.start - pad_s), min(total, s.end + pad_s)
         if b - a < min_utterance_s:
             continue
         clip = samples[round(a * rate) : round(b * rate)]
         found = language_id(clip, rate)
+        named.update(found)
         probs = {lang: float(found.get(lang, 0.0)) for lang in languages}
         best = max(probs, key=probs.get)
         out.append(Utterance(round(a, 3), round(b, 3), probs, transcribe(clip, rate, best).strip()))
+    unknown = [lang for lang in languages if lang not in named]
+    if out and unknown:
+        raise ValueError(
+            f"the language id never named {unknown}: it uses codes like "
+            f"{sorted(named)[:8]}"
+        )
     return out
 
 
@@ -166,13 +218,16 @@ def is_junk(
     *,
     markers: Sequence[str] = HALLUCINATION_MARKERS,
     short_s: float = DFLT_SHORT_UNCERTAIN_S,
-    certain: float = 0.9,
+    certain: float = DFLT_MIN_PROBABILITY,
 ) -> bool:
     """Whether ``u`` is a recogniser's hallucination rather than speech: no
-    text, a known hallucination marker, or short with an uncertain language.
+    text, a known hallucination marker, or shorter than ``short_s`` with no
+    language reaching ``certain``.
 
-    >>> is_junk(Utterance(0.0, 0.2, {"fr": 0.6, "zh": 0.4}, "uh"))
+    >>> is_junk(Utterance(0.0, 0.2, {"fr": 0.4, "zh": 0.3}, "uh"))
     True
+    >>> is_junk(Utterance(0.0, 0.3, {"fr": 0.0, "zh": 0.72}, "是"))
+    False
     """
     if not u.text or any(m in u.text for m in markers):
         return True
@@ -183,14 +238,16 @@ def is_junk(
 def language_runs(
     utterances: Sequence[Utterance],
     *,
-    min_probability: float = 0.5,
+    min_probability: float = DFLT_MIN_PROBABILITY,
+    max_other_probability: float = DFLT_MAX_OTHER_PROBABILITY,
     max_gap_s: float = 1.6,
     junk: Optional[Callable[[Utterance], bool]] = is_junk,
 ) -> list[Segment]:
     """Consecutive utterances of one language merged into runs: ``Segment`` s
-    labelled with the language. An utterance whose top probability is below
-    ``min_probability`` joins the run it follows; a gap over ``max_gap_s``
-    starts a new run; ``junk`` (``None``: keep everything) is dropped first.
+    labelled with the language. An ambiguous utterance
+    (:meth:`Utterance.decided` is None) joins the run it follows; a gap over
+    ``max_gap_s`` starts a new run; ``junk`` (``None``: keep everything) is
+    dropped first. Utterances are taken in time order.
 
     >>> utts = [Utterance(0, 1, {"zh": 1.0}, "a"), Utterance(1.2, 2, {"zh": 0.4, "fr": 0.3}, "b"),
     ...         Utterance(2.1, 3, {"fr": 1.0}, "c")]
@@ -198,11 +255,15 @@ def language_runs(
     [(0, 2, 'zh'), (2.1, 3, 'fr')]
     """
     runs: list[Segment] = []
-    for u in utterances:
+    for u in sorted(utterances, key=lambda u: u.start):
         if junk is not None and junk(u):
             continue
-        top = max(u.probs.values()) if u.probs else 0.0
-        lang = u.language if top >= min_probability or not runs else runs[-1].label
+        lang = u.decided(
+            min_probability=min_probability,
+            max_other_probability=max_other_probability,
+        )
+        if lang is None:
+            lang = runs[-1].label if runs else u.language
         if runs and runs[-1].label == lang and u.start - runs[-1].end <= max_gap_s:
             runs[-1] = Segment(runs[-1].start, u.end, lang)
         else:
@@ -219,46 +280,62 @@ def anchored_pairs(
     anchor: str,
     other: Optional[str] = None,
     order: str = "other-then-anchor",
-    min_anchor_probability: float = 0.5,
-    max_other_probability: float = 0.1,
+    min_anchor_probability: float = DFLT_MIN_PROBABILITY,
+    max_other_probability: float = DFLT_MAX_OTHER_PROBABILITY,
     max_gap_s: float = 0.6,
     min_other_s: float = 0.3,
-    junk: Optional[Callable[[Utterance], bool]] = None,
+    anchor_junk: Optional[Callable[[Utterance], bool]] = is_junk,
+    other_junk: Optional[Callable[[Utterance], bool]] = None,
 ) -> list[LanguagePair]:
     """Pairs anchored on the reliably identified language ``anchor``.
 
     Utterances where ``anchor`` is at least ``min_anchor_probability`` and every
     other language at most ``max_other_probability`` are anchors, merged across
-    gaps up to ``max_gap_s``. The speech between two anchor runs (``order``:
-    before each anchor, ``"other-then-anchor"``, as a lesson reads a phrase then
-    its translation; or after it, ``"anchor-then-other"``) is the ``other``
-    language (default: the most probable non-anchor language over the
-    utterances), whatever its noisy per-utterance label said. Speech shorter
-    than ``min_other_s`` leaves its anchor unpaired. ``junk`` utterances (e.g.
-    :func:`is_junk`) are ignored throughout.
+    gaps up to ``max_gap_s`` that hold no other speech. The speech between two
+    anchor runs (``order``: before each anchor, ``"other-then-anchor"``, as a
+    lesson reads a phrase then its translation; or after it,
+    ``"anchor-then-other"``) is the ``other`` language (default: the most
+    probable non-anchor language over the utterances), whatever its noisy
+    per-utterance label said. Speech shorter than ``min_other_s`` leaves its
+    anchor unpaired; speech no anchor claims (after the last anchor, or before
+    the first) comes back as a pair with ``anchor=None``.
+
+    The two junk filters have different jobs: ``anchor_junk`` (default
+    :func:`is_junk`) keeps a hallucinated transcript from becoming an anchor;
+    ``other_junk`` (default None) would drop speech from the other side, which a
+    hallucinated transcript does not prove absent. Utterances are taken in time
+    order.
     """
     if order not in ("other-then-anchor", "anchor-then-other"):
         raise ValueError(f"order is 'other-then-anchor' or 'anchor-then-other', got {order!r}")
-    utts = [u for u in utterances if junk is None or not junk(u)]
+    utts = sorted(utterances, key=lambda u: u.start)
     other = other or _other_language(utts, anchor)
 
-    def reliable(u: Utterance) -> bool:
+    def is_anchor(u: Utterance) -> bool:
+        if anchor_junk is not None and anchor_junk(u):
+            return False
         rest = [p for lang, p in u.probs.items() if lang != anchor]
         return u.probs.get(anchor, 0.0) >= min_anchor_probability and all(
             p <= max_other_probability for p in rest
         )
 
+    others = [u for u in utts if not is_anchor(u) and (other_junk is None or not other_junk(u))]
+
+    def speech_between(lo: float, hi: float) -> list[Utterance]:
+        return [u for u in others if u.start >= lo and u.end <= hi]
+
     anchors: list[list[float]] = []
-    for u in utts:
-        if not reliable(u):
-            continue
-        if anchors and u.start - anchors[-1][1] <= max_gap_s:
+    for u in filter(is_anchor, utts):
+        if (
+            anchors
+            and u.start - anchors[-1][1] <= max_gap_s
+            and not speech_between(anchors[-1][1], u.start)
+        ):
             anchors[-1][1] = u.end
         else:
             anchors.append([u.start, u.end])
 
-    def speech_between(lo: float, hi: float) -> Optional[Segment]:
-        inside = [u for u in utts if u.start >= lo and u.end <= hi and not reliable(u)]
+    def as_other(inside: list[Utterance]) -> Optional[Segment]:
         if not inside or inside[-1].end - inside[0].start < min_other_s:
             return None
         return Segment(inside[0].start, inside[-1].end, other)
@@ -267,7 +344,15 @@ def anchored_pairs(
     edges = [-np.inf] + [e for a in anchors for e in a] + [np.inf]
     for k, (a0, a1) in enumerate(anchors):
         lo, hi = (edges[2 * k], a0) if order == "other-then-anchor" else (a1, edges[2 * k + 3])
-        pairs.append(LanguagePair(Segment(a0, a1, anchor), speech_between(lo, hi)))
+        pairs.append(LanguagePair(Segment(a0, a1, anchor), as_other(speech_between(lo, hi))))
+    # the speech no anchor claims: after the last anchor, or before the first
+    lo, hi = (edges[-2], np.inf) if order == "other-then-anchor" else (-np.inf, edges[1])
+    leftover = as_other(speech_between(lo, hi))
+    if leftover is not None:
+        if order == "other-then-anchor":
+            pairs.append(LanguagePair(None, leftover))
+        else:
+            pairs.insert(0, LanguagePair(None, leftover))
     return pairs
 
 
@@ -283,11 +368,27 @@ def _other_language(utts: Sequence[Utterance], anchor: str) -> Optional[str]:
 # --- the default seams ----------------------------------------------------------
 
 
+def _mlx_missing(e: ModuleNotFoundError, what: str) -> ModuleNotFoundError:
+    return ModuleNotFoundError(
+        f"{what} needs mlx_whisper (pip install mlx-whisper, Apple silicon); "
+        f"or pass your own seam",
+        name=e.name,
+    )
+
+
+@lru_cache(maxsize=None)
+def _whisper_model(model: str):
+    """The mlx Whisper ``model``, loaded once per process."""
+    from huggingface_hub import snapshot_download
+    from mlx_whisper.load_models import load_model
+
+    return load_model(snapshot_download(model))
+
+
 def whisper_language_id(model: str = DFLT_WHISPER_MODEL) -> LanguageId:
     """A :data:`LanguageId` from Whisper's own language detection, through
     ``mlx_whisper`` (Apple silicon; ``pip install mlx-whisper``). The model is
-    loaded on the first call and kept."""
-    state: dict = {}
+    loaded on the first call and kept for the process."""
 
     def language_id(samples: np.ndarray, sr: int) -> Mapping[str, float]:
         if sr != WHISPER_SAMPLE_RATE:
@@ -296,24 +397,36 @@ def whisper_language_id(model: str = DFLT_WHISPER_MODEL) -> LanguageId:
             import mlx.core as mx
             from mlx_whisper.audio import N_SAMPLES, log_mel_spectrogram, pad_or_trim
             from mlx_whisper.decoding import detect_language
-            from mlx_whisper.load_models import load_model
         except ModuleNotFoundError as e:
-            raise ModuleNotFoundError(
-                "whisper_language_id needs mlx_whisper (pip install mlx-whisper, "
-                "Apple silicon); or pass your own language_id=",
-                name=e.name,
-            ) from e
-        if "model" not in state:
-            from huggingface_hub import snapshot_download
-
-            state["model"] = load_model(snapshot_download(model))
-        m = state["model"]
+            raise _mlx_missing(e, "whisper_language_id") from e
+        m = _whisper_model(model)
         audio = pad_or_trim(mx.array(samples.astype(np.float32)), N_SAMPLES)
         mel = log_mel_spectrogram(audio, n_mels=m.dims.n_mels)
         _, probs = detect_language(m, mel[None].astype(mx.float16))
         return {k: float(v) for k, v in probs[0].items()}
 
     return language_id
+
+
+def whisper_transcriber(model: str = DFLT_WHISPER_MODEL, **options) -> Transcriber:
+    """A :data:`Transcriber` through ``mlx_whisper``, the same model as
+    :func:`whisper_language_id` by default, forced to the utterance's language
+    and not conditioned on earlier text (each utterance stands alone)."""
+
+    def transcribe(samples: np.ndarray, sr: int, language: str) -> str:
+        if sr != WHISPER_SAMPLE_RATE:
+            raise ValueError(f"Whisper wants {WHISPER_SAMPLE_RATE} Hz, got {sr}")
+        try:
+            import mlx_whisper
+        except ModuleNotFoundError as e:
+            raise _mlx_missing(e, "whisper_transcriber") from e
+        kwargs = {"condition_on_previous_text": False, **options}
+        result = mlx_whisper.transcribe(
+            samples.astype(np.float32), path_or_hf_repo=model, language=language, **kwargs
+        )
+        return result["text"]
+
+    return transcribe
 
 
 def _wav_bytes(samples: np.ndarray, sr: int) -> bytes:
@@ -350,6 +463,16 @@ def scribed_transcriber(*, backend: Optional[str] = None, **options) -> Transcri
     return transcribe
 
 
+def default_transcriber() -> Transcriber:
+    """:func:`whisper_transcriber` when ``mlx_whisper`` is installed (the model
+    the language id already loaded), else :func:`scribed_transcriber`."""
+    import importlib.util
+
+    if importlib.util.find_spec("mlx_whisper") is not None:
+        return whisper_transcriber()
+    return scribed_transcriber()
+
+
 __all__ = [
     "Utterance",
     "LanguagePair",
@@ -360,5 +483,7 @@ __all__ = [
     "language_runs",
     "anchored_pairs",
     "whisper_language_id",
+    "whisper_transcriber",
     "scribed_transcriber",
+    "default_transcriber",
 ]
