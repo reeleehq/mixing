@@ -72,7 +72,7 @@ import os
 import warnings
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
@@ -116,6 +116,10 @@ WIENER_WINDOW_S = 0.04
 #: Floor on the Wiener mask's denominator (power), so silent bins do not divide by
 #: zero (they get mask 0, which is harmless: both sources are silent there).
 WIENER_EPS = 1e-20
+#: Frames per block when :func:`_split_round_trip` walks the STFT a block at a
+#: time: its peak memory is a few blocks' spectra instead of a few whole
+#: signals' (reeleehq/mixing#203). Any value gives the same output.
+STFT_BLOCK_FRAMES = 256
 #: Suffix of a written result's name (``<stem>_talk_removed.wav``).
 OUTPUT_SUFFIX = "_talk_removed.wav"
 
@@ -351,6 +355,100 @@ def _power_share(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     return A2 / np.maximum(A2 + B2, WIENER_EPS)
 
 
+def _blockwise_stft_map(
+    signals: Sequence[np.ndarray],
+    transform: Callable[..., Sequence[np.ndarray]],
+    sr: int,
+    *,
+    window_s: float = WIENER_WINDOW_S,
+    block_frames: int = STFT_BLOCK_FRAMES,
+) -> list[np.ndarray]:
+    """``istft(transform(freqs, *map(stft, signals)))``, one block of frames at a time.
+
+    ``signals`` are 1-D, of one length ``n`` at least one STFT window long (the
+    grid of :func:`_stft_pair`, then a power of two); ``transform`` maps their
+    spectra, ``(bins, frames)`` each, to output spectra of that shape, bin and
+    frame by bin and frame. The result equals
+    ``inverse(transform(freqs, *map(spec, signals)))`` with :func:`_stft_pair`'s
+    ``spec`` and ``inverse`` (scipy's ``stft``/``istft``, Hann, half overlap,
+    zero boundary and padding): each block's spectra are scipy's own for those
+    frames, and the overlap-add is scipy's, in the same order. Only a block of
+    spectra is held at a time, never a whole signal's.
+
+    >>> import numpy as np
+    >>> a = np.random.default_rng(0).normal(size=5000)
+    >>> spec, inverse, freqs = _stft_pair(8000, 5000)
+    >>> want = inverse(0.5 * spec(a))
+    >>> got, = _blockwise_stft_map([a], lambda f, A: [0.5 * A], 8000, block_frames=7)
+    >>> bool(np.allclose(got, want, rtol=0, atol=1e-12))
+    True
+    """
+    signal = require_package("scipy.signal")
+    fft = require_package("scipy.fft")
+    if block_frames < 1:
+        raise ValueError(f"block_frames must be at least 1, got {block_frames}")
+    n = len(signals[0])
+    nperseg = _stft_size(sr, window_s)
+    if n < nperseg or nperseg % 2:
+        raise ValueError(
+            f"a blockwise STFT needs at least one whole (even) window: "
+            f"{n} samples for a {nperseg}-sample window"
+        )
+    half = nperseg // 2
+    nstep = nperseg - half  # scipy's default noverlap = nperseg // 2
+    extended = n + 2 * half  # boundary="zeros"
+    tail = (-(extended - nperseg) % nstep) % nperseg  # padded=True
+    total = extended + tail
+    n_frames = (total - nperseg) // nstep + 1
+    win = signal.get_window("hann", nperseg)
+    win_sum, win2 = win.sum(), win**2
+    freqs = np.fft.rfftfreq(nperseg, d=1.0 / sr)
+
+    inputs = [np.asarray(a, dtype=np.float64) for a in signals]
+    for a in inputs:
+        if a.shape != (n,):
+            raise ValueError(f"signals must all be 1-D of length {n}, got {a.shape}")
+
+    def span(a, lo, hi):
+        """Samples ``[lo, hi)`` of ``a`` zero-extended as scipy pads it (``half``
+        zeros before, ``half + tail`` after): one block's worth, never a copy
+        of the whole signal."""
+        start, stop = lo - half, hi - half
+        inside = a[max(0, start) : min(n, stop)]
+        return np.pad(inside, (max(0, -start), max(0, stop - n)))
+
+    outputs: Optional[list[np.ndarray]] = None
+    norm = np.zeros(total)
+    for f0 in range(0, n_frames, block_frames):
+        f1 = min(n_frames, f0 + block_frames)
+        lo, hi = f0 * nstep, (f1 - 1) * nstep + nperseg
+        spectra = [
+            signal.stft(span(a, lo, hi), fs=sr, nperseg=nperseg, boundary=None, padded=False)[2]
+            for a in inputs
+        ]
+        results = transform(freqs, *spectra)
+        del spectra
+        if outputs is None:
+            outputs = [np.zeros(total) for _ in results]
+        for out, Z in zip(outputs, results):
+            xsubs = fft.irfft(Z, axis=-2, n=nperseg)[:nperseg, :]
+            xsubs *= win_sum  # scaling="spectrum", as istft does
+            for k in range(f1 - f0):
+                start = lo + k * nstep
+                out[start : start + nperseg] += xsubs[:, k] * win
+        del results
+        for k in range(f0, f1):
+            norm[k * nstep : k * nstep + nperseg] += win2
+    divisor = norm[half : half + n]
+    divisor[divisor <= 1e-10] = 1.0  # as istft: divide only where non-tiny
+    results = []
+    for out in outputs or []:
+        kept = out[half : half + n]
+        kept /= divisor
+        results.append(kept)
+    return results
+
+
 def _split_round_trip(
     x: np.ndarray,
     speech: np.ndarray,
@@ -360,6 +458,7 @@ def _split_round_trip(
     *,
     heard_hz: Optional[float],
     window_s: float = WIENER_WINDOW_S,
+    block_frames: int = STFT_BLOCK_FRAMES,
 ) -> tuple[np.ndarray, np.ndarray]:
     """A model's stems, resampled back to ``x``'s rate ``sr``, with what the
     resampling round trip ``lost`` (``x - back(x_native)``) put back.
@@ -373,13 +472,38 @@ def _split_round_trip(
     stems sum to its input; a model that leaves something out (a dropped effects
     stem) still leaves it out. The line is as sharp as one STFT bin: content
     within about a bin of it is split between the stems.
+
+    The STFTs are walked ``block_frames`` frames at a time
+    (:func:`_blockwise_stft_map`), so the peak memory is a few blocks' spectra,
+    not a few whole channels' (reeleehq/mixing#203); a signal shorter than one
+    window takes the whole-signal path, which is small anyway.
     """
     n, ch = x.shape
-    spec, inverse, freqs = _stft_pair(sr, n, window_s=window_s)
     everything_heard = heard_hz is None
+    if n >= _stft_size(sr, window_s):
+        out_speech, out_music = np.empty_like(x), np.empty_like(x)
+
+        def split(freqs, S, M, R, *X):
+            heard = (freqs < (np.inf if everything_heard else heard_hz))[:, None]
+            share = _power_share(S, M)
+            S_out = np.where(heard, S + share * R, 0)
+            M_out = M + (1 - share) * R
+            if X:  # a band the model never heard: the music is x there
+                M_out = np.where(heard, M_out, X[0])
+            return S_out, M_out
+
+        for c in range(ch):
+            signals = [a[:, c] for a in (speech, music, lost)]
+            if not everything_heard:
+                signals.append(x[:, c])
+            out_speech[:, c], out_music[:, c] = _blockwise_stft_map(
+                signals, split, sr, window_s=window_s, block_frames=block_frames
+            )
+        return out_speech, out_music
+    spec, inverse, freqs = _stft_pair(sr, n, window_s=window_s)
     heard = (freqs < (np.inf if everything_heard else heard_hz))[:, None]
     out_speech, out_music = np.empty_like(x), np.empty_like(x)
-    for c in range(ch):  # one channel at a time: bounds the STFTs' memory
+    for c in range(ch):
         S, M, R = (spec(a[:, c]) for a in (speech, music, lost))
         share = _power_share(S, M)
         S_out = np.where(heard, S + share * R, 0)
