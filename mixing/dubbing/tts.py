@@ -54,6 +54,41 @@ DFLT_MODEL_ID = "eleven_multilingual_v2"
 #: Highest standard MP3 quality that does not require a paid tier.
 DFLT_OUTPUT_FORMAT = "mp3_44100_128"
 
+#: ElevenLabs ``output_format`` codec family -> ``(ffmpeg encoder, muxer)``: what
+#: re-encodes audio into the same format (a line spliced into a take, say).
+OUTPUT_FORMAT_CODECS: dict[str, tuple[str, str]] = {
+    "mp3": ("libmp3lame", "mp3"),
+    "wav": ("pcm_s16le", "wav"),
+    "opus": ("libopus", "ogg"),
+    "pcm": ("pcm_s16le", "s16le"),  # raw little-endian 16-bit, no header
+    "ulaw": ("pcm_mulaw", "mulaw"),
+    "alaw": ("pcm_alaw", "alaw"),
+}
+
+
+def output_format_encode_args(output_format: str = DFLT_OUTPUT_FORMAT) -> list[str]:
+    """ffmpeg output arguments that encode audio as ElevenLabs'
+    ``{codec}_{rate}[_{kbps}]`` ``output_format`` (codec, rate, bitrate, muxer);
+    e.g. ``encode_args=`` for :func:`mixing.splice.replace_span_file`.
+
+    >>> output_format_encode_args("mp3_44100_128")
+    ['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']
+    >>> output_format_encode_args("pcm_16000")
+    ['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']
+    """
+    family, *rest = output_format.split("_")
+    if family not in OUTPUT_FORMAT_CODECS or not rest or not rest[0].isdigit():
+        raise ValueError(
+            f"no ffmpeg encoding for output_format {output_format!r}; formats are "
+            f"'{{codec}}_{{rate}}[_{{kbps}}]' with codec one of "
+            f"{sorted(OUTPUT_FORMAT_CODECS)} (e.g. 'mp3_44100_128')"
+        )
+    encoder, muxer = OUTPUT_FORMAT_CODECS[family]
+    args = ["-c:a", encoder, "-ar", rest[0]]
+    if len(rest) > 1:
+        args += ["-b:a", f"{rest[1]}k"]
+    return args + ["-f", muxer]
+
 #: Voice settings for dubbing fidelity — see :data:`DFLT_MODEL_ID` on why this
 #: is not tuned for expressiveness. ``stability`` ~0.5 keeps the read steady;
 #: ``similarity_boost`` ~0.8 keeps timbre faithful to the chosen voice.

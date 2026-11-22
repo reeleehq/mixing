@@ -196,3 +196,71 @@ def test_a_deep_wav_master_keeps_its_depth_and_its_samples(tmp_path, codec):
     a, f = SR // 2, int(round(JOIN_FADE_S * SR))
     np.testing.assert_array_equal(after[: a - f], before[: a - f])  # bit-exact
     np.testing.assert_array_equal(after[a + 40 + f :], before[SR + f :])
+
+
+def test_insert_window_reaches_outside_with_silence_and_keeps_the_inside():
+    from mixing.splice import insert_window
+
+    x = np.arange(1, 11, dtype=np.float64).reshape(-1, 1).repeat(2, axis=1)
+    w = insert_window(x, (-0.3, 0.5), sr=10)
+    assert w.shape == (8, 2)
+    assert w[:3].tolist() == [[0.0, 0.0]] * 3
+    np.testing.assert_array_equal(w[3:], x[:5])
+    tail = insert_window(x[:, 0], (0.8, 1.3), sr=10)
+    assert tail.tolist() == [9.0, 10.0, 0.0, 0.0, 0.0]
+    assert insert_window(x[:, 0], (2.0, 2.2), sr=10).tolist() == [0.0, 0.0]
+    with pytest.raises(ValueError, match="empty"):
+        insert_window(x, (0.5, 0.5), sr=10)
+
+
+def test_replace_span_with_an_insert_window_is_the_windowed_insert():
+    from mixing.splice import insert_window
+
+    base, insert = np.ones(20), np.arange(1.0, 6.0)
+    windowed = replace_span(base, (0.5, 1.0), insert, sr=10, fade_s=0, insert_window=(-0.1, 0.3))
+    by_hand = replace_span(base, (0.5, 1.0), insert_window(insert, (-0.1, 0.3), sr=10), sr=10, fade_s=0)
+    np.testing.assert_array_equal(windowed, by_hand)
+    assert windowed[5:9].tolist() == [0.0, 1.0, 2.0, 3.0]
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="needs ffmpeg")
+def test_replace_span_file_takes_the_insert_window(tmp_path):
+    import wave
+
+    sr = 8000
+
+    def write(path, samples):
+        with wave.open(str(path), "wb") as f:
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(sr)
+            f.writeframes((samples * 32767).astype("<i2").tobytes())
+
+    def read(path):
+        with wave.open(str(path)) as f:
+            return np.frombuffer(f.readframes(f.getnframes()), "<i2") / 32767
+
+    base, line = tmp_path / "base.wav", tmp_path / "line.wav"
+    write(base, np.full(sr, 0.25))
+    write(line, np.full(sr // 2, 0.5))
+    out = replace_span_file(
+        base, (0.25, 0.5), line, output=tmp_path / "out.wav", fade_s=0,
+        insert_window=(-0.125, 0.25),
+    )
+    y = read(out)
+    assert len(y) == sr - sr // 4 + 3 * sr // 8
+    head = slice(sr // 4, sr // 4 + sr // 8)  # the window's silent lead-in
+    body = slice(sr // 4 + sr // 8, sr // 4 + 3 * sr // 8)
+    assert np.allclose(y[head], 0.0, atol=1e-4) and np.allclose(y[body], 0.5, atol=1e-4)
+
+
+def test_elevenlabs_output_format_encode_args():
+    from mixing.dubbing import output_format_encode_args
+
+    assert output_format_encode_args("opus_48000_64") == [
+        "-c:a", "libopus", "-ar", "48000", "-b:a", "64k", "-f", "ogg",
+    ]
+    assert output_format_encode_args("wav_44100")[-2:] == ["-f", "wav"]
+    for bad in ("flac_44100", "mp3", "mp3_x"):
+        with pytest.raises(ValueError, match="output_format"):
+            output_format_encode_args(bad)
