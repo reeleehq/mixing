@@ -11,6 +11,9 @@ click and no surviving tail, every cut on a sample boundary.
   deliverable from the result, so lines that were not edited do not degrade
   generation after generation.
 - :func:`spliced_chunks`: the engine both use, over a stream of chunks.
+- :func:`insert_window`: the window of an insert to splice in, which may reach
+  outside it (silence there), so a re-rendered line can bring the lead-in or
+  decay of a pause it does not have; ``insert_window=`` on both functions above.
 
 Where to cut is the caller's knowledge: cut inside the pause around the span
 (mid-pause between two lines, say), not on an aligner's word edge, and give the
@@ -163,6 +166,34 @@ def spliced_chunks(
         yield from through_the_cut()
 
 
+def insert_window(insert: np.ndarray, window: Span, *, sr: int) -> np.ndarray:
+    """``insert[window]`` (seconds, at rate ``sr``), exactly as long as the window.
+
+    The window may reach outside the insert (before 0 or past its end): what
+    falls outside is silence. Samples inside are copied exactly; the shape kind
+    (``(n,)`` or ``(n, channels)``) and dtype are kept.
+
+    >>> import numpy as np
+    >>> insert_window(np.array([1.0, 2.0, 3.0]), (-0.2, 0.2), sr=10).tolist()
+    [0.0, 0.0, 1.0, 2.0]
+    """
+    x = np.asarray(insert)
+    k0, k1 = window
+    n = round((k1 - k0) * sr)
+    if n <= 0:
+        raise ValueError(f"nothing to insert: the window {window} is empty")
+    out = np.zeros((n,) + x.shape[1:], dtype=x.dtype)
+    first = round(k0 * sr)  # the insert's sample at the window's start (may be < 0)
+    lo, hi = max(first, 0), min(first + n, len(x))
+    if hi > lo:
+        out[lo - first : hi - first] = x[lo:hi]
+    return out
+
+
+#: :func:`insert_window`, for the functions whose keyword of that name shadows it.
+_window = insert_window
+
+
 def replace_span(
     base: np.ndarray,
     span: Span,
@@ -170,15 +201,20 @@ def replace_span(
     *,
     sr: int,
     fade_s: float = JOIN_FADE_S,
+    insert_window: Optional[Span] = None,
 ) -> np.ndarray:
     """``base`` with ``span`` (seconds) replaced by ``insert``, the joins faded.
 
     ``base`` is float ``(n,)`` or ``(n, channels)``; ``insert`` is mono or has
     ``base``'s channels, at the same rate ``sr`` (the result's length changes by
-    the insert's minus the span's). A span past the end appends. Frames outside
-    the ``fade_s`` fades are copied exactly. Returns float64, ``base``'s shape kind.
+    the insert's minus the span's). ``insert_window`` (seconds) splices only that
+    window of the insert, which may reach outside it (:func:`insert_window`).
+    A span past the end appends. Frames outside the ``fade_s`` fades are copied
+    exactly. Returns float64, ``base``'s shape kind.
     """
     x = np.asarray(base, dtype=np.float64)
+    if insert_window is not None:
+        insert = _window(insert, insert_window, sr=sr)
     pieces = spliced_chunks(
         [x], _cut_frames(span, sr), insert, fade=_fade_frames(fade_s, sr)
     )
@@ -205,6 +241,7 @@ def replace_span_file(
     encode_args: Optional[Sequence[str]] = None,
     ffmpeg: Optional[str] = None,
     timeout: Optional[float] = None,
+    insert_window: Optional[Span] = None,
 ):
     """Write ``src``'s audio with ``span`` replaced by ``insert``, streamed, once.
 
@@ -214,7 +251,9 @@ def replace_span_file(
     options; ``None`` (default) keeps ``src``'s lossless codec when writing its own
     format (:func:`mixing.decode.same_lossless_args`: a 24-bit WAV master stays 24-bit). ``insert``
     is float samples at ``src``'s rate or a file (decoded and resampled to it),
-    mono or with ``src``'s channels. ``output`` follows mixing's ``output``
+    mono or with ``src``'s channels; ``insert_window`` (seconds, on the insert's
+    timeline) splices only that window of it, silence where the window reaches
+    outside it (:func:`insert_window`). ``output`` follows mixing's ``output``
     protocol (default: beside ``src`` with ``SPLICED_SUFFIX``, same format):
     give a lossless format and encode the deliverable from it. It may be ``src``
     itself (replaced once the new file is complete), unless ``src`` has more
@@ -236,6 +275,8 @@ def replace_span_file(
             raise ValueError(f"{src.name} has no audio to splice into")
         fade, cut = _fade_frames(fade_s, rate), _cut_frames(span, rate)
         piece = _insert_samples(insert, rate=rate, decode=decode)
+        if insert_window is not None:
+            piece = _window(piece, insert_window, sr=rate)
         args = resolve_encode_args(
             encode_args, src, path, ffmpeg=ffmpeg, timeout=timeout
         )
@@ -253,6 +294,7 @@ def replace_span_file(
 __all__ = [
     "JOIN_FADE_S",
     "SPLICED_SUFFIX",
+    "insert_window",
     "replace_span",
     "replace_span_file",
     "spliced_chunks",

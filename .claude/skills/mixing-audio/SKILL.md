@@ -616,6 +616,8 @@ replace_span_file(
 
 Cut inside the pauses around the line (mid-pause between turns), not on the aligner's word edges, and let the new line bring its own room tone. Run it on a lossless master and encode the deliverable from the result, so unedited lines never degrade. A file insert is resampled to the take's rate; a mono insert goes into every channel.
 
+`insert_window=(k0, k1)` (seconds on the insert's own timeline) splices only that window of the insert, and the window may reach outside it: silence fills the part outside, so a line can bring the lead-in or decay of a pause it does not have (`mixing.splice.insert_window` is the array form). To re-encode in an ElevenLabs `output_format`, pass `encode_args=mixing.dubbing.output_format_encode_args("mp3_44100_128")`.
+
 ## Speaker turns: loudness, voice diagnosis, pitch
 
 Turns are `[(speaker, start_s, end_s), ...]` in **seconds** (any `time_unit`), or `Segment`s whose `label` is the speaker (e.g. from `find_segments`); non-overlapping, boundaries in pauses.
