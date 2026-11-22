@@ -622,7 +622,7 @@ def group_lufs(
     joined (channels kept when all agree, else downmixed), looped up to
     ``min_measure_s`` when shorter, and measured with ``meter``. ``-inf`` for
     silence. ``fs`` is one rate, or one per segment (each segment is then
-    resampled, polyphase, to the highest).
+    resampled to the highest: polyphase, or numpy's FFT when scipy is absent).
     """
     if min_measure_s < BLOCK_S:
         raise ValueError(f"min_measure_s must be >= one gate block ({BLOCK_S} s)")
