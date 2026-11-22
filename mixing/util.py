@@ -59,6 +59,9 @@ def ffmpeg_exe() -> str:
         )
 
 
+#: The distribution whose extras the install hints name.
+PACKAGE_NAME = "mixing"
+
 MEDIA_EXTRA = "media"
 ML_EXTRA = "ml"
 BEATS_EXTRA = "beats"
@@ -141,7 +144,7 @@ def install_hint(extra: str) -> str:
     """
     if extra not in EXTRAS:
         raise ValueError(f"unknown extra {extra!r}; one of {sorted(EXTRAS)}")
-    return f"pip install 'mixing[{extra}]'"
+    return f"pip install '{PACKAGE_NAME}[{extra}]'"
 
 
 def _supplies(name: str, module: str) -> bool:
@@ -230,29 +233,25 @@ def require_package(package_name: str, *, extra: Optional[str] = None):
 
     The hint names ``extra`` when given (the extra the caller belongs to: in
     ``mixing.loudness``, scipy comes from ``loudness``, not ``media``), else the
-    extra ``EXTRAS`` maps ``package_name`` to, else ``pip install <package>``.
-    The error's ``name`` is ``package_name``, so a caller can map it to its own
-    install hint. An installed package whose own imports fail re-raises that
-    error unchanged, rather than claiming the package is missing.
+    extra ``EXTRAS`` maps ``package_name`` to, else the package's own pip line.
+    The error is a ``ModuleNotFoundError`` whose ``name`` is ``package_name``,
+    so a caller can map it to its own install hint. An installed package whose
+    own imports fail re-raises that error unchanged, rather than claiming the
+    package is missing: that absent-vs-broken rule is the fleet's shared one,
+    ``i2.optional.optional_import`` (imported here, on first call, so that
+    ``import mixing`` does not pay for ``i2``).
 
     >>> math = require_package('math')  # doctest: +SKIP
     >>> math.pi  # doctest: +SKIP
     3.141592653589793
     """
+    from i2.optional import optional_import
+
     if extra is not None:
         install_hint(extra)  # an unknown extra is the caller's bug: fail now
-    try:
-        return importlib.import_module(package_name)
-    except ImportError as e:
-        if e.name and not _supplies(e.name, package_name):
-            raise  # the package is there; one of *its* imports failed
-        extra = extra or extra_for(package_name)
-        hint = install_hint(extra) if extra else f"pip install {package_name}"
-        raise ImportError(
-            f"Package '{package_name}' is required for this functionality. "
-            f"Install it with {hint}.",
-            name=package_name,
-        ) from e
+    return optional_import(
+        package_name, package=PACKAGE_NAME, extra=extra or extra_for(package_name)
+    )
 
 
 def require_llm_chat(feature: str, *, alternative: str):

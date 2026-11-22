@@ -438,8 +438,8 @@ def test_require_package_names_the_beats_extra_for_librosa(monkeypatch):
 
     from mixing.util import require_package
 
-    def deny(name, *a, **k):
-        raise ImportError(name)
+    def deny(name, *a, **k):  # what an absent module raises
+        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
 
     monkeypatch.setattr(importlib, "import_module", deny)
     with pytest.raises(ImportError, match=r"mixing\[beats\]"):
