@@ -324,8 +324,29 @@ def test_what_resampling_weakened_goes_back_to_the_stem_it_came_from(
     all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
     speech, music = separate_speech(talk, separator=all_speech, sr=sr)
     np.testing.assert_allclose(speech + music, talk, rtol=0, atol=1e-9)
-    leak_db = 10 * np.log10(np.mean(music**2) / np.mean(talk**2))
+    # The interior: the tone's abrupt onset and end splatter above the lower
+    # Nyquist, a band the model never heard, which rightly goes to the music.
+    inner = slice(sr // 10, -sr // 10)
+    leak_db = 10 * np.log10(np.mean(music[inner] ** 2) / np.mean(talk[inner] ** 2))
     assert leak_db < -60
+
+
+@pytest.mark.parametrize("heard_hz", [4000, 6000, 7600])
+def test_never_heard_content_at_an_image_frequency_reaches_the_music(heard_hz):
+    """#185 review round 2: a 16 kHz model on 48 kHz audio hears ``heard_hz``;
+    resampling its stem up mirrors it at ``16000 - heard_hz``. A tone there the
+    model never heard must reach the music, not be split like the image."""
+    sr, native = 48000, 16000
+    t = np.arange(sr) / sr
+    heard = 0.3 * np.sin(2 * np.pi * heard_hz * t)[:, None]
+    unheard = 0.03 * np.sin(2 * np.pi * (native - heard_hz) * t)[:, None]
+    all_speech = SeparationStrategy("s", lambda a, r: (a, 0 * a), sample_rate=native)
+    speech, music = separate_speech(heard + unheard, separator=all_speech, sr=sr)
+    inner = slice(sr // 10, -sr // 10)
+    err_db = 10 * np.log10(
+        np.mean((music - unheard)[inner] ** 2) / np.mean(unheard[inner] ** 2)
+    )
+    assert err_db < -40
 
 
 def test_resampling_up_to_a_higher_rate_strategy():
