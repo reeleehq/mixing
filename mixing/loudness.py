@@ -50,7 +50,15 @@ from typing import (
 )
 
 from mixing.errors import GainCappedWarning  # noqa: F401  (re-exported)
-from mixing.util import LOUDNESS_EXTRA, ffmpeg_exe, install_hint, require_package
+from mixing.util import (
+    LOUDNESS_EXTRA,
+    db_to_gain,
+    ffmpeg_exe,
+    gain_to_db,
+    install_hint,
+    power_to_db,
+    require_package,
+)
 
 try:  # numpy only: scipy is imported where used, so the ffmpeg meter works without it
     import numpy as np
@@ -151,7 +159,7 @@ def _as_2d(data: np.ndarray) -> np.ndarray:
 def _k_weighting_coefficients(fs: int):
     """``[(b, a), (b, a)]`` biquads of the BS.1770 K-weighting at rate ``fs``."""
     k = np.tan(np.pi * _SHELF["f0"] / fs)
-    vh = 10.0 ** (_SHELF["gain_db"] / 20.0)
+    vh = db_to_gain(_SHELF["gain_db"])
     vb = vh**_SHELF_VB_EXPONENT
     q = _SHELF["q"]
     a0 = 1.0 + k / q + k * k
@@ -170,7 +178,7 @@ def _k_weighting_coefficients(fs: int):
 
 
 def _lufs(mean_square: float) -> float:
-    return _LUFS_OFFSET + 10.0 * np.log10(mean_square) if mean_square > 0 else -np.inf
+    return _LUFS_OFFSET + power_to_db(mean_square) if mean_square > 0 else -np.inf
 
 
 def _k_weighted_energies(chunks: Iterable[np.ndarray], fs: int) -> Iterator[np.ndarray]:
@@ -295,7 +303,7 @@ def _array_chunks(data: np.ndarray, fs: int, chunk_s: float) -> Iterator[np.ndar
 def _gated(block_ms: np.ndarray, relative_gate_lu: float):
     """``(block_ms, block_lufs)`` surviving the absolute and relative gates."""
     with np.errstate(divide="ignore"):
-        block_lufs = _LUFS_OFFSET + 10.0 * np.log10(block_ms)  # -inf where silent
+        block_lufs = _LUFS_OFFSET + power_to_db(block_ms)  # -inf where silent
     absolute = block_lufs > ABSOLUTE_GATE_LUFS
     if not absolute.any():
         return block_ms[:0], block_lufs[:0]
@@ -548,7 +556,7 @@ def true_peak_db(
         return -np.inf
     envelope = true_peak_envelope(data, fs, oversampling=oversampling, method=method)
     peak = float(envelope.max())
-    return float(20.0 * np.log10(peak)) if peak > 0 else -np.inf
+    return float(gain_to_db(peak)) if peak > 0 else -np.inf
 
 
 # --- group leveling -------------------------------------------------------------
@@ -1017,7 +1025,7 @@ def level_file(
         raise ValueError(f"target_lufs must be a finite LUFS value, got {target_lufs}")
     if window_s is not None and not 0 < window_s < np.inf:
         raise ValueError(f"window_s is in seconds, > 0; got {window_s}")
-    ceiling = 10.0 ** (ceiling_db / 20.0)
+    ceiling = db_to_gain(ceiling_db)
     limits = dict(true_peak=true_peak, oversampling=oversampling, method=method)
     # the settings are checked before the first pass (any rate does for that)
     _limiter(ceiling=ceiling, window=None, fs=sample_rate or 1, **limits)
@@ -1035,7 +1043,7 @@ def level_file(
     gain_db = _target_gain(
         measured, target_lufs=target_lufs, max_gain_db=max_gain_db, subject=src.name
     )
-    scale = 10.0 ** (gain_db / 20.0)
+    scale = db_to_gain(gain_db)
     output_lufs = None
 
     def write(path: Path) -> None:

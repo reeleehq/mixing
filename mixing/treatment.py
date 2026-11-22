@@ -37,7 +37,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Mapping, Union
 
-from mixing.util import LOUDNESS_EXTRA, install_hint, require_package
+from mixing.util import (
+    LOUDNESS_EXTRA,
+    db_to_gain,
+    db_to_power,
+    install_hint,
+    power_to_db,
+    require_package,
+)
 
 try:  # numpy only: scipy is imported where used, as mixing.loudness does
     import numpy as np
@@ -161,9 +168,9 @@ def compress(
     b, den = [1.0 - a], [1.0, -a]
     zi = sig.lfilter_zi(b, den) * power[:settle].mean()
     power, _ = sig.lfilter(b, den, power, zi=zi)
-    level_db = 10.0 * np.log10(np.maximum(power, 10.0 ** (DETECTOR_FLOOR_DB / 10.0)))
+    level_db = power_to_db(np.maximum(power, db_to_power(DETECTOR_FLOOR_DB)))
     over = np.maximum(0.0, level_db - threshold_db)
-    gain = 10.0 ** ((makeup_db - over * (1.0 - 1.0 / ratio)) / 20.0)
+    gain = db_to_gain(makeup_db - over * (1.0 - 1.0 / ratio))
     return (x * (gain if x.ndim == 1 else gain[:, None])).astype(x.dtype, copy=False)
 
 
@@ -236,7 +243,7 @@ def apply_treatment(
     )
     if not len(x):
         return x
-    limited = limit_peaks(x, ceiling=10.0 ** (preset.ceiling_db / 20.0), fs=fs)
+    limited = limit_peaks(x, ceiling=db_to_gain(preset.ceiling_db), fs=fs)
     return limited if x.ndim == 2 else limited[:, 0]
 
 
