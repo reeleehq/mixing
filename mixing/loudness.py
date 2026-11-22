@@ -743,7 +743,11 @@ def attack_release(
     attack = _one_pole_coefficient(step_s, attack_s)
     release = _one_pole_coefficient(step_s, release_s)
     t = np.asarray(target, dtype=np.float64)
-    starts = np.concatenate(([0], np.flatnonzero(t[1:] != t[:-1]) + 1)) if len(t) else np.array([], int)
+    starts = (
+        np.concatenate(([0], np.flatnonzero(t[1:] != t[:-1]) + 1))
+        if len(t)
+        else np.array([], int)
+    )
     if len(starts) * RUNS_PER_STEP_FOR_CLOSED_FORM > len(t):
         return _attack_release_loop(t, attack, release, initial)
     return _attack_release_runs(t, starts, attack, release, initial)
@@ -754,7 +758,9 @@ def attack_release(
 RUNS_PER_STEP_FOR_CLOSED_FORM: int = 8
 
 
-def _attack_release_loop(t: np.ndarray, attack: float, release: float, initial: float) -> np.ndarray:
+def _attack_release_loop(
+    t: np.ndarray, attack: float, release: float, initial: float
+) -> np.ndarray:
     """:func:`attack_release` one step at a time (coefficients, not time constants)."""
     out = np.empty(len(t), dtype=np.float64)
     value = float(initial)
