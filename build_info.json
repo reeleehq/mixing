@@ -1,32 +1,32 @@
 {
   "schema_version": 1,
-  "built_at": "2026-11-22T10:51:58Z",
+  "built_at": "2026-11-22T11:03:28Z",
   "package": {
     "name": "mixing",
-    "version": "0.0.119",
+    "version": "0.0.120",
     "display_name": "mixing",
     "source": "pyproject.toml"
   },
   "git": {
     "available": true,
-    "commit": "3c10b67e9f0355df87b306236a32387f3f5c6f73",
-    "short_commit": "3c10b67",
+    "commit": "c81b3d2b2e9200b5e70b9e4f0829ce409b052a16",
+    "short_commit": "c81b3d2",
     "branch": "main",
     "tags": [],
     "dirty": false,
     "remote_url": "https://github.com/reeleehq/mixing",
-    "commit_url": "https://github.com/reeleehq/mixing/commit/3c10b67e9f0355df87b306236a32387f3f5c6f73",
+    "commit_url": "https://github.com/reeleehq/mixing/commit/c81b3d2b2e9200b5e70b9e4f0829ce409b052a16",
     "error": null
   },
   "ci": {
     "provider": "github",
     "repository": "reeleehq/mixing",
-    "sha": "034ae44645b1fbe9fe565cf8d47b770894637dd4",
+    "sha": "bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d",
     "sha_in_history": true,
     "ref": "refs/heads/main",
     "ref_name": "main",
-    "run_id": "45012388660",
-    "run_url": "https://github.com/reeleehq/mixing/actions/runs/45012388660",
+    "run_id": "45013170148",
+    "run_url": "https://github.com/reeleehq/mixing/actions/runs/45013170148",
     "server_url": "https://github.com"
   },
   "tools": {
@@ -56,15 +56,15 @@
   },
   "site": {
     "modules_documented": 22,
-    "objects_documented": 238
+    "objects_documented": 241
   },
   "pypi": {
     "checked": true,
-    "latest": "0.0.119",
+    "latest": "0.0.120",
     "relation": "same",
     "error": null
   },
-  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout 3c10b67e9f0355df87b306236a32387f3f5c6f73\npip install \"epythet==0.2.23\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
+  "reproduce": "git clone https://github.com/reeleehq/mixing && cd mixing\ngit checkout c81b3d2b2e9200b5e70b9e4f0829ce409b052a16\npip install \"epythet==0.2.23\"\nepythet quickstart . --ignore tests/ scrap/ examples/",
   "warnings": [],
   "alignment": {
     "aligned": true,

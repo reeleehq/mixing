@@ -8,6 +8,7 @@ mixing.dubbing
 
    .. autosummary::
    
+      output_format_encode_args
       default_cache_dir
       text_to_speech
       synthesize_to_file

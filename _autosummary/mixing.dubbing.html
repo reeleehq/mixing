@@ -162,40 +162,43 @@ video — pulls <code class="docutils literal notranslate"><span class="pre">mov
 <p class="rubric">Functions</p>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.default_cache_dir" title="mixing.dubbing.default_cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_cache_dir</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.output_format_encode_args" title="mixing.dubbing.output_format_encode_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">output_format_encode_args</span></code></a>([output_format])</p></td>
+<td><p>ffmpeg output arguments that encode audio as ElevenLabs' <code class="docutils literal notranslate"><span class="pre">{codec}_{rate}[_{kbps}]</span></code> <code class="docutils literal notranslate"><span class="pre">output_format</span></code> (codec, rate, bitrate, muxer); e.g. <code class="docutils literal notranslate"><span class="pre">encode_args=</span></code> for <code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.splice.replace_span_file()</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.default_cache_dir" title="mixing.dubbing.default_cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_cache_dir</span></code></a>()</p></td>
 <td><p>Default on-disk cache for synthesized audio.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.text_to_speech" title="mixing.dubbing.text_to_speech"><code class="xref py py-obj docutils literal notranslate"><span class="pre">text_to_speech</span></code></a>(text, voice_id, *[, api_key, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.text_to_speech" title="mixing.dubbing.text_to_speech"><code class="xref py py-obj docutils literal notranslate"><span class="pre">text_to_speech</span></code></a>(text, voice_id, *[, api_key, ...])</p></td>
 <td><p>Synthesize <code class="docutils literal notranslate"><span class="pre">text</span></code> to speech with ElevenLabs and return audio bytes.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.synthesize_to_file" title="mixing.dubbing.synthesize_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">synthesize_to_file</span></code></a>(text, voice_id, path, ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.synthesize_to_file" title="mixing.dubbing.synthesize_to_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">synthesize_to_file</span></code></a>(text, voice_id, path, ...)</p></td>
 <td><p>Synthesize <code class="docutils literal notranslate"><span class="pre">text</span></code> and write the audio to <code class="docutils literal notranslate"><span class="pre">path</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.list_voices" title="mixing.dubbing.list_voices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_voices</span></code></a>(*[, api_key, timeout])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.list_voices" title="mixing.dubbing.list_voices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_voices</span></code></a>(*[, api_key, timeout])</p></td>
 <td><p>List the voices available on the account.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.find_voice" title="mixing.dubbing.find_voice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_voice</span></code></a>(query, *[, api_key, voices])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.find_voice" title="mixing.dubbing.find_voice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_voice</span></code></a>(query, *[, api_key, voices])</p></td>
 <td><p>Return the first voice whose name or labels contain <code class="docutils literal notranslate"><span class="pre">query</span></code> (case-insensitive).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.search_shared_voices" title="mixing.dubbing.search_shared_voices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">search_shared_voices</span></code></a>(*[, language, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.search_shared_voices" title="mixing.dubbing.search_shared_voices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">search_shared_voices</span></code></a>(*[, language, ...])</p></td>
 <td><p>Search ElevenLabs' public <em>shared voice library</em> (not just the account).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.add_shared_voice" title="mixing.dubbing.add_shared_voice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_shared_voice</span></code></a>(public_owner_id, voice_id, ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.add_shared_voice" title="mixing.dubbing.add_shared_voice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_shared_voice</span></code></a>(public_owner_id, voice_id, ...)</p></td>
 <td><p>Add a shared-library voice to the account so it can be synthesized.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.parse_srt" title="mixing.dubbing.parse_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_srt</span></code></a>(srt_text)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.parse_srt" title="mixing.dubbing.parse_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_srt</span></code></a>(srt_text)</p></td>
 <td><p>Parse SRT text into a list of <a class="reference internal" href="#mixing.dubbing.Cue" title="mixing.dubbing.Cue"><code class="xref py py-class docutils literal notranslate"><span class="pre">Cue</span></code></a> objects.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.dump_srt" title="mixing.dubbing.dump_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dump_srt</span></code></a>(cues)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.dump_srt" title="mixing.dubbing.dump_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dump_srt</span></code></a>(cues)</p></td>
 <td><p>Serialize cues back to SRT text, renumbering from 1.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.srt_time_to_seconds" title="mixing.dubbing.srt_time_to_seconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt_time_to_seconds</span></code></a>(timestamp)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.srt_time_to_seconds" title="mixing.dubbing.srt_time_to_seconds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">srt_time_to_seconds</span></code></a>(timestamp)</p></td>
 <td><p>Parse an <code class="docutils literal notranslate"><span class="pre">HH:MM:SS,mmm</span></code> (or <code class="docutils literal notranslate"><span class="pre">.mmm</span></code>) SRT timestamp to seconds.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.translate_srt" title="mixing.dubbing.translate_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">translate_srt</span></code></a>(srt, target_language, *[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.translate_srt" title="mixing.dubbing.translate_srt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">translate_srt</span></code></a>(srt, target_language, *[, ...])</p></td>
 <td><p>Translate the cue text of an SRT to <code class="docutils literal notranslate"><span class="pre">target_language</span></code>, keeping timings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#mixing.dubbing.default_translate_fn" title="mixing.dubbing.default_translate_fn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_translate_fn</span></code></a>(texts, target_language)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mixing.dubbing.default_translate_fn" title="mixing.dubbing.default_translate_fn"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_translate_fn</span></code></a>(texts, target_language)</p></td>
 <td><p>LLM-backed translator (segment-count preserving) using <code class="docutils literal notranslate"><span class="pre">aix.chat</span></code>.</p></td>
 </tr>
 </tbody>
@@ -352,6 +355,24 @@ label keyword (e.g. <code class="docutils literal notranslate"><span class="pre"
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#RuntimeError" rel="nofollow noopener" title="(in Python v3.15)"><strong>RuntimeError</strong><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> – No API key supplied and <code class="docutils literal notranslate"><span class="pre">ELEVENLABS_API_KEY</span></code> (or <code class="docutils literal notranslate"><span class="pre">ELEVEN_API_KEY</span></code>) unset.</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="mixing.dubbing.output_format_encode_args">
+<span class="sig-prename descclassname"><span class="pre">mixing.dubbing.</span></span><span class="sig-name descname"><span class="pre">output_format_encode_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mp3_44100_128'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/mixing/dubbing/tts.html#output_format_encode_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing.dubbing.output_format_encode_args" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mixing.dubbing.output_format_encode_args'">¶</a></dt>
+<dd><p>ffmpeg output arguments that encode audio as ElevenLabs’
+<code class="docutils literal notranslate"><span class="pre">{codec}_{rate}[_{kbps}]</span></code> <code class="docutils literal notranslate"><span class="pre">output_format</span></code> (codec, rate, bitrate, muxer);
+e.g. <code class="docutils literal notranslate"><span class="pre">encode_args=</span></code> for <code class="xref py py-func docutils literal notranslate"><span class="pre">mixing.splice.replace_span_file()</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">&gt;&gt;&gt; </span><span class="n">output_format_encode_args</span><span class="p">(</span><span class="s2">"mp3_44100_128"</span><span class="p">)</span>
+</span><span id="line-2"><span class="go">['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']</span>
+</span><span id="line-3"><span class="gp">&gt;&gt;&gt; </span><span class="n">output_format_encode_args</span><span class="p">(</span><span class="s2">"pcm_16000"</span><span class="p">)</span>
+</span><span id="line-4"><span class="go">['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']</span>
+</span></code></pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>[<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" rel="nofollow noopener" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code><svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a>]</span></p>
 </dd>
 </dl>
 </dd></dl>
@@ -530,6 +551,7 @@ Defaults to <a class="reference internal" href="#mixing.dubbing.default_translat
 <li><a :data-current="activeSection === '#mixing.dubbing.dump_srt'" class="reference internal" href="#mixing.dubbing.dump_srt"><code class="docutils literal notranslate"><span class="pre">dump_srt()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.dubbing.find_voice'" class="reference internal" href="#mixing.dubbing.find_voice"><code class="docutils literal notranslate"><span class="pre">find_voice()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.dubbing.list_voices'" class="reference internal" href="#mixing.dubbing.list_voices"><code class="docutils literal notranslate"><span class="pre">list_voices()</span></code></a></li>
+<li><a :data-current="activeSection === '#mixing.dubbing.output_format_encode_args'" class="reference internal" href="#mixing.dubbing.output_format_encode_args"><code class="docutils literal notranslate"><span class="pre">output_format_encode_args()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.dubbing.parse_srt'" class="reference internal" href="#mixing.dubbing.parse_srt"><code class="docutils literal notranslate"><span class="pre">parse_srt()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.dubbing.search_shared_voices'" class="reference internal" href="#mixing.dubbing.search_shared_voices"><code class="docutils literal notranslate"><span class="pre">search_shared_voices()</span></code></a></li>
 <li><a :data-current="activeSection === '#mixing.dubbing.srt_time_to_seconds'" class="reference internal" href="#mixing.dubbing.srt_time_to_seconds"><code class="docutils literal notranslate"><span class="pre">srt_time_to_seconds()</span></code></a></li>
@@ -549,7 +571,7 @@ Defaults to <a class="reference internal" href="#mixing.dubbing.default_translat
 </div>
 </footer>
 </div>
-<script src="../_static/documentation_options.js?v=4309da3b"></script>
+<script src="../_static/documentation_options.js?v=69b21de1"></script>
 <script src="../_static/doctools.js?v=fd6eb6e6"></script>
 <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -1,4 +1,4 @@
-> built 2026-11-22 10:51 UTC from 3c10b67 (main) · mixing 0.0.119. Details: build_info.json
+> built 2026-11-22 11:03 UTC from c81b3d2 (main) · mixing 0.0.120. Details: build_info.json
 
 # index.html.md
 
@@ -378,19 +378,20 @@ Quick start:
 
 ### Functions
 
-| [`default_cache_dir`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| [`text_to_speech`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                         |
-| [`synthesize_to_file`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                            |
-| [`list_voices`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                   |
-| [`find_voice`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).             |
-| [`search_shared_voices`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                    |
-| [`add_shared_voice`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                         |
-| [`parse_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.Cue) objects. |
-| [`dump_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                        |
-| [`srt_time_to_seconds`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
-| [`translate_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                     |
-| [`default_translate_fn`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_translate_fn)(texts, target_language)       | LLM-backed translator (segment-count preserving) using `aix.chat`.                          |
+| [`output_format_encode_args`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.output_format_encode_args)([output_format])         | ffmpeg output arguments that encode audio as ElevenLabs' `{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer); e.g. `encode_args=` for `mixing.splice.replace_span_file()`.   |
+|-----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`default_cache_dir`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                                                                                                                     |
+| [`text_to_speech`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                                                                                                                              |
+| [`synthesize_to_file`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                                                                                                                                 |
+| [`list_voices`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                                                                                                                        |
+| [`find_voice`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).                                                                                                                  |
+| [`search_shared_voices`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                                                                                                                         |
+| [`add_shared_voice`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                                                                                                                              |
+| [`parse_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.Cue) objects.                                                                                                      |
+| [`dump_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                                                                                                                             |
+| [`srt_time_to_seconds`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                                                                                                                                    |
+| [`translate_srt`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                                                                                                                          |
+| [`default_translate_fn`](_autosummary/mixing.dubbing.html.md#mixing.dubbing.default_translate_fn)(texts, target_language)       | LLM-backed translator (segment-count preserving) using `aix.chat`.                                                                                                                               |
 
 ### Classes
 
@@ -505,6 +506,22 @@ List the voices available on the account.
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
+
+### mixing.dubbing.output_format_encode_args(output_format='mp3_44100_128')
+
+ffmpeg output arguments that encode audio as ElevenLabs’
+`{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer);
+e.g. `encode_args=` for `mixing.splice.replace_span_file()`.
+
+```pycon
+>>> output_format_encode_args("mp3_44100_128")
+['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']
+>>> output_format_encode_args("pcm_16000")
+['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.dubbing.parse_srt(srt_text)
 
@@ -795,21 +812,23 @@ Quick start:
 
 ### Module Attributes
 
-| [`DFLT_MODEL_ID`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_MODEL_ID)       | High-quality, multilingual default model (one voice speaks many languages).                                                                           |
-|----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`DFLT_OUTPUT_FORMAT`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_OUTPUT_FORMAT)  | Highest standard MP3 quality that does not require a paid tier.                                                                                       |
-| [`DFLT_VOICE_SETTINGS`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_VOICE_SETTINGS) | Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_MODEL_ID) on why this is not tuned for expressiveness. |
+| [`DFLT_MODEL_ID`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_MODEL_ID)        | High-quality, multilingual default model (one voice speaks many languages).                                                                           |
+|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`DFLT_OUTPUT_FORMAT`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_OUTPUT_FORMAT)   | Highest standard MP3 quality that does not require a paid tier.                                                                                       |
+| [`OUTPUT_FORMAT_CODECS`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.OUTPUT_FORMAT_CODECS) | what re-encodes audio into the same format (a line spliced into a take, say).                                                                         |
+| [`DFLT_VOICE_SETTINGS`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_VOICE_SETTINGS)  | Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_MODEL_ID) on why this is not tuned for expressiveness. |
 
 ### Functions
 
-| [`add_shared_voice`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.             |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| [`default_cache_dir`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                    |
-| [`find_voice`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive). |
-| [`list_voices`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                       |
-| [`search_shared_voices`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).        |
-| [`synthesize_to_file`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                |
-| [`text_to_speech`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.             |
+| [`add_shared_voice`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                                                                                                                            |
+|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`default_cache_dir`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                                                                                                                   |
+| [`find_voice`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).                                                                                                                |
+| [`list_voices`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                                                                                                                      |
+| [`output_format_encode_args`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.output_format_encode_args)([output_format])         | ffmpeg output arguments that encode audio as ElevenLabs' `{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer); e.g. `encode_args=` for `mixing.splice.replace_span_file()`. |
+| [`search_shared_voices`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                                                                                                                       |
+| [`synthesize_to_file`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                                                                                                                               |
+| [`text_to_speech`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                                                                                                                            |
 
 ### mixing.dubbing.tts.DFLT_MODEL_ID *= 'eleven_multilingual_v2'*
 
@@ -837,6 +856,14 @@ Highest standard MP3 quality that does not require a paid tier.
 Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](_autosummary/mixing.dubbing.tts.html.md#mixing.dubbing.tts.DFLT_MODEL_ID) on why this
 is not tuned for expressiveness. `stability` ~0.5 keeps the read steady;
 `similarity_boost` ~0.8 keeps timbre faithful to the chosen voice.
+
+### mixing.dubbing.tts.OUTPUT_FORMAT_CODECS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]]* *= {'alaw': ('pcm_alaw', 'alaw'), 'mp3': ('libmp3lame', 'mp3'), 'opus': ('libopus', 'ogg'), 'pcm': ('pcm_s16le', 's16le'), 'ulaw': ('pcm_mulaw', 'mulaw'), 'wav': ('pcm_s16le', 'wav')}*
+
+what
+re-encodes audio into the same format (a line spliced into a take, say).
+
+* **Type:**
+  ElevenLabs `output_format` codec family -> `(ffmpeg encoder, muxer)`
 
 ### mixing.dubbing.tts.add_shared_voice(public_owner_id, voice_id, name, , api_key=None, timeout=60.0)
 
@@ -890,6 +917,22 @@ List the voices available on the account.
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
+
+### mixing.dubbing.tts.output_format_encode_args(output_format='mp3_44100_128')
+
+ffmpeg output arguments that encode audio as ElevenLabs’
+`{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer);
+e.g. `encode_args=` for `mixing.splice.replace_span_file()`.
+
+```pycon
+>>> output_format_encode_args("mp3_44100_128")
+['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']
+>>> output_format_encode_args("pcm_16000")
+['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.dubbing.tts.search_shared_voices(, language=None, use_cases=None, gender=None, category=None, sort=None, page_size=40, api_key=None, timeout=60.0, \*\*extra_params)
 
@@ -3982,7 +4025,7 @@ Convert time value to seconds based on unit.
 
 # About this build
 
-This documentation was built on **2026-11-22 10:51 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/3c10b67e9f0355df87b306236a32387f3f5c6f73"><code>3c10b67</code></a> on branch <code>main</code>, for **mixing 0.0.119** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-22 11:03 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/c81b3d2b2e9200b5e70b9e4f0829ce409b052a16"><code>c81b3d2</code></a> on branch <code>main</code>, for **mixing 0.0.120** (from <code>pyproject.toml</code>).
 
 #### NOTE
 Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
@@ -3991,7 +4034,7 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/3c10b67e9f0355df87b306236a32387f3f5c6f73"><code>3c10b67e9f0355df87b306236a32387f3f5c6f73</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/c81b3d2b2e9200b5e70b9e4f0829ce409b052a16"><code>c81b3d2b2e9200b5e70b9e4f0829ce409b052a16</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
 | Tags at this commit | none                                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
@@ -4002,9 +4045,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45012388660">45012388660</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45013170148">45013170148</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>034ae44645b1fbe9fe565cf8d47b770894637dd4</code> (in the history of the built commit) |
+| Event commit | <code>bcbcb19f7f7c9b0a7e856cf798c4997b68e5682d</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -4029,13 +4072,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.119/">0.0.119</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.120/">0.0.120</a>, the same as the documented version.
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout 3c10b67e9f0355df87b306236a32387f3f5c6f73
+git checkout c81b3d2b2e9200b5e70b9e4f0829ce409b052a16
 pip install "epythet==0.2.23"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```

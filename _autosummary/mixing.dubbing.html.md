@@ -38,19 +38,20 @@ Quick start:
 
 ### Functions
 
-| [`default_cache_dir`](#mixing.dubbing.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| [`text_to_speech`](#mixing.dubbing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                         |
-| [`synthesize_to_file`](#mixing.dubbing.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                            |
-| [`list_voices`](#mixing.dubbing.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                   |
-| [`find_voice`](#mixing.dubbing.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).             |
-| [`search_shared_voices`](#mixing.dubbing.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                    |
-| [`add_shared_voice`](#mixing.dubbing.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                         |
-| [`parse_srt`](#mixing.dubbing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](#mixing.dubbing.Cue) objects. |
-| [`dump_srt`](#mixing.dubbing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                        |
-| [`srt_time_to_seconds`](#mixing.dubbing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                               |
-| [`translate_srt`](#mixing.dubbing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                     |
-| [`default_translate_fn`](#mixing.dubbing.default_translate_fn)(texts, target_language)       | LLM-backed translator (segment-count preserving) using `aix.chat`.                          |
+| [`output_format_encode_args`](#mixing.dubbing.output_format_encode_args)([output_format])         | ffmpeg output arguments that encode audio as ElevenLabs' `{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer); e.g. `encode_args=` for `mixing.splice.replace_span_file()`.   |
+|-----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`default_cache_dir`](#mixing.dubbing.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                                                                                                                     |
+| [`text_to_speech`](#mixing.dubbing.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                                                                                                                              |
+| [`synthesize_to_file`](#mixing.dubbing.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                                                                                                                                 |
+| [`list_voices`](#mixing.dubbing.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                                                                                                                        |
+| [`find_voice`](#mixing.dubbing.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).                                                                                                                  |
+| [`search_shared_voices`](#mixing.dubbing.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                                                                                                                         |
+| [`add_shared_voice`](#mixing.dubbing.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                                                                                                                              |
+| [`parse_srt`](#mixing.dubbing.parse_srt)(srt_text)                                | Parse SRT text into a list of [`Cue`](#mixing.dubbing.Cue) objects.                                                                                                      |
+| [`dump_srt`](#mixing.dubbing.dump_srt)(cues)                                     | Serialize cues back to SRT text, renumbering from 1.                                                                                                                                             |
+| [`srt_time_to_seconds`](#mixing.dubbing.srt_time_to_seconds)(timestamp)                     | Parse an `HH:MM:SS,mmm` (or `.mmm`) SRT timestamp to seconds.                                                                                                                                    |
+| [`translate_srt`](#mixing.dubbing.translate_srt)(srt, target_language, \*[, ...])     | Translate the cue text of an SRT to `target_language`, keeping timings.                                                                                                                          |
+| [`default_translate_fn`](#mixing.dubbing.default_translate_fn)(texts, target_language)       | LLM-backed translator (segment-count preserving) using `aix.chat`.                                                                                                                               |
 
 ### Classes
 
@@ -165,6 +166,22 @@ List the voices available on the account.
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
+
+### mixing.dubbing.output_format_encode_args(output_format='mp3_44100_128')
+
+ffmpeg output arguments that encode audio as ElevenLabs’
+`{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer);
+e.g. `encode_args=` for `mixing.splice.replace_span_file()`.
+
+```pycon
+>>> output_format_encode_args("mp3_44100_128")
+['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']
+>>> output_format_encode_args("pcm_16000")
+['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.dubbing.parse_srt(srt_text)
 

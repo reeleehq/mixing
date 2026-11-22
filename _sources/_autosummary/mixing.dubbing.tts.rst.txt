@@ -10,6 +10,7 @@ mixing.dubbing.tts
    
       DFLT_MODEL_ID
       DFLT_OUTPUT_FORMAT
+      OUTPUT_FORMAT_CODECS
       DFLT_VOICE_SETTINGS
    
    .. rubric:: Functions
@@ -20,6 +21,7 @@ mixing.dubbing.tts
       default_cache_dir
       find_voice
       list_voices
+      output_format_encode_args
       search_shared_voices
       synthesize_to_file
       text_to_speech

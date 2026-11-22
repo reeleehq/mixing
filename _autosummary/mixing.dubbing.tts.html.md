@@ -24,21 +24,23 @@ Quick start:
 
 ### Module Attributes
 
-| [`DFLT_MODEL_ID`](#mixing.dubbing.tts.DFLT_MODEL_ID)       | High-quality, multilingual default model (one voice speaks many languages).                                                                           |
-|----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [`DFLT_OUTPUT_FORMAT`](#mixing.dubbing.tts.DFLT_OUTPUT_FORMAT)  | Highest standard MP3 quality that does not require a paid tier.                                                                                       |
-| [`DFLT_VOICE_SETTINGS`](#mixing.dubbing.tts.DFLT_VOICE_SETTINGS) | Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](#mixing.dubbing.tts.DFLT_MODEL_ID) on why this is not tuned for expressiveness. |
+| [`DFLT_MODEL_ID`](#mixing.dubbing.tts.DFLT_MODEL_ID)        | High-quality, multilingual default model (one voice speaks many languages).                                                                           |
+|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`DFLT_OUTPUT_FORMAT`](#mixing.dubbing.tts.DFLT_OUTPUT_FORMAT)   | Highest standard MP3 quality that does not require a paid tier.                                                                                       |
+| [`OUTPUT_FORMAT_CODECS`](#mixing.dubbing.tts.OUTPUT_FORMAT_CODECS) | what re-encodes audio into the same format (a line spliced into a take, say).                                                                         |
+| [`DFLT_VOICE_SETTINGS`](#mixing.dubbing.tts.DFLT_VOICE_SETTINGS)  | Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](#mixing.dubbing.tts.DFLT_MODEL_ID) on why this is not tuned for expressiveness. |
 
 ### Functions
 
-| [`add_shared_voice`](#mixing.dubbing.tts.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.             |
-|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| [`default_cache_dir`](#mixing.dubbing.tts.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                    |
-| [`find_voice`](#mixing.dubbing.tts.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive). |
-| [`list_voices`](#mixing.dubbing.tts.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                       |
-| [`search_shared_voices`](#mixing.dubbing.tts.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).        |
-| [`synthesize_to_file`](#mixing.dubbing.tts.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                |
-| [`text_to_speech`](#mixing.dubbing.tts.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.             |
+| [`add_shared_voice`](#mixing.dubbing.tts.add_shared_voice)(public_owner_id, voice_id, ...)   | Add a shared-library voice to the account so it can be synthesized.                                                                                                                            |
+|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [`default_cache_dir`](#mixing.dubbing.tts.default_cache_dir)()                                | Default on-disk cache for synthesized audio.                                                                                                                                                   |
+| [`find_voice`](#mixing.dubbing.tts.find_voice)(query, \*[, api_key, voices])           | Return the first voice whose name or labels contain `query` (case-insensitive).                                                                                                                |
+| [`list_voices`](#mixing.dubbing.tts.list_voices)(\*[, api_key, timeout])                | List the voices available on the account.                                                                                                                                                      |
+| [`output_format_encode_args`](#mixing.dubbing.tts.output_format_encode_args)([output_format])         | ffmpeg output arguments that encode audio as ElevenLabs' `{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer); e.g. `encode_args=` for `mixing.splice.replace_span_file()`. |
+| [`search_shared_voices`](#mixing.dubbing.tts.search_shared_voices)(\*[, language, ...])          | Search ElevenLabs' public *shared voice library* (not just the account).                                                                                                                       |
+| [`synthesize_to_file`](#mixing.dubbing.tts.synthesize_to_file)(text, voice_id, path, ...)      | Synthesize `text` and write the audio to `path`.                                                                                                                                               |
+| [`text_to_speech`](#mixing.dubbing.tts.text_to_speech)(text, voice_id, \*[, api_key, ...]) | Synthesize `text` to speech with ElevenLabs and return audio bytes.                                                                                                                            |
 
 ### mixing.dubbing.tts.DFLT_MODEL_ID *= 'eleven_multilingual_v2'*
 
@@ -66,6 +68,14 @@ Highest standard MP3 quality that does not require a paid tier.
 Voice settings for dubbing fidelity — see [`DFLT_MODEL_ID`](#mixing.dubbing.tts.DFLT_MODEL_ID) on why this
 is not tuned for expressiveness. `stability` ~0.5 keeps the read steady;
 `similarity_boost` ~0.8 keeps timbre faithful to the chosen voice.
+
+### mixing.dubbing.tts.OUTPUT_FORMAT_CODECS *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]]* *= {'alaw': ('pcm_alaw', 'alaw'), 'mp3': ('libmp3lame', 'mp3'), 'opus': ('libopus', 'ogg'), 'pcm': ('pcm_s16le', 's16le'), 'ulaw': ('pcm_mulaw', 'mulaw'), 'wav': ('pcm_s16le', 'wav')}*
+
+what
+re-encodes audio into the same format (a line spliced into a take, say).
+
+* **Type:**
+  ElevenLabs `output_format` codec family -> `(ffmpeg encoder, muxer)`
 
 ### mixing.dubbing.tts.add_shared_voice(public_owner_id, voice_id, name, , api_key=None, timeout=60.0)
 
@@ -119,6 +129,22 @@ List the voices available on the account.
   `age`, `gender`, `use_case`) describing the voice.
 * **Raises:**
   [**RuntimeError**](https://docs.python.org/3/builtins/exceptions.html#RuntimeError) – No API key supplied and `ELEVENLABS_API_KEY` (or `ELEVEN_API_KEY`) unset.
+
+### mixing.dubbing.tts.output_format_encode_args(output_format='mp3_44100_128')
+
+ffmpeg output arguments that encode audio as ElevenLabs’
+`{codec}_{rate}[_{kbps}]` `output_format` (codec, rate, bitrate, muxer);
+e.g. `encode_args=` for `mixing.splice.replace_span_file()`.
+
+```pycon
+>>> output_format_encode_args("mp3_44100_128")
+['-c:a', 'libmp3lame', '-ar', '44100', '-b:a', '128k', '-f', 'mp3']
+>>> output_format_encode_args("pcm_16000")
+['-c:a', 'pcm_s16le', '-ar', '16000', '-f', 's16le']
+```
+
+* **Return type:**
+  [`list`](https://docs.python.org/3/builtins/stdtypes.html#list)[[`str`](https://docs.python.org/3/builtins/stdtypes.html#str)]
 
 ### mixing.dubbing.tts.search_shared_voices(, language=None, use_cases=None, gender=None, category=None, sort=None, page_size=40, api_key=None, timeout=60.0, \*\*extra_params)
 
