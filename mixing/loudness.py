@@ -721,21 +721,61 @@ def attack_release(
     value falls (a gain being reduced), ``release_s`` while it rises. A time
     constant of ``0`` follows at once. Starts from ``initial``.
 
-    The coefficient depends on the direction, so this is a loop, not a linear
-    filter: run it on frames (a millisecond or more), not samples at 48 kHz.
-    The one smoother behind :func:`mixing.audio.duck_audio` and
-    :func:`mixing.treatment.compress`.
+    The coefficient depends on the direction, so this is not a linear filter.
+    A target that holds its value for runs (an on/off gate, a ducking mask) is
+    smoothed in closed form, one numpy expression per run: within a run the
+    follower never crosses the target, so its coefficient is fixed and
+    ``y_k = t + (1 - a)**k · (y_0 - t)``. That makes it fast enough per SAMPLE
+    on gates (foley's weave mixes, reeleehq/foley#306). A target that changes
+    on most steps is looped over, which is right for frames (a millisecond or
+    more), not samples at 48 kHz. The one smoother behind
+    :func:`mixing.audio.duck_audio`, :func:`mixing.treatment.compress` and
+    foley's ``attack_release_envelope``.
 
     >>> attack_release(np.array([-10.0, -10.0, 0.0]), step_s=1.0, attack_s=0.0, release_s=1.0)
     array([-10.        , -10.        ,  -3.67879441])
+    >>> gate = np.repeat([1.0, 0.0, 1.0], 40)  # three runs: the closed form
+    >>> a, r = _one_pole_coefficient(0.01, 0.05), _one_pole_coefficient(0.01, 0.2)
+    >>> looped = _attack_release_loop(gate, a, r, 1.0)
+    >>> bool(np.allclose(attack_release(gate, step_s=0.01, attack_s=0.05, release_s=0.2, initial=1.0), looped, atol=1e-12))
+    True
     """
     attack = _one_pole_coefficient(step_s, attack_s)
     release = _one_pole_coefficient(step_s, release_s)
-    out = np.empty(len(target), dtype=np.float64)
+    t = np.asarray(target, dtype=np.float64)
+    starts = np.concatenate(([0], np.flatnonzero(t[1:] != t[:-1]) + 1)) if len(t) else np.array([], int)
+    if len(starts) * RUNS_PER_STEP_FOR_CLOSED_FORM > len(t):
+        return _attack_release_loop(t, attack, release, initial)
+    return _attack_release_runs(t, starts, attack, release, initial)
+
+
+#: The closed form runs when the target has at most one run per this many steps;
+#: below that, a numpy call per run costs more than the plain loop.
+RUNS_PER_STEP_FOR_CLOSED_FORM: int = 8
+
+
+def _attack_release_loop(t: np.ndarray, attack: float, release: float, initial: float) -> np.ndarray:
+    """:func:`attack_release` one step at a time (coefficients, not time constants)."""
+    out = np.empty(len(t), dtype=np.float64)
     value = float(initial)
-    for i, t in enumerate(np.asarray(target, dtype=np.float64)):
-        value += (t - value) * (attack if t < value else release)
+    for i, ti in enumerate(t):
+        value += (ti - value) * (attack if ti < value else release)
         out[i] = value
+    return out
+
+
+def _attack_release_runs(
+    t: np.ndarray, starts: np.ndarray, attack: float, release: float, initial: float
+) -> np.ndarray:
+    """:func:`attack_release` in closed form per run of equal targets (``starts``:
+    each run's first index)."""
+    out = np.empty(len(t), dtype=np.float64)
+    value = float(initial)
+    for a, b in zip(starts, np.append(starts[1:], len(t))):
+        level = t[a]
+        keep = 1.0 - (attack if level < value else release)  # the share left each step
+        out[a:b] = level + np.power(keep, np.arange(1, b - a + 1)) * (value - level)
+        value = float(out[b - 1])
     return out
 
 
