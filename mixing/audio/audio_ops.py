@@ -2817,6 +2817,7 @@ class AlignedSpan:
 
     @property
     def duration_s(self) -> float:
+        """Length of the clip, in seconds."""
         return self.clip_end_s - self.clip_start_s
 
     @property

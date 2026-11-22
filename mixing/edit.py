@@ -408,10 +408,12 @@ class Timeline:
 
     @property
     def total_frames(self) -> int:
+        """Total number of frames on the timeline."""
         return self.frame_bounds[-1]
 
     @property
     def total_samples(self) -> int:
+        """Total number of audio samples on the timeline."""
         return self.sample_bounds[-1]
 
 

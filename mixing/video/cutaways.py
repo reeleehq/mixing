@@ -127,6 +127,7 @@ class Cutaway:
 
     @property
     def duration(self) -> float:
+        """Length in seconds (``t1 - t0``, rounded to ms)."""
         return round(self.t1 - self.t0, 3)
 
     @property
@@ -143,6 +144,7 @@ class Cutaway:
 
     @property
     def is_image(self) -> bool:
+        """Whether ``src`` is a still image (by file suffix)."""
         return Path(self.src).suffix.lower() in IMAGE_SUFFIXES
 
 

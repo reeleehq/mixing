@@ -266,6 +266,7 @@ class TreatmentPreset:
         _refuse(problems, f"treatment {self.name!r}")
 
     def __call__(self, samples: np.ndarray, fs: int) -> np.ndarray:
+        """Apply this treatment to ``samples`` at sample rate ``fs``."""
         return apply_treatment(samples, fs, self)
 
 
