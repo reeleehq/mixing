@@ -64,6 +64,10 @@ MAX_CUTOFF_NYQUIST_FRACTION = 0.95
 DEFAULT_DETECTOR_S = 0.02
 #: Floor of the compressor's level detector, so silence has a finite level (dBFS).
 DETECTOR_FLOOR_DB = -120.0
+#: Frame of the compressor's gain smoothing (s), when ``attack_s``/``release_s``
+#: are set: the gain reduction is followed per frame (its deepest point, so a
+#: peak is never skipped), then interpolated back to samples.
+GAIN_STEP_S = 0.001
 
 #: A treatment: float samples and their rate in, the treated samples out.
 TreatmentFunc = Callable[[np.ndarray, int], np.ndarray]
@@ -90,8 +94,15 @@ def _band_problems(low_hz: float, high_hz: float, order: int) -> list[str]:
     return [why for ok, why in checks if not ok]
 
 
-def _compressor_problems(ratio: float, detector_s: float) -> list[str]:
-    checks = ((ratio >= 1, "ratio >= 1"), (detector_s > 0, "detector_s > 0"))
+def _compressor_problems(
+    ratio: float, detector_s: float, attack_s: float = 0.0, release_s: float = 0.0
+) -> list[str]:
+    checks = (
+        (ratio >= 1, "ratio >= 1"),
+        (detector_s > 0, "detector_s > 0"),
+        (attack_s >= 0, "attack_s >= 0"),
+        (release_s >= 0, "release_s >= 0"),
+    )
     return [why for ok, why in checks if not ok]
 
 
@@ -138,6 +149,8 @@ def compress(
     ratio: float,
     makeup_db: float = 0.0,
     detector_s: float = DEFAULT_DETECTOR_S,
+    attack_s: float = 0.0,
+    release_s: float = 0.0,
 ) -> np.ndarray:
     """``data`` through a feed-forward compressor, then ``makeup_db`` of gain.
 
@@ -149,13 +162,19 @@ def compress(
     start is not let through uncompressed. Float samples, ``(n,)`` or
     ``(n, channels)``; dtype kept.
 
+    ``attack_s`` / ``release_s`` (default ``0``: the gain follows the detector
+    at once, as a single-time-constant compressor does) smooth the gain
+    reduction with separate time constants, a device's fast attack and slow
+    release (e.g. 5 ms / 150 ms pumps less on speech over a crowd), through
+    :func:`mixing.loudness.attack_release` on ``GAIN_STEP_S`` frames.
+
     >>> import numpy as np
     >>> x = np.full(2000, 0.5)
     >>> y = compress(x, 1000, threshold_db=-20.0, ratio=4.0)
     >>> bool(y[-1] < x[-1])
     True
     """
-    _refuse(_compressor_problems(ratio, detector_s), "compress")
+    _refuse(_compressor_problems(ratio, detector_s, attack_s, release_s), "compress")
     x = _samples(data)
     if not len(x):
         return x.copy()
@@ -170,8 +189,35 @@ def compress(
     power, _ = sig.lfilter(b, den, power, zi=zi)
     level_db = power_to_db(np.maximum(power, db_to_power(DETECTOR_FLOOR_DB)))
     over = np.maximum(0.0, level_db - threshold_db)
-    gain = db_to_gain(makeup_db - over * (1.0 - 1.0 / ratio))
+    reduction_db = -over * (1.0 - 1.0 / ratio)
+    if attack_s > 0 or release_s > 0:
+        reduction_db = _smoothed_reduction(reduction_db, fs, attack_s, release_s)
+    gain = db_to_gain(makeup_db + reduction_db)
     return (x * (gain if x.ndim == 1 else gain[:, None])).astype(x.dtype, copy=False)
+
+
+def _smoothed_reduction(
+    reduction_db: np.ndarray, fs: int, attack_s: float, release_s: float
+) -> np.ndarray:
+    """A per-sample gain reduction (dB, <= 0) followed by the attack/release
+    smoother on ``GAIN_STEP_S`` frames (each frame's deepest reduction), then
+    interpolated back to samples from the frames' centres."""
+    from mixing.loudness import attack_release
+
+    n = len(reduction_db)
+    step = max(1, int(round(GAIN_STEP_S * fs)))
+    pad = (-n) % step
+    framed = np.concatenate([reduction_db, np.full(pad, reduction_db[-1])])
+    deepest = framed.reshape(-1, step).min(axis=1)
+    smoothed = attack_release(
+        deepest,
+        step_s=step / fs,
+        attack_s=attack_s,
+        release_s=release_s,
+        initial=deepest[0],
+    )
+    centres = np.arange(len(deepest)) * step + (step - 1) / 2.0
+    return np.interp(np.arange(n), centres, smoothed)
 
 
 @dataclass(frozen=True)
@@ -192,6 +238,8 @@ class TreatmentPreset:
         makeup_db: Gain after the compressor (dB).
         filter_order: Butterworth order of the band-pass.
         detector_s: RMS detector time constant (s).
+        attack_s: Gain-reduction attack time constant (s); ``0``: instant.
+        release_s: Gain-reduction release time constant (s); ``0``: instant.
         ceiling_db: Peak ceiling of the final limiter (dBFS).
     """
 
@@ -204,11 +252,15 @@ class TreatmentPreset:
     filter_order: int = DEFAULT_FILTER_ORDER
     detector_s: float = DEFAULT_DETECTOR_S
     ceiling_db: float = DEFAULT_CEILING_DB
+    attack_s: float = 0.0
+    release_s: float = 0.0
 
     def __post_init__(self):
         problems = [
             *_band_problems(self.low_hz, self.high_hz, self.filter_order),
-            *_compressor_problems(self.ratio, self.detector_s),
+            *_compressor_problems(
+                self.ratio, self.detector_s, self.attack_s, self.release_s
+            ),
             *([] if self.ceiling_db <= 0 else ["ceiling_db <= 0"]),
         ]
         _refuse(problems, f"treatment {self.name!r}")
@@ -240,6 +292,8 @@ def apply_treatment(
         ratio=preset.ratio,
         makeup_db=preset.makeup_db,
         detector_s=preset.detector_s,
+        attack_s=preset.attack_s,
+        release_s=preset.release_s,
     )
     if not len(x):
         return x

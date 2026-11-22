@@ -203,3 +203,67 @@ def test_import_stays_light():
         "assert not heavy, heavy"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def _burst(fs=8000):
+    """Quiet, a loud second, quiet again (mono float)."""
+    t = np.arange(3 * fs) / fs
+    amp = np.where((t >= 1.0) & (t < 2.0), 0.8, 0.02)
+    return amp * np.sin(2 * np.pi * 1000 * t), fs  # inside every preset's passband
+
+
+def test_compress_without_attack_release_is_the_plain_compressor():
+    from mixing.treatment import compress
+
+    x, fs = _burst()
+    plain = compress(x, fs, threshold_db=-30.0, ratio=4.0)
+    np.testing.assert_array_equal(
+        plain, compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.0, release_s=0.0)
+    )
+
+
+def test_a_slow_release_holds_the_gain_down_after_a_burst():
+    from mixing.treatment import compress
+
+    x, fs = _burst()
+    after = slice(int(2.02 * fs), int(2.12 * fs))  # just after the burst ends
+    fast = compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.005, release_s=0.005)
+    slow = compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.005, release_s=0.5)
+    rms = lambda y: float(np.sqrt(np.mean(y[after] ** 2)))
+    assert rms(slow) < 0.7 * rms(fast)
+
+
+def test_a_slow_attack_lets_the_onset_through():
+    from mixing.treatment import compress
+
+    x, fs = _burst()
+    onset = slice(int(1.0 * fs), int(1.03 * fs))
+    fast = compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.001, release_s=0.1)
+    slow = compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.2, release_s=0.1)
+    peak = lambda y: float(np.abs(y[onset]).max())
+    assert peak(slow) > 1.3 * peak(fast)
+
+
+def test_attack_release_reach_presets_and_are_validated():
+    import dataclasses
+
+    from mixing.treatment import TREATMENTS
+
+    radio = dataclasses.replace(TREATMENTS["am_radio"], attack_s=0.005, release_s=0.15)
+    x, fs = _burst(16000)
+    y = radio(x, fs)
+    assert y.shape == x.shape and not np.array_equal(y, TREATMENTS["am_radio"](x, fs))
+    with pytest.raises(ValueError, match="attack_s >= 0"):
+        dataclasses.replace(radio, attack_s=-0.1)
+
+
+def test_attack_release_smoothing_is_fast_enough_for_long_programs():
+    import time
+
+    from mixing.treatment import compress
+
+    fs = 48000
+    x = np.random.default_rng(0).standard_normal(60 * fs) * 0.1
+    t = time.perf_counter()
+    compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.005, release_s=0.15)
+    assert time.perf_counter() - t < 5.0  # 60 s at 48 kHz

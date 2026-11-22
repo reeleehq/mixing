@@ -949,22 +949,12 @@ def _duck_gain_envelope(
     of a broadcast ducker.
     """
 
-    def _coeff(time_constant_s: float) -> float:
-        if time_constant_s <= 0:
-            return 1.0  # instantaneous
-        return 1.0 - float(np.exp(-frame_s / time_constant_s))
-
-    attack_coeff = _coeff(attack_s)
-    release_coeff = _coeff(release_s)
+    from mixing.loudness import attack_release
 
     targets = np.where(active, duck_db, 0.0)
-    gains = np.empty(len(targets), dtype=np.float64)
-    gain = 0.0
-    for i, target in enumerate(targets):
-        coeff = attack_coeff if target < gain else release_coeff
-        gain += (target - gain) * coeff
-        gains[i] = gain
-    return gains
+    return attack_release(
+        targets, step_s=frame_s, attack_s=attack_s, release_s=release_s, initial=0.0
+    )
 
 
 def _apply_gain_envelope(
