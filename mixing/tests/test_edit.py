@@ -278,6 +278,13 @@ def media(tmp_path_factory):
     return {"dir": d, "source": source, "still": still, "overlay": overlay_path}
 
 
+#: How the tests read frames back as RGB: exact conversion. Without
+#: ``full_chroma_int``, ffmpeg 7.1's default yuv420p -> rgb24 path on macOS arm64
+#: reads a grey ~2 levels low (28 as 26), which ``_source_frame`` turns into
+#: "half a frame early" though the render is frame-exact (reeleehq/mixing#207).
+READBACK_SWS_FLAGS = ("-sws_flags", "accurate_rnd+full_chroma_int")
+
+
 def _frames(path, size=(W, H)):
     import numpy as np
 
@@ -289,6 +296,7 @@ def _frames(path, size=(W, H)):
             "error",
             "-i",
             str(path),
+            *READBACK_SWS_FLAGS,
             "-f",
             "rawvideo",
             "-pix_fmt",
