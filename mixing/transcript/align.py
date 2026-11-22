@@ -218,7 +218,11 @@ def align_words(
         for k, w in zip(indices, weights):
             length = (hi - lo) * (w / total)
             out.append(
-                (reference[k], round(t, TIME_DECIMALS), round(t + length, TIME_DECIMALS))
+                (
+                    reference[k],
+                    round(t, TIME_DECIMALS),
+                    round(t + length, TIME_DECIMALS),
+                )
             )
             t += length
         prev_end = hi
@@ -242,4 +246,6 @@ def align_words(
             spread(range(i1, i2), prev_end, nxt)
         else:  # "insert": words heard that the text lacks; time passes
             prev_end = max(prev_end, timed[j2 - 1][2])
-    return AlignedWords(words=out, matched=len(anchors), total=len(ref), anchors=anchors)
+    return AlignedWords(
+        words=out, matched=len(anchors), total=len(ref), anchors=anchors
+    )

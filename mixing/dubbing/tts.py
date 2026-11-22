@@ -89,6 +89,7 @@ def output_format_encode_args(output_format: str = DFLT_OUTPUT_FORMAT) -> list[s
         args += ["-b:a", f"{rest[1]}k"]
     return args + ["-f", muxer]
 
+
 #: Voice settings for dubbing fidelity — see :data:`DFLT_MODEL_ID` on why this
 #: is not tuned for expressiveness. ``stability`` ~0.5 keeps the read steady;
 #: ``similarity_boost`` ~0.8 keeps timbre faithful to the chosen voice.
