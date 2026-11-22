@@ -96,6 +96,7 @@ class Utterance:
 
     @property
     def duration(self) -> float:
+        """Length in seconds (``end - start``)."""
         return self.end - self.start
 
     def decided(

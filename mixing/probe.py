@@ -205,6 +205,7 @@ class MediaProbe:
 
     @property
     def has_video(self) -> bool:
+        """Whether the media has a video picture (a known width)."""
         return self.width is not None
 
     @property

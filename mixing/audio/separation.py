@@ -193,6 +193,7 @@ class SeparationStrategy:
     context_s: float = DEFAULT_CONTEXT_S
 
     def __call__(self, samples: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
+        """Run the strategy on ``samples`` at ``sr``; return the separated pair of arrays."""
         return _run_strategy(self, samples, sr)
 
 

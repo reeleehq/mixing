@@ -35,11 +35,14 @@ LABEL_DISTANCE = 0.6
 
 @dataclass(frozen=True)
 class SongSection:
+    """A labelled time span (seconds) of a song, e.g. a verse or chorus."""
+
     start: float
     end: float
     label: str
 
     def to_dict(self) -> dict:
+        """Return the section as a JSON-serialisable dict (times rounded to ms)."""
         return {
             "start": round(self.start, 3),
             "end": round(self.end, 3),
