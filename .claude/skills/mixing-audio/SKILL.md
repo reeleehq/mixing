@@ -598,6 +598,20 @@ bleep(
 
 Each span is widened while the voice stays within `widen_floor_db` (-24 dB) of the word's peak, so a held sung word's tail is covered, but never past `max_end` (the next word's onset; without it the widening swallows the next word in connected singing). Widening measures the input, so it needs a vocal stem: on a whole mix the music never drops 24 dB and every span widens by the full `widen_max_s`, hence `widen_floor_db=None` there. The beep is levelled from the voice the mute removed (with a separator, its speech estimate). `widen_floor_db=None` keeps the spans as given; `beep_db`, `tone_hz`, `fade_s` tune the beep. Whisper word times are off by up to ~0.3 s on sung vocals; MMS forced alignment of the phrase gives usable bounds.
 
+## Code-switched audio: per-language utterances and pairs
+
+Whole-file ASR fails on a recording that alternates languages (Whisper keeps one, drops the other). `mixing.audio.code_switch` splits at silences, identifies each utterance's language and transcribes it in that language, then pairs on the language that is identified reliably.
+
+```python
+from mixing.audio.code_switch import language_utterances, language_runs, anchored_pairs, is_junk
+
+utts = language_utterances("lesson.m4a", languages=("fr", "zh"))  # Utterance(start, end, probs, text)
+runs = language_runs(utts)  # Segments labelled "fr"/"zh"; junk dropped
+pairs = anchored_pairs(utts, anchor="fr", junk=is_junk)  # LanguagePair(anchor=fr Segment, other=zh Segment | None)
+```
+
+Seams: `language_id=(samples, sr) -> {lang: p}` (default `whisper_language_id()`, mlx_whisper on Apple silicon) and `transcribe=(samples, sr, lang) -> text` (default `scribed_transcriber()`, scribed's local backend); utterances reach them mono at 16 kHz. The steps after the first are pure, so store the utterances and re-tune `language_runs` / `anchored_pairs` without re-running models. `order="anchor-then-other"` when the reliable language comes first. Fine silence splitting (`min_silence_s=0.35`, `-40 dB`) is what separates a phrase from its translation; a speaker who alternates word by word lands both languages in one utterance.
+
 ## Replace one span of a take (re-render a line)
 
 `mixing.splice` cuts a span out of a take and puts new audio in, each join faded (8 ms) so there is no click and no surviving tail; outside the fades every sample is copied exactly. Needs numpy (and an ffmpeg for files), not the media stack.
