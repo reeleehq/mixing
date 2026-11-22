@@ -432,7 +432,7 @@ def test_require_package_hints_the_separation_extras(monkeypatch, module, hint):
     from mixing.util import require_package
 
     def deny(name, *a, **k):
-        raise ImportError(name)
+        raise ModuleNotFoundError(f"No module named {name!r}", name=name)
 
     monkeypatch.setattr(importlib, "import_module", deny)
     with pytest.raises(ImportError, match=hint.replace("[", r"\[").replace("]", r"\]")):
