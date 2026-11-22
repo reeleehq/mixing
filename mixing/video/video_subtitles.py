@@ -236,7 +236,9 @@ def auto_shift_srt_to_start(
         return srt_content
 
     # Determine the target start time
-    should_detect_audio = auto_detect_audio_start or start_time is True
+    should_detect_audio = (
+        auto_detect_audio_start or start_time is True or callable(start_time)
+    )
 
     if should_detect_audio:
         if video_path is None:
