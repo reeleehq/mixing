@@ -19,6 +19,12 @@ Lower-level building blocks:
     ...     transcribe, build_cuts, keeps_from_cuts,
     ...     words_to_srt, words_to_prose, apply_keeps,
     ... )
+
+Time authored text (a script, a cue) by the transcribed words:
+    >>> from mixing.transcript import align_words, tokens_of
+    >>> heard = [("hello", 0.5, 0.9), ("there", 0.9, 1.3)]
+    >>> align_words(tokens_of("Hello there!"), heard).coverage
+    1.0
 """
 
 from mixing.transcript.scribe import (
@@ -44,6 +50,12 @@ from mixing.transcript.formats import (
 from mixing.transcript.media import extract_audio, apply_keeps
 from mixing.transcript.persist import srt_for_media
 from mixing.transcript.pipeline import remove_fillers, FillerRemovalResult
+from mixing.transcript.align import (
+    AlignedWords,
+    align_words,
+    normalize_word,
+    tokens_of,
+)
 
 __all__ = [
     "transcribe",
@@ -65,4 +77,8 @@ __all__ = [
     "srt_for_media",
     "remove_fillers",
     "FillerRemovalResult",
+    "AlignedWords",
+    "align_words",
+    "normalize_word",
+    "tokens_of",
 ]
