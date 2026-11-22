@@ -46,6 +46,7 @@ import numpy as np
 from ..egress import Output, deliver
 from ..filtergraph import SEMITONES_PER_OCTAVE, resample_pitch_filter
 from ..util import ffmpeg_exe, require_package
+from ..util import db_to_gain, power_to_db
 from .audio_ops import Audio
 from .leveling import integrated_lufs
 from .samples import as_audio, ffmpeg_float, resample, segment_samples, to_audio
@@ -131,7 +132,7 @@ LATENCY_ENVELOPE_S = 0.005
 #: Peak (linear, ~-0.1 dBFS) the result is scaled to when the shifted, loudness-
 #: restored signal would exceed full scale; just under 1.0 so that rounding to
 #: the integer sample width (8-bit included) cannot clip.
-CLIP_CEILING = 10.0 ** (-0.1 / 20.0)
+CLIP_CEILING = db_to_gain(-0.1)
 RUBBERBAND_INSTALL_HINT = (
     "ffmpeg's 'rubberband' filter is not available in {exe!r}. Install an ffmpeg "
     "built with --enable-librubberband (macOS: `brew tap homebrew-ffmpeg/ffmpeg && "
@@ -201,7 +202,7 @@ def _band_stats(
     centroid = float((freqs * psd).sum() / total)
     lo, hi = low_band
     band = float(psd[(freqs >= lo) & (freqs <= hi)].sum())
-    low_db = 10.0 * np.log10(band / total) if band > 0 else -np.inf
+    low_db = power_to_db(band / total) if band > 0 else -np.inf
     return centroid, (float(low_db) if np.isfinite(low_db) else None)
 
 
@@ -660,7 +661,7 @@ def shift_pitch(
         if preserve_loudness:
             before, after = integrated_lufs(data, fs), integrated_lufs(out, fs)
             if np.isfinite(before) and np.isfinite(after):
-                out = out * 10.0 ** ((before - after) / 20.0)
+                out = out * db_to_gain(before - after)
         peak = float(np.max(np.abs(out), initial=0.0))
         if peak > CLIP_CEILING:
             out = out * (CLIP_CEILING / peak)

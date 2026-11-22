@@ -48,6 +48,7 @@ import tempfile
 import numpy as np
 
 from ..util import require_package, AudioTimeUnit, to_seconds, get_path_from_clipboard
+from ..util import db_to_gain, gain_to_db
 from ._pcm import resample, segment_samples
 from .audio_util import AudioSource, _normalize_audio_source
 from ..egress import Output, deliver, is_sink, resolve_output_path
@@ -740,7 +741,7 @@ def _mix_amplitude_to_db(amplitude: float) -> float:
     """Linear amplitude ratio in ``[0, 1]`` → dB gain, floored at silence."""
     if amplitude <= 0.0:
         return _MIX_SILENCE_FLOOR_DB
-    return max(_MIX_SILENCE_FLOOR_DB, float(20.0 * np.log10(amplitude)))
+    return max(_MIX_SILENCE_FLOOR_DB, float(gain_to_db(amplitude)))
 
 
 def overlay_audio(
@@ -920,8 +921,8 @@ def _frame_rms_db(segment: "AudioSegment", *, frame_n: int) -> np.ndarray:
     padded = np.zeros(n_frames * frame_n, dtype=np.float64)
     padded[: len(samples)] = samples
     rms = np.sqrt(np.mean(padded.reshape(n_frames, frame_n) ** 2, axis=1))
-    floor = 10.0 ** (_MIX_SILENCE_FLOOR_DB / 20.0)
-    return 20.0 * np.log10(np.maximum(rms, floor))
+    floor = db_to_gain(_MIX_SILENCE_FLOOR_DB)
+    return gain_to_db(np.maximum(rms, floor))
 
 
 def _hold_active(active: np.ndarray, *, hold_frames: int) -> np.ndarray:
@@ -989,7 +990,7 @@ def _apply_gain_envelope(
 
     sample_times = (np.arange(per_channel) + 0.5) / segment.frame_rate
     frame_times = (np.arange(len(gain_db)) + 0.5) * frame_s
-    gain_linear = 10.0 ** (np.interp(sample_times, frame_times, gain_db) / 20.0)
+    gain_linear = db_to_gain(np.interp(sample_times, frame_times, gain_db))
 
     scaled = samples.astype(np.float64).reshape(-1, channels) * gain_linear[:, None]
     limits = np.iinfo(samples.dtype)

@@ -38,6 +38,8 @@ from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 
+from mixing.util import db_to_gain
+
 from ..egress import Output, deliver
 from .samples import AudioLike, float_input
 from .separation import (
@@ -144,7 +146,7 @@ def widen_spans(
         if not inside.size or inside.max() <= 0:
             out.append((w.start, w.end))
             continue
-        floor = inside.max() * 10.0 ** (floor_db / 20.0)
+        floor = inside.max() * db_to_gain(floor_db)
         lo = max(0, i - int(round(max_s[0] / step)))
         hi = min(len(env), j + int(round(max_s[1] / step)))
         if w.max_end is not None:
@@ -303,7 +305,7 @@ def bleep(
             x, widened, separator=separator or MUTE, margin=fade_s, sr=rate
         )
         removed = x - out  # the voice the mute took out (all of it, inside a word)
-        gain = 10.0 ** (beep_db / 20.0)
+        gain = db_to_gain(beep_db)
         beeps = [
             (span, gain * _rms(removed, _frames((w.start, w.end), rate, len(x))))
             for span, w in zip(widened, words)

@@ -12,6 +12,53 @@ TimeUnit = Literal["seconds", "frames", "milliseconds"]
 AudioTimeUnit = Literal["seconds", "samples", "milliseconds"]
 
 
+# --- decibels ---------------------------------------------------------------
+# Amplitude (a gain, a peak, an RMS) is 20 log10; power (a mean square, an
+# energy ratio) is 10 log10. Each call site names which it means, and the
+# arithmetic lives here once. Exponentials work on floats and numpy arrays
+# alike; the logs import numpy on first call (``mixing.util`` stays pure).
+
+
+def db_to_gain(db):
+    """Amplitude gain of ``db`` decibels: ``10 ** (db / 20)``.
+
+    >>> db_to_gain(-6.0)  # doctest: +ELLIPSIS
+    0.501...
+    """
+    return 10.0 ** (db / 20.0)
+
+
+def gain_to_db(gain):
+    """Decibels of an amplitude ``gain`` (or peak, RMS): ``20 log10(gain)``.
+
+    >>> float(gain_to_db(10.0))
+    20.0
+    """
+    import numpy as np
+
+    return 20.0 * np.log10(gain)
+
+
+def db_to_power(db):
+    """Power ratio of ``db`` decibels: ``10 ** (db / 10)``.
+
+    >>> db_to_power(20.0)
+    100.0
+    """
+    return 10.0 ** (db / 10.0)
+
+
+def power_to_db(power):
+    """Decibels of a power ratio (a mean square, an energy share): ``10 log10``.
+
+    >>> float(power_to_db(100.0))
+    20.0
+    """
+    import numpy as np
+
+    return 10.0 * np.log10(power)
+
+
 def has_ffmpeg() -> bool:
     """Return True if the ``ffmpeg`` binary is available on ``PATH``.
 

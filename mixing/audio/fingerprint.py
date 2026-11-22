@@ -88,6 +88,8 @@ from typing import TYPE_CHECKING, Literal, Mapping, Optional, Union
 
 import numpy as np
 
+from mixing.util import gain_to_db
+
 from ._pcm import resample, segment_samples
 from .audio_util import AudioSource
 
@@ -470,7 +472,7 @@ def _spectrogram_db(y: np.ndarray, params: LandmarkParams) -> np.ndarray:
     framed = np.lib.stride_tricks.sliding_window_view(y, n_fft)[::hop]
     magnitude = np.abs(np.fft.rfft(framed * window, axis=1))
     full_scale_sine = window.sum() / 2
-    return 20 * np.log10(magnitude / full_scale_sine + _EPS)
+    return gain_to_db(magnitude / full_scale_sine + _EPS)
 
 
 def _odd(n: int) -> int:

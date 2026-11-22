@@ -38,6 +38,8 @@ from typing import Callable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 
+from mixing.util import db_to_gain, gain_to_db
+
 from ..egress import Output, deliver
 from .audio_ops import _MIX_SILENCE_FLOOR_DB, Audio
 from ..loudness import (
@@ -131,8 +133,8 @@ def _noise_floor(
     padded = np.zeros(n_frames * frame_n)
     padded[: len(mono)] = mono
     rms = np.sqrt(np.mean(padded.reshape(n_frames, frame_n) ** 2, axis=1))
-    floor = 10.0 ** (_MIX_SILENCE_FLOOR_DB / 20.0)
-    return float(np.percentile(20.0 * np.log10(np.maximum(rms, floor)), percentile))
+    floor = db_to_gain(_MIX_SILENCE_FLOOR_DB)
+    return float(np.percentile(gain_to_db(np.maximum(rms, floor)), percentile))
 
 
 def noise_floor_db(
@@ -156,7 +158,7 @@ def apply_gain(audio: Union[str, Path, Audio], db: float) -> Audio:
     """
     audio = as_audio(audio)
     data, _ = audio_samples(audio)
-    gained = data * 10.0 ** (db / 20.0)
+    gained = data * db_to_gain(db)
     return to_audio(gained, audio._get_segment(), time_unit=audio.time_unit)
 
 
@@ -380,7 +382,7 @@ def level_turns(
                 return (
                     x
                     if not np.isfinite(current)
-                    else x * 10.0 ** ((target_db - current) / 20.0)
+                    else x * db_to_gain(target_db - current)
                 )
 
             return stage
@@ -388,7 +390,7 @@ def level_turns(
         clean = _as_stage(denoise, fs, like, compensate_latency=True)
         limit = None
         if ceiling_db is not None:
-            ceiling = 10.0 ** (ceiling_db / 20.0)
+            ceiling = db_to_gain(ceiling_db)
 
             def limit(x: np.ndarray) -> np.ndarray:
                 return limit_peaks(x, ceiling=ceiling, true_peak=True, fs=fs)
