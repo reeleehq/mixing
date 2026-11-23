@@ -38,13 +38,7 @@ whose `method` says how it was read:
 `ffprobe=` is the seam: the default finds one ([`find_ffprobe()`](#mixing.probe.find_ffprobe)), a path
 uses that binary, `None` forces the banner. A file that does not exist raises
 [`MediaNotFoundError`](mixing.errors.html.md#mixing.errors.MediaNotFoundError); one ffmpeg cannot read raises
-[`ProbeError`](mixing.errors.html.md#mixing.errors.ProbeError) (both are 
-
-```
-``
-```
-
-ValueError\`\`s).
+[`ProbeError`](mixing.errors.html.md#mixing.errors.ProbeError) (both are `ValueError` subclasses).
 
 ### Module Attributes
 

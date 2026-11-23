@@ -209,7 +209,7 @@
 </span><span id="line-34"><span class="sd">``ffprobe=`` is the seam: the default finds one (:func:`find_ffprobe`), a path</span>
 </span><span id="line-35"><span class="sd">uses that binary, ``None`` forces the banner. A file that does not exist raises</span>
 </span><span id="line-36"><span class="sd">:class:`~mixing.errors.MediaNotFoundError`; one ffmpeg cannot read raises</span>
-</span><span id="line-37"><span class="sd">:class:`~mixing.errors.ProbeError` (both are ``ValueError``s).</span>
+</span><span id="line-37"><span class="sd">:class:`~mixing.errors.ProbeError` (both are ``ValueError`` subclasses).</span>
 </span><span id="line-38"><span class="sd">"""</span>
 </span><span id="line-39">
 </span><span id="line-40"><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
@@ -997,7 +997,7 @@
 </footer>
     </div>
     
-    <script src="../../_static/documentation_options.js?v=0d7dcda5"></script>
+    <script src="../../_static/documentation_options.js?v=a90549bc"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
