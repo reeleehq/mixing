@@ -248,3 +248,14 @@ def _seg(start, end, label):
     from mixing.audio.segmentation import Segment
 
     return Segment(start, end, label)
+
+
+def test_weak_evidence_everywhere_is_ambiguous_not_the_first_language():
+    """All languages at or under max_other_probability: None, so a run can absorb the
+    utterance, not the dict's first language (reeleehq/mixing#218)."""
+    from mixing.audio.code_switch import Utterance
+
+    assert Utterance(0, 1, {"zh": 0.02, "fr": 0.05}).decided() is None
+    assert Utterance(0, 1, {"fr": 0.0, "zh": 0.08}).decided() is None
+    assert Utterance(0, 1, {"fr": 0.3, "zh": 0.05}).decided() == "fr"
+    assert Utterance(0, 1, {"fr": 0.05, "zh": 0.3}).decided() == "zh"
