@@ -116,57 +116,12 @@
 
 <section id="mixing">
 <h1>mixing<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#mixing">¶</a></h1>
-<p>Tools for <strong>video and audio editing</strong> in Python — slicing, fades, audio
-replace/mix, Ken Burns, thumbnails, subtitles, speech-to-text + filler removal,
-TTS dubbing, and chapter detection.</p>
+<p>Tools for <strong>video and audio editing</strong> in Python — slicing, fades, audio replace/mix, Ken Burns, thumbnails, subtitles, speech-to-text + filler removal, TTS dubbing, and chapter detection.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'mixing[media]'</span><span class="w">   </span><span class="c1"># audio + video editing (moviepy, opencv, scipy, pydub)</span>
 </span><span id="line-2">pip<span class="w"> </span>install<span class="w"> </span>mixing<span class="w">            </span><span class="c1"># base: only the pure modules (srt, chapters, errors, util, egress, transcript, TTS)</span>
 </span></code></pre></div>
 </div>
 <p>The base install is light on purpose: it carries no media backend (and so no bundled ffmpeg binary). <code class="docutils literal notranslate"><span class="pre">mixing.audio</span></code> and <code class="docutils literal notranslate"><span class="pre">mixing.video</span></code> need the <code class="docutils literal notranslate"><span class="pre">media</span></code> extra; importing them without it raises an <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> that says so.</p>
-<hr class="docutils"/>
-<section id="ai-first-start-with-the-skills-agents">
-<span id="-ai-first-start-with-the-skills--agents"></span><h2>🤖 AI-first: start with the skills &amp; agents<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#ai-first-start-with-the-skills-agents" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#ai-first-start-with-the-skills-agents'">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">mixing</span></code> is built to be driven by AI coding agents. The fastest, most reliable
-way to use it is through the bundled <strong>skills</strong> and <strong>agents</strong> in
-<a class="reference internal" href="#.claude/"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">.claude/</span></code></span></a> — task-oriented playbooks that encode the right
-functions, the calling conventions, and the gotchas, so an agent gets it right
-the first time.</p>
-<p><strong>Skills</strong> (<code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>) — <em>how to use mixing for a task</em>:</p>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>Skill</p></th>
-<th class="head"><p>Use it for</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing</span></code></span></a></p></td>
-<td><p><strong>Start here</strong> — router, architecture, the <code class="docutils literal notranslate"><span class="pre">output</span></code> protocol, extras</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#.claude/skills/mixing-audio/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-audio</span></code></span></a></p></td>
-<td><p>slice, fade, crop, concat, overlay, normalize, align, segment audio</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing-video/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-video</span></code></span></a></p></td>
-<td><p>slice, crop, loop, speed, replace/normalize audio, Ken Burns, thumbnails, subtitles</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#.claude/skills/mixing-transcript/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-transcript</span></code></span></a></p></td>
-<td><p>transcribe, remove fillers, SRT/prose, chapters</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing-dubbing/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-dubbing</span></code></span></a></p></td>
-<td><p>TTS re-voicing &amp; SRT translation</p></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Agents</strong> (<code class="docutils literal notranslate"><span class="pre">.claude/agents/</span></code>):</p>
-<ul class="simple">
-<li><p><a class="reference internal" href="#.claude/agents/mixing-editor.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-editor</span></code></span></a> — performs an editing task
-end-to-end (“edit this media …”).</p></li>
-<li><p><a class="reference internal" href="#.claude/agents/mixing-dev.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-dev</span></code></span></a> — works <em>on</em> the mixing codebase.</p></li>
-</ul>
-<p>Using Claude Code? These are discovered automatically from <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>. The
-architectural contract they share lives in <a class="reference internal" href="#.claude/CLAUDE.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">.claude/CLAUDE.md</span></code></span></a>.</p>
-</section>
-<hr class="docutils"/>
 <section id="quick-start">
 <h2>Quick start<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#quick-start" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#quick-start'">¶</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="kn">import</span><span class="w"> </span><span class="nn">mixing</span>  <span class="c1"># cheap: no moviepy/opencv loaded yet</span>
@@ -202,13 +157,9 @@ argument whose <em>role</em> is constant and <em>type</em> is open:</p>
 </span><span id="line-4"><span class="n">fade_in</span><span class="p">(</span><span class="s2">"in.mp3"</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="k">lambda</span> <span class="n">audio</span><span class="p">:</span> <span class="n">audio</span><span class="p">)</span>  <span class="c1"># callable → receives the result</span>
 </span></code></pre></div>
 </div>
-<p>Object producers (audio editing) return the in-memory object when <code class="docutils literal notranslate"><span class="pre">output=None</span></code>,
-so you can chain and save when ready. Functions that emit <em>several</em> artifacts
-qualify the destinations (<code class="docutils literal notranslate"><span class="pre">remove_fillers(media,</span> <span class="pre">output_dir=…,</span> <span class="pre">output_media=…)</span></code>).</p>
+<p>Object producers (audio editing) return the in-memory object when <code class="docutils literal notranslate"><span class="pre">output=None</span></code>, so you can chain and save when ready. Functions that emit <em>several</em> artifacts qualify the destinations (<code class="docutils literal notranslate"><span class="pre">remove_fillers(media,</span> <span class="pre">output_dir=…,</span> <span class="pre">output_media=…)</span></code>).</p>
 <p><strong>Lazy &amp; tiered.</strong> <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">mixing</span></code> (and <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">mixing.chapters</span></code> /
-<code class="docutils literal notranslate"><span class="pre">mixing.srt</span></code>) pull <strong>no</strong> heavy backends; moviepy/opencv/pydub load only when you
-touch a name that needs them. Import the facade (<code class="docutils literal notranslate"><span class="pre">mixing.Video</span></code>) or the
-subpackage (<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">mixing.video</span> <span class="pre">import</span> <span class="pre">Video</span></code>).</p>
+<code class="docutils literal notranslate"><span class="pre">mixing.srt</span></code>) pull <strong>no</strong> heavy backends; moviepy/opencv/pydub load only when you touch a name that needs them. Import the facade (<code class="docutils literal notranslate"><span class="pre">mixing.Video</span></code>) or the subpackage (<code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">mixing.video</span> <span class="pre">import</span> <span class="pre">Video</span></code>).</p>
 <p><strong>Sliceable media.</strong> <code class="docutils literal notranslate"><span class="pre">Audio</span></code> and <code class="docutils literal notranslate"><span class="pre">Video</span></code> are lazy, sliceable, context-managed
 views:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="kn">from</span><span class="w"> </span><span class="nn">mixing.video</span><span class="w"> </span><span class="kn">import</span> <span class="n">Video</span>
@@ -218,12 +169,7 @@ views:</p>
 </span></code></pre></div>
 </div>
 <p><strong>Logging, not printing.</strong> <code class="docutils literal notranslate"><span class="pre">mixing</span></code> never writes progress messages to stdout —
-every module logs through <code class="docutils literal notranslate"><span class="pre">logging.getLogger(__name__)</span></code>, and the package root
-carries a <code class="docutils literal notranslate"><span class="pre">NullHandler</span></code>, so <code class="docutils literal notranslate"><span class="pre">mixing</span></code> is silent by default. This keeps library
-calls usable from a stdout-parsing consumer. To see mixing’s own progress
-messages (e.g. while working interactively, or when an operation like
-<code class="docutils literal notranslate"><span class="pre">mixing.video.genai.generate_video</span></code> fails and you want the full diagnostic),
-opt in with:</p>
+every module logs through <code class="docutils literal notranslate"><span class="pre">logging.getLogger(__name__)</span></code>, and the package root carries a <code class="docutils literal notranslate"><span class="pre">NullHandler</span></code>, so <code class="docutils literal notranslate"><span class="pre">mixing</span></code> is silent by default. This keeps library calls usable from a stdout-parsing consumer. To see mixing’s own progress messages (e.g. while working interactively, or when an operation like <code class="docutils literal notranslate"><span class="pre">mixing.video.genai.generate_video</span></code> fails and you want the full diagnostic), opt in with:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 </span><span id="line-2">
 </span><span id="line-3"><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>  <span class="c1"># or level=logging.ERROR for errors only</span>
@@ -234,11 +180,9 @@ opt in with:</p>
 <h2>Requirements<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#requirements" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#requirements'">¶</a></h2>
 <ul class="simple">
 <li><p><strong>ffmpeg</strong> on PATH (most operations). macOS: <code class="docutils literal notranslate"><span class="pre">brew</span> <span class="pre">install</span> <span class="pre">ffmpeg</span></code>;
-Debian/Ubuntu: <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">ffmpeg</span></code>; Windows: download from
-<a class="reference external" href="https://ffmpeg.org/download.html" rel="nofollow noopener">ffmpeg.org<svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> and add <code class="docutils literal notranslate"><span class="pre">bin</span></code> to PATH.</p></li>
+Debian/Ubuntu: <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">ffmpeg</span></code>; Windows: download from <a class="reference external" href="https://ffmpeg.org/download.html" rel="nofollow noopener">ffmpeg.org<svg fill="currentColor" height="1em" stroke="none" viewbox="0 96 960 960" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M188 868q-11-11-11-28t11-28l436-436H400q-17 0-28.5-11.5T360 336q0-17 11.5-28.5T400 296h320q17 0 28.5 11.5T760 336v320q0 17-11.5 28.5T720 696q-17 0-28.5-11.5T680 656V432L244 868q-11 11-28 11t-28-11Z"></path></svg></a> and add <code class="docutils literal notranslate"><span class="pre">bin</span></code> to PATH.</p></li>
 <li><p><strong>ElevenLabs API key</strong> for <code class="docutils literal notranslate"><span class="pre">mixing.transcript</span></code> / <code class="docutils literal notranslate"><span class="pre">mixing.dubbing</span></code>
-(<code class="docutils literal notranslate"><span class="pre">ELEVENLABS_API_KEY</span></code> or <code class="docutils literal notranslate"><span class="pre">ELEVEN_API_KEY</span></code>, or pass <code class="docutils literal notranslate"><span class="pre">api_key=</span></code>). Responses are cached on disk, so
-re-runs are free and offline.</p></li>
+(<code class="docutils literal notranslate"><span class="pre">ELEVENLABS_API_KEY</span></code> or <code class="docutils literal notranslate"><span class="pre">ELEVEN_API_KEY</span></code>, or pass <code class="docutils literal notranslate"><span class="pre">api_key=</span></code>). Responses are cached on disk, so re-runs are free and offline.</p></li>
 <li><p><strong>Google Cloud</strong> auth for AI video generation
 (<code class="docutils literal notranslate"><span class="pre">mixing.video.genai</span></code>, Vertex AI Veo).</p></li>
 </ul>
@@ -290,6 +234,42 @@ re-runs are free and offline.</p></li>
 </table>
 <p>See the <a class="reference internal" href="#.claude/skills/"><span class="xref myst">skills</span></a> for the full, example-driven API of each.</p>
 </section>
+<section id="driving-it-with-ai-agents">
+<h2>Driving it with AI agents<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#driving-it-with-ai-agents" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#driving-it-with-ai-agents'">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mixing</span></code> is built to be driven by AI coding agents. The fastest, most reliable way to use it is through the bundled <strong>skills</strong> and <strong>agents</strong> in
+<a class="reference internal" href="#.claude/"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">.claude/</span></code></span></a> — task-oriented playbooks that encode the right functions, the calling conventions, and the gotchas, so an agent gets it right the first time.</p>
+<p><strong>Skills</strong> (<code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>) — <em>how to use mixing for a task</em>:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Skill</p></th>
+<th class="head"><p>Use it for</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing</span></code></span></a></p></td>
+<td><p><strong>Start here</strong> — router, architecture, the <code class="docutils literal notranslate"><span class="pre">output</span></code> protocol, extras</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#.claude/skills/mixing-audio/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-audio</span></code></span></a></p></td>
+<td><p>slice, fade, crop, concat, overlay, normalize, align, segment audio</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing-video/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-video</span></code></span></a></p></td>
+<td><p>slice, crop, loop, speed, replace/normalize audio, Ken Burns, thumbnails, subtitles</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#.claude/skills/mixing-transcript/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-transcript</span></code></span></a></p></td>
+<td><p>transcribe, remove fillers, SRT/prose, chapters</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#.claude/skills/mixing-dubbing/SKILL.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-dubbing</span></code></span></a></p></td>
+<td><p>TTS re-voicing &amp; SRT translation</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Agents</strong> (<code class="docutils literal notranslate"><span class="pre">.claude/agents/</span></code>):</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#.claude/agents/mixing-editor.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-editor</span></code></span></a> — performs an editing task end-to-end (“edit this media …”).</p></li>
+<li><p><a class="reference internal" href="#.claude/agents/mixing-dev.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">mixing-dev</span></code></span></a> — works <em>on</em> the mixing codebase.</p></li>
+</ul>
+<p>Using Claude Code? These are discovered automatically from <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>. The architectural contract they share lives in <a class="reference internal" href="#.claude/CLAUDE.md"><span class="xref myst"><code class="docutils literal notranslate"><span class="pre">.claude/CLAUDE.md</span></code></span></a>.</p>
+</section>
 <section id="license">
 <h2>License<a @click.prevent="window.navigator.clipboard.writeText($el.href); $el.setAttribute('data-tooltip', 'Copied!'); setTimeout(() =&gt; $el.setAttribute('data-tooltip', 'Copy link to this element'), 2000)" aria-label="Copy link to this element" class="headerlink" data-tooltip="Copy link to this element" href="#license" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#license'">¶</a></h2>
 <p>MIT</p>
@@ -297,11 +277,10 @@ re-runs are free and offline.</p></li>
 
 </section>
 </section>
-<p class="epythet-provenance" style="font-size:.8em;opacity:.65;margin-top:2.5em;text-align:right">built 2026-11-22 23:38 UTC from <a href="https://github.com/reeleehq/mixing/commit/f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c">f1c6863</a> (main) · mixing 0.0.129 · <a href="about-this-build.html">about this build</a></p>
+<p class="epythet-provenance" style="font-size:.8em;opacity:.65;margin-top:2.5em;text-align:right">built 2026-11-23 02:28 UTC from <a href="https://github.com/reeleehq/mixing/commit/b41722d72855c3d2ee60dbee7dcdcb9437799f85">b41722d</a> (main) · mixing 0.0.130 · <a href="about-this-build.html">about this build</a></p>
 </div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
-<li><a :data-current="activeSection === '#ai-first-start-with-the-skills-agents'" class="reference internal" href="#ai-first-start-with-the-skills-agents">🤖 AI-first: start with the skills &amp; agents</a></li>
 <li><a :data-current="activeSection === '#quick-start'" class="reference internal" href="#quick-start">Quick start</a></li>
 <li><a :data-current="activeSection === '#core-ideas-learn-once'" class="reference internal" href="#core-ideas-learn-once">Core ideas (learn once)</a></li>
 <li><a :data-current="activeSection === '#requirements'" class="reference internal" href="#requirements">Requirements</a><ul>
@@ -309,6 +288,7 @@ re-runs are free and offline.</p></li>
 </ul>
 </li>
 <li><a :data-current="activeSection === '#what-s-inside'" class="reference internal" href="#what-s-inside">What’s inside</a></li>
+<li><a :data-current="activeSection === '#driving-it-with-ai-agents'" class="reference internal" href="#driving-it-with-ai-agents">Driving it with AI agents</a></li>
 <li><a :data-current="activeSection === '#license'" class="reference internal" href="#license">License</a></li>
 </ul>
 </div>
@@ -323,7 +303,7 @@ re-runs are free and offline.</p></li>
 </div>
 </footer>
 </div>
-<script src="_static/documentation_options.js?v=ee59aaf7"></script>
+<script src="_static/documentation_options.js?v=0d7dcda5"></script>
 <script src="_static/doctools.js?v=fd6eb6e6"></script>
 <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
 <script src="_static/clipboard.min.js?v=a7894cd8"></script>

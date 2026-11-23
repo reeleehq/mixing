@@ -2,18 +2,20 @@
 
 # About this build
 
-This documentation was built on **2026-11-22 23:38 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c"><code>f1c6863</code></a> on branch <code>main</code>, for **mixing 0.0.129** (from <code>pyproject.toml</code>).
+This documentation was built on **2026-11-23 02:28 UTC** from commit <a href="https://github.com/reeleehq/mixing/commit/b41722d72855c3d2ee60dbee7dcdcb9437799f85"><code>b41722d</code></a> on branch <code>main</code>, for **mixing 0.0.130** (from <code>pyproject.toml</code>).
 
-#### NOTE
-Nothing suggests a mismatch: the tree was clean at the commit above, and the documented version is the one on PyPI.
+#### WARNING
+The documentation and the package may be misaligned:
+
+- The documented version (0.0.130) is ahead of the latest release on PyPI (0.0.129): these docs describe unreleased code.
 
 ## Source
 
 |                     |                                                                                                                                                        |
 |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Commit              | <a href="https://github.com/reeleehq/mixing/commit/f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c"><code>f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c</code></a> |
+| Commit              | <a href="https://github.com/reeleehq/mixing/commit/b41722d72855c3d2ee60dbee7dcdcb9437799f85"><code>b41722d72855c3d2ee60dbee7dcdcb9437799f85</code></a> |
 | Branch              | <code>main</code>                                                                                                                                      |
-| Tags at this commit | none                                                                                                                                                   |
+| Tags at this commit | <code>0.0.130</code>                                                                                                                                   |
 | Working tree        | clean                                                                                                                                                  |
 | Remote              | <code>https://github.com/reeleehq/mixing</code>                                                                                                        |
 
@@ -22,9 +24,9 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 |              |                                                                                            |
 |--------------|--------------------------------------------------------------------------------------------|
 | Repository   | <code>reeleehq/mixing</code>                                                               |
-| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45083384917">45083384917</a>      |
+| Run          | <a href="https://github.com/reeleehq/mixing/actions/runs/45099314214">45099314214</a>      |
 | Ref          | <code>refs/heads/main</code>                                                               |
-| Event commit | <code>f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c</code> (in the history of the built commit) |
+| Event commit | <code>2f42282c4427577348aa6c49f51f38b0d800530e</code> (in the history of the built commit) |
 
 ## Tools
 
@@ -49,13 +51,13 @@ Nothing suggests a mismatch: the tree was clean at the commit above, and the doc
 
 ## Package on PyPI
 
-Latest release: <a href="https://pypi.org/project/mixing/0.0.129/">0.0.129</a>, the same as the documented version.
+Latest release: <a href="https://pypi.org/project/mixing/0.0.129/">0.0.129</a>, older than the documented version (0.0.130).
 
 ## Reproduce
 
 ```bash
 git clone https://github.com/reeleehq/mixing && cd mixing
-git checkout f1c6863f8dd08d99e0adba26de9950e2b1c4ac7c
+git checkout b41722d72855c3d2ee60dbee7dcdcb9437799f85
 pip install "epythet==0.2.23"
 epythet quickstart . --ignore tests/ scrap/ examples/
 ```
