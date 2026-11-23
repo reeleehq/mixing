@@ -34,7 +34,7 @@ whose ``method`` says how it was read:
 ``ffprobe=`` is the seam: the default finds one (:func:`find_ffprobe`), a path
 uses that binary, ``None`` forces the banner. A file that does not exist raises
 :class:`~mixing.errors.MediaNotFoundError`; one ffmpeg cannot read raises
-:class:`~mixing.errors.ProbeError` (both are ``ValueError``s).
+:class:`~mixing.errors.ProbeError` (both are ``ValueError`` subclasses).
 """
 
 from __future__ import annotations
