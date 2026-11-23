@@ -115,17 +115,22 @@ class Utterance:
         'fr'
         >>> Utterance(0, 1, {"fr": 0.3, "zh": 0.3}).decided() is None
         True
+
+        When every language is that weak, nothing stands out: ambiguous (#218).
+
+        >>> Utterance(0, 1, {"zh": 0.02, "fr": 0.05}).decided() is None
+        True
         """
         top = self.language
         if top is None:
             return None
         if self.probs[top] >= min_probability:
             return top
-        for lang in self.probs:
-            if all(
-                p <= max_other_probability for k, p in self.probs.items() if k != lang
-            ):
-                return lang
+        others_weak = all(
+            p <= max_other_probability for k, p in self.probs.items() if k != top
+        )
+        if others_weak and self.probs[top] > max_other_probability:
+            return top
         return None
 
 
