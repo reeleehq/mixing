@@ -482,6 +482,8 @@ def _split_round_trip(
     window takes the whole-signal path, which is small anyway.
     """
     n, ch = x.shape
+    if n < 2:  # no spectrum to split: istft of a 1-sample STFT is empty (#216)
+        return speech, music + lost
     everything_heard = heard_hz is None
     if n >= _stft_size(sr, window_s):
         out_speech, out_music = np.empty_like(x), np.empty_like(x)

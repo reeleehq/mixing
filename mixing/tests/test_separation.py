@@ -888,3 +888,17 @@ def test_a_voxy_run_imports_no_torch_here():
         hidden=(),
     )
     assert out["torch"] is False
+
+
+def test_a_one_sample_input_keeps_speech_plus_music_equal_to_x():
+    """istft of a 1-sample STFT is empty; the round trip must not zero the stems
+    (reeleehq/mixing#216)."""
+    import numpy as np
+
+    from mixing.audio.separation import SeparationStrategy, separate_speech
+
+    halves = SeparationStrategy("s", lambda a, r: (0.5 * a, 0.5 * a), sample_rate=16000)
+    x = np.array([[0.0822, -0.05]])
+    speech, music = separate_speech(x, separator=halves, sr=48000)
+    assert np.allclose(speech + music, x)
+    assert np.abs(speech).sum() > 0
