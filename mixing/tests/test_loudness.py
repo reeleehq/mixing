@@ -319,10 +319,10 @@ def _band_limited_noise(n, cutoff, rng):
     return x / np.abs(x).max()
 
 
-def _interior_peak_db(x):
+def _interior_peak_db(x, **meter_kwargs):
     """The meter and the reference, away from the edges: dB, dB."""
     inner = slice(TP_EDGE, -TP_EDGE)
-    meter = true_peak_envelope(x, TP_FS)[inner].max()
+    meter = true_peak_envelope(x, TP_FS, **meter_kwargs)[inner].max()
     ideal = _sinc_envelope(x)[TP_EDGE * TP_UP : -TP_EDGE * TP_UP].max()
     return _db(meter), _db(ideal)
 
@@ -337,17 +337,20 @@ def test_true_peak_reads_bright_noise_as_an_ideal_sinc_would():
             assert meter == pytest.approx(ideal, abs=tolerance)
 
 
-def test_true_peak_of_a_near_nyquist_sine():
+@pytest.mark.parametrize("method, tolerance", [("short", 0.01), ("long", 0.03)])
+def test_true_peak_of_a_near_nyquist_sine(method, tolerance):
     # 21.6 kHz = 9/20 fs at 9 degrees: samples peak at sin(81 deg), 0.1 dB under
     # the crest, which the 4x grid hits; the old filter lost 0.66 dB there and
-    # read only the sample peak. The reference is the sine itself.
+    # read only the sample peak. The reference is the sine itself. "short" lands
+    # within 0.01 dB; "long" reads it ~0.026 dB high (its stated ~0.03 dB bound),
+    # each pinned to its own figure (mixing#119).
     n = np.arange(2400)
     phase = np.pi / 20
     x = np.sin(2 * np.pi * 9 / 20 * n + phase)
     grid = np.arange(len(x) * TP_UP) / TP_UP
     ideal = _db(np.abs(np.sin(2 * np.pi * 9 / 20 * grid + phase)).max())
-    assert _interior_peak_db(x)[0] == pytest.approx(ideal, abs=0.01)
-    assert true_peak_db(x, TP_FS) > _db(np.abs(x).max()) + 0.05
+    assert _interior_peak_db(x, method=method)[0] == pytest.approx(ideal, abs=tolerance)
+    assert true_peak_db(x, TP_FS, method=method) > _db(np.abs(x).max()) + 0.05
 
 
 def test_true_peak_does_not_loop_the_signal_at_its_edges():

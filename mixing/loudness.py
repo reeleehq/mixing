@@ -481,7 +481,7 @@ TRUE_PEAK_METHODS: dict[str, _Interpolation] = {
     ),
     "long": _Interpolation(TRUE_PEAK_LONG_HALF_SAMPLES, TRUE_PEAK_LONG_KAISER_BETA),
 }
-DEFAULT_TRUE_PEAK_METHOD = "short"
+DEFAULT_TRUE_PEAK_METHOD = "long"
 
 
 def _interpolation(method: str) -> _Interpolation:
@@ -507,11 +507,11 @@ def true_peak_envelope(
     ``oversampling`` defaults to 4x, raised for rates under 48 kHz so the
     oversampled rate is at least ``TRUE_PEAK_MIN_RATE``. ``method`` picks the
     interpolation (:data:`TRUE_PEAK_METHODS`), a windowed sinc convolved by
-    FFT. ``"short"`` (default) is 32 samples a side (``TRUE_PEAK_FILTER_*``):
+    FFT. ``"short"`` is 32 samples a side (``TRUE_PEAK_FILTER_*``):
     content up to about 0.47 fs reads as an ideal sinc reconstruction would
     (on the same oversampled grid), content between there and Nyquist reads
     low: ~0.35 dB for noise up to Nyquist, 0.2-1 dB for hard-clipped full-band
-    material. ``"long"`` is 2048 samples a side (``TRUE_PEAK_LONG_*``), flat to
+    material. ``"long"`` (the default since mixing#119) is 2048 samples a side (``TRUE_PEAK_LONG_*``), flat to
     0.497 fs: hard-clipped full-band material reads within ~0.05 dB, at about
     the cost of ``"short"``. The signal is taken as silent outside its span (as
     when played from silence), not looped. Chunked, with the filter's length of
@@ -842,7 +842,7 @@ def limit_peaks(
     ceiling holds to the grid: limited to -1 dBTP, bright material (noise up
     to 0.45 fs) measures about -0.8 dBTP on a fine (32x) grid at 4x, -0.97
     at 8x, -0.99 at 16x, at roughly 1x / 2x / 4x the cost. Content between
-    0.47 fs and Nyquist reads low whatever the factor with the default
+    0.47 fs and Nyquist reads low whatever the factor with
     ``method="short"`` (see :func:`true_peak_envelope`): limited to -1 dBTP,
     hard-clipped full-band material measures -0.2 to -0.7 dBTP, so set the
     ceiling ~1 dB under the target. ``method="long"`` (with ``true_peak=True``
