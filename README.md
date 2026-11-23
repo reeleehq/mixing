@@ -109,8 +109,7 @@ See the [skills](.claude/skills/) for the full, example-driven API of each.
 ## Driving it with AI agents
 
 `mixing` is built to be driven by AI coding agents. The fastest, most reliable way to use it is through the bundled **skills** and **agents** in
-[`.claude/`](.claude/) — task-oriented playbooks that encode the right
-functions, the calling conventions, and the gotchas, so an agent gets it right the first time.
+[`.claude/`](.claude/) — task-oriented playbooks that encode the right functions, the calling conventions, and the gotchas, so an agent gets it right the first time.
 
 **Skills** (`.claude/skills/`) — *how to use mixing for a task*:
 
@@ -124,13 +123,10 @@ functions, the calling conventions, and the gotchas, so an agent gets it right t
 
 **Agents** (`.claude/agents/`):
 
-- [`mixing-editor`](.claude/agents/mixing-editor.md) — performs an editing task
-end-to-end ("edit this media …").
+- [`mixing-editor`](.claude/agents/mixing-editor.md) — performs an editing task end-to-end ("edit this media …").
 - [`mixing-dev`](.claude/agents/mixing-dev.md) — works *on* the mixing codebase.
 
 Using Claude Code? These are discovered automatically from `.claude/`. The architectural contract they share lives in [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
-
----
 
 ## License
 
