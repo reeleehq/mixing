@@ -201,7 +201,17 @@ def _smoothed_reduction(
 ) -> np.ndarray:
     """A per-sample gain reduction (dB, <= 0) followed by the attack/release
     smoother on ``GAIN_STEP_S`` frames (each frame's deepest reduction), then
-    interpolated back to samples from the frames' centres."""
+    brought back to samples.
+
+    Back at samples, each sample takes the deeper of two readings: the frames'
+    values interpolated between their centres (a smooth release), and its own
+    frame's value held from the frame's start. The held reading is what makes
+    ``attack_s=0`` instant: interpolated alone, a hard onset at a frame's start
+    got about half a frame of reduction and passed several dB too loud with a
+    short detector (reeleehq/mixing#216). The cost is a step of at most one
+    frame's change of the smoothed gain (``GAIN_STEP_S`` apart): an attack ramp
+    steps once per frame, and a release holds each frame's value until the
+    interpolation is the deeper reading, never past the smoother's own values."""
     from mixing.loudness import attack_release
 
     n = len(reduction_db)
@@ -217,7 +227,9 @@ def _smoothed_reduction(
         initial=deepest[0],
     )
     centres = np.arange(len(deepest)) * step + (step - 1) / 2.0
-    return np.interp(np.arange(n), centres, smoothed)
+    interpolated = np.interp(np.arange(n), centres, smoothed)
+    held = np.repeat(smoothed, step)[:n]
+    return np.minimum(interpolated, held)
 
 
 @dataclass(frozen=True)

@@ -267,3 +267,23 @@ def test_attack_release_smoothing_is_fast_enough_for_long_programs():
     t = time.perf_counter()
     compress(x, fs, threshold_db=-30.0, ratio=4.0, attack_s=0.005, release_s=0.15)
     assert time.perf_counter() - t < 5.0  # 60 s at 48 kHz
+
+
+def test_an_instant_attack_meets_a_hard_onset_at_once():
+    """``attack_s=0`` with a release is instant on an onset (mixing#216 item 2).
+
+    The smoothed gain used to be interpolated between frame centres, so a step at
+    a frame's start got about half a frame of reduction: with a short detector
+    the onset came through several dB louder than the unsmoothed compressor.
+    """
+    fs = 48000
+    x = np.zeros(fs)
+    x[fs // 2 :] = 0.9
+    kw = dict(threshold_db=-30.0, ratio=20.0, detector_s=0.0002)
+    instant = compress(x, fs, **kw)
+    smoothed = compress(x, fs, attack_s=0.0, release_s=0.15, **kw)
+    onset = slice(fs // 2, fs // 2 + int(0.002 * fs))
+    excess_db = 20 * np.log10(
+        np.max(np.abs(smoothed[onset])) / np.max(np.abs(instant[onset]))
+    )
+    assert excess_db < 0.5, f"the onset passes {excess_db:.1f} dB louder"
