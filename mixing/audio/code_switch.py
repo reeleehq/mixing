@@ -77,6 +77,16 @@ DFLT_SHORT_UNCERTAIN_S = 0.35
 DFLT_MIN_PROBABILITY = 0.5
 #: ... or when every other language's is at most this.
 DFLT_MAX_OTHER_PROBABILITY = 0.1
+#: The two fixed pair orders of :func:`anchored_pairs`, and the one it detects.
+OTHER_THEN_ANCHOR = "other-then-anchor"
+ANCHOR_THEN_OTHER = "anchor-then-other"
+AUTO_ORDER = "auto"
+PAIR_ORDERS: tuple[str, ...] = (OTHER_THEN_ANCHOR, ANCHOR_THEN_OTHER)
+#: ``order="auto"`` costs, in seconds of pause inside a pair: switching order
+#: between consecutive pairs ...
+DFLT_SWITCH_COST_S = 1.0
+#: ... and leaving an anchor or a stretch of speech unpaired.
+DFLT_UNPAIRED_COST_S = 1.5
 
 
 @dataclass(frozen=True)
@@ -143,6 +153,21 @@ class LanguagePair:
 
     anchor: Optional[Segment]
     other: Optional[Segment] = None
+
+    @property
+    def order(self) -> Optional[str]:
+        """``"other-then-anchor"`` or ``"anchor-then-other"``, read from the
+        spans (which side starts first; so ``order="auto"`` shows where it
+        switched); None when a side is missing.
+
+        >>> LanguagePair(Segment(1.0, 2.0, "fr"), Segment(0.0, 0.8, "zh")).order
+        'other-then-anchor'
+        """
+        if self.anchor is None or self.other is None:
+            return None
+        if self.other.start < self.anchor.start:
+            return OTHER_THEN_ANCHOR
+        return ANCHOR_THEN_OTHER
 
 
 # --- step 1: utterances ---------------------------------------------------------
@@ -291,13 +316,15 @@ def anchored_pairs(
     *,
     anchor: str,
     other: Optional[str] = None,
-    order: str = "other-then-anchor",
+    order: str = OTHER_THEN_ANCHOR,
     min_anchor_probability: float = DFLT_MIN_PROBABILITY,
     max_other_probability: float = DFLT_MAX_OTHER_PROBABILITY,
     max_gap_s: float = 0.6,
     min_other_s: float = 0.3,
     anchor_junk: Optional[Callable[[Utterance], bool]] = is_junk,
     other_junk: Optional[Callable[[Utterance], bool]] = None,
+    switch_cost_s: float = DFLT_SWITCH_COST_S,
+    unpaired_cost_s: float = DFLT_UNPAIRED_COST_S,
 ) -> list[LanguagePair]:
     """Pairs anchored on the reliably identified language ``anchor``.
 
@@ -312,16 +339,48 @@ def anchored_pairs(
     anchor unpaired; speech no anchor claims (after the last anchor, or before
     the first) comes back as a pair with ``anchor=None``.
 
+    ``order="auto"`` decides the order per pair, for a speaker who switches
+    (reads "phrase, translation", then a list as "translation, phrase"). The
+    utterances, in time order, are cut into consecutive blocks: a pair (other
+    speech then anchors, or anchors then other speech), a lone anchor run, or
+    lone other speech. The cut chosen is the one of least cost, found exactly
+    by dynamic programming, where the cost, in seconds, is
+
+    - every pause *inside* a block (a phrase and its translation sit closer
+      than two pairs do; this also prices merging two anchors or two stretches
+      of speech into one block),
+    - plus ``switch_cost_s`` each time a pair's order differs from the previous
+      pair's,
+    - plus ``unpaired_cost_s`` for each block left unpaired (a lone anchor run,
+      lone speech, or a pair whose speech is shorter than ``min_other_s``).
+
+    Anchors still merge only across gaps up to ``max_gap_s`` with no speech
+    between, but in ``auto`` merging is a choice, not a rule. On a recording
+    that keeps one order, auto returns that order's pairs: switching leaves an
+    anchor or a stretch of speech unpaired, which costs more than it saves,
+    as long as a pair is not looser than the pause between pairs (a recording
+    whose pairs are much looser than the pauses between them reads as the
+    other order). On equal costs (to the microsecond) it keeps
+    ``"other-then-anchor"``. A run of n utterances of one language costs
+    O(n^2) work, so a long one-language stretch is slow (4000 in a row: about
+    6 s); alternating speech is linear. Each pair's
+    :attr:`LanguagePair.order` says which order it was read in.
+
     The two junk filters have different jobs: ``anchor_junk`` (default
     :func:`is_junk`) keeps a hallucinated transcript from becoming an anchor;
     ``other_junk`` (default None) would drop speech from the other side, which a
     hallucinated transcript does not prove absent. Utterances are taken in time
     order.
+
+    >>> utts = [Utterance(0.0, 1.0, {"zh": 0.9}, "ni hao"),
+    ...         Utterance(1.2, 2.0, {"fr": 1.0}, "bonjour"),
+    ...         Utterance(3.0, 4.0, {"fr": 1.0}, "trente"),
+    ...         Utterance(4.2, 5.0, {"zh": 0.9}, "san shi")]
+    >>> [p.order for p in anchored_pairs(utts, anchor="fr", order="auto")]
+    ['other-then-anchor', 'anchor-then-other']
     """
-    if order not in ("other-then-anchor", "anchor-then-other"):
-        raise ValueError(
-            f"order is 'other-then-anchor' or 'anchor-then-other', got {order!r}"
-        )
+    if order not in (*PAIR_ORDERS, AUTO_ORDER):
+        raise ValueError(f"order is one of {(*PAIR_ORDERS, AUTO_ORDER)}, got {order!r}")
     utts = sorted(utterances, key=lambda u: u.start)
     other = other or _other_language(utts, anchor)
 
@@ -333,17 +392,40 @@ def anchored_pairs(
             p <= max_other_probability for p in rest
         )
 
-    others = [
-        u
+    def as_other(inside: Sequence[Utterance]) -> Optional[Segment]:
+        if not inside or inside[-1].end - inside[0].start < min_other_s:
+            return None
+        return Segment(inside[0].start, inside[-1].end, other)
+
+    tokens = [
+        (u, is_anchor(u))
         for u in utts
-        if not is_anchor(u) and (other_junk is None or not other_junk(u))
+        if is_anchor(u) or other_junk is None or not other_junk(u)
     ]
+    if order == AUTO_ORDER:
+        blocks = _cheapest_blocks(
+            tokens,
+            max_gap_s=max_gap_s,
+            min_other_s=min_other_s,
+            switch_cost_s=switch_cost_s,
+            unpaired_cost_s=unpaired_cost_s,
+        )
+        return [
+            LanguagePair(
+                Segment(a[0].start, a[-1].end, anchor) if a else None,
+                as_other(o),
+            )
+            for a, o in blocks
+            if a or as_other(o) is not None
+        ]
+
+    others = [u for u, is_a in tokens if not is_a]
 
     def speech_between(lo: float, hi: float) -> list[Utterance]:
         return [u for u in others if u.start >= lo and u.end <= hi]
 
     anchors: list[list[float]] = []
-    for u in filter(is_anchor, utts):
+    for u in (u for u, is_a in tokens if is_a):
         if (
             anchors
             and u.start - anchors[-1][1] <= max_gap_s
@@ -353,33 +435,102 @@ def anchored_pairs(
         else:
             anchors.append([u.start, u.end])
 
-    def as_other(inside: list[Utterance]) -> Optional[Segment]:
-        if not inside or inside[-1].end - inside[0].start < min_other_s:
-            return None
-        return Segment(inside[0].start, inside[-1].end, other)
-
     pairs = []
     edges = [-np.inf] + [e for a in anchors for e in a] + [np.inf]
     for k, (a0, a1) in enumerate(anchors):
         lo, hi = (
-            (edges[2 * k], a0)
-            if order == "other-then-anchor"
-            else (a1, edges[2 * k + 3])
+            (edges[2 * k], a0) if order == OTHER_THEN_ANCHOR else (a1, edges[2 * k + 3])
         )
         pairs.append(
             LanguagePair(Segment(a0, a1, anchor), as_other(speech_between(lo, hi)))
         )
     # the speech no anchor claims: after the last anchor, or before the first
-    lo, hi = (
-        (edges[-2], np.inf) if order == "other-then-anchor" else (-np.inf, edges[1])
-    )
+    lo, hi = (edges[-2], np.inf) if order == OTHER_THEN_ANCHOR else (-np.inf, edges[1])
     leftover = as_other(speech_between(lo, hi))
     if leftover is not None:
-        if order == "other-then-anchor":
+        if order == OTHER_THEN_ANCHOR:
             pairs.append(LanguagePair(None, leftover))
         else:
             pairs.insert(0, LanguagePair(None, leftover))
     return pairs
+
+
+#: Costs are compared to the microsecond, so float rounding never breaks a tie.
+_COST_DECIMALS = 6
+#: A block of :func:`_cheapest_blocks`: its anchor utterances and its other ones.
+_Block = tuple[list[Utterance], list[Utterance]]
+
+
+def _cheapest_blocks(
+    tokens: Sequence[tuple[Utterance, bool]],
+    *,
+    max_gap_s: float,
+    min_other_s: float,
+    switch_cost_s: float,
+    unpaired_cost_s: float,
+) -> list[_Block]:
+    """The least-cost cut of ``(utterance, is_anchor)`` tokens into blocks,
+    the ``order="auto"`` rule of :func:`anchored_pairs` (whose docstring states
+    the cost). Dynamic programming over (end of the last block, order of the
+    last pair); a block spans at most two runs of one kind, so the work grows
+    with the token count times the longest two runs. Equal costs go to the cut
+    with fewer ``"anchor-then-other"`` pairs."""
+    n = len(tokens)
+    kinds = [is_a for _, is_a in tokens]
+    pauses = [max(0.0, tokens[k + 1][0].start - tokens[k][0].end) for k in range(n - 1)]
+
+    def exact(seconds: float) -> float:
+        return round(seconds, _COST_DECIMALS)  # equal costs compare equal
+
+    def blocks_ending_at(j: int):
+        """``(i, cost, order)`` for every block tokens[i:j], i from j - 1 down."""
+        inside, flips, side_end, side_start = 0.0, 0, None, None
+        for i in range(j - 1, -1, -1):
+            if i < j - 1:
+                if kinds[i] != kinds[i + 1]:
+                    flips += 1
+                    if flips > 1:
+                        return
+                elif kinds[i] and pauses[i] > max_gap_s:
+                    return  # anchors merge only across a short gap
+                inside += pauses[i]
+            if not kinds[i]:
+                side_end = side_end if side_end is not None else tokens[i][0].end
+                side_start = tokens[i][0].start
+            if flips == 0 or side_end - side_start < min_other_s:
+                yield i, inside + unpaired_cost_s, None
+            else:
+                yield i, inside, ANCHOR_THEN_OTHER if kinds[i] else OTHER_THEN_ANCHOR
+
+    # best[(j, last pair order)] = ((cost, anchor-then-other count), i, previous order)
+    best: dict = {(0, None): ((0.0, 0), -1, None)}
+    for j in range(1, n + 1):
+        for i, cost, block_order in blocks_ending_at(j):
+            for last in (None, *PAIR_ORDERS):
+                if (i, last) not in best:
+                    continue
+                (prev_cost, prev_after), _, _ = best[(i, last)]
+                switched = block_order and last and block_order != last
+                score = (
+                    exact(prev_cost + cost + (switch_cost_s if switched else 0.0)),
+                    prev_after + (block_order == ANCHOR_THEN_OTHER),
+                )
+                state = (j, block_order or last)
+                if state not in best or score < best[state][0]:
+                    best[state] = (score, i, last)
+    state = min((s for s in best if s[0] == n), key=lambda s: best[s][0])
+    cuts = []
+    while state[0] > 0:
+        _, i, last = best[state]
+        cuts.append((i, state[0]))
+        state = (i, last)
+    return [
+        (
+            [u for u, is_a in tokens[i:j] if is_a],
+            [u for u, is_a in tokens[i:j] if not is_a],
+        )
+        for i, j in reversed(cuts)
+    ]
 
 
 def _other_language(utts: Sequence[Utterance], anchor: str) -> Optional[str]:
