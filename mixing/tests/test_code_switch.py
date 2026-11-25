@@ -22,7 +22,10 @@ def _lesson(pattern, *, sr=SR, gap_s=0.6):
     parts, spans, t = [np.zeros(int(gap_s * sr))], [], gap_s
     for lang, dur in pattern:
         n = int(dur * sr)
-        parts += [0.3 * np.sin(2 * np.pi * PITCH[lang] * np.arange(n) / sr), np.zeros(int(gap_s * sr))]
+        parts += [
+            0.3 * np.sin(2 * np.pi * PITCH[lang] * np.arange(n) / sr),
+            np.zeros(int(gap_s * sr)),
+        ]
         spans.append((lang, t, t + dur))
         t += dur + gap_s
     return np.concatenate(parts), spans
@@ -31,20 +34,30 @@ def _lesson(pattern, *, sr=SR, gap_s=0.6):
 def _pitch_language_id(samples, sr):
     spectrum = np.abs(np.fft.rfft(samples))
     f = np.fft.rfftfreq(len(samples), 1 / sr)[np.argmax(spectrum)]
-    return {"zh": 1.0, "fr": 0.0} if abs(f - PITCH["zh"]) < abs(f - PITCH["fr"]) else {"zh": 0.02, "fr": 0.98}
+    return (
+        {"zh": 1.0, "fr": 0.0}
+        if abs(f - PITCH["zh"]) < abs(f - PITCH["fr"])
+        else {"zh": 0.02, "fr": 0.98}
+    )
 
 
 def test_utterances_are_split_at_silences_and_labelled():
     samples, spans = _lesson([("zh", 0.8), ("fr", 1.0), ("zh", 0.5), ("fr", 0.7)])
     said = []
     utts = language_utterances(
-        samples, sr=SR, language_id=_pitch_language_id,
+        samples,
+        sr=SR,
+        language_id=_pitch_language_id,
         transcribe=lambda clip, sr, lang: said.append((lang, sr)) or f"{lang}!",
     )
     assert [u.language for u in utts] == [lang for lang, *_ in spans]
     for u, (_, start, end) in zip(utts, spans):
-        assert u.start == pytest.approx(start, abs=0.1) and u.end == pytest.approx(end, abs=0.1)
-    assert said == [(lang, SR) for lang, *_ in spans]  # forced to its language, at 16 kHz
+        assert u.start == pytest.approx(start, abs=0.1) and u.end == pytest.approx(
+            end, abs=0.1
+        )
+    assert said == [
+        (lang, SR) for lang, *_ in spans
+    ]  # forced to its language, at 16 kHz
     assert all(u.text.endswith("!") for u in utts)
 
 
@@ -52,8 +65,11 @@ def test_utterances_from_another_rate_reach_the_seams_at_16k_on_time():
     samples, spans = _lesson([("zh", 0.5), ("fr", 0.7)], sr=44100)
     clips = []
     utts = language_utterances(
-        samples, sr=44100,
-        language_id=lambda clip, sr: clips.append((len(clip), sr)) or _pitch_language_id(clip, sr),
+        samples,
+        sr=44100,
+        language_id=lambda clip, sr: (
+            clips.append((len(clip), sr)) or _pitch_language_id(clip, sr)
+        ),
         transcribe=lambda clip, sr, lang: "x",
     )
     assert [sr for _, sr in clips] == [SR, SR]
@@ -67,7 +83,9 @@ def test_a_language_the_id_never_names_is_an_error():
     samples, _ = _lesson([("zh", 0.5)])
     with pytest.raises(ValueError, match="never named"):
         language_utterances(
-            samples, sr=SR, languages=("en", "zh-cn"),
+            samples,
+            sr=SR,
+            languages=("en", "zh-cn"),
             language_id=lambda clip, sr: {"en": 0.5, "zh": 0.5},
             transcribe=lambda *a: "x",
         )
@@ -76,8 +94,12 @@ def test_a_language_the_id_never_names_is_an_error():
 def test_is_junk():
     assert is_junk(Utterance(0, 1, {"fr": 1.0}, ""))
     assert is_junk(Utterance(0, 1, {"fr": 1.0}, "uszusz"))
-    assert is_junk(Utterance(0, 0.2, {"fr": 0.4, "zh": 0.3}, "a"))  # short, no language sure
-    assert not is_junk(Utterance(0, 0.3, {"fr": 0.0, "zh": 0.72}, "是"))  # short but sure
+    assert is_junk(
+        Utterance(0, 0.2, {"fr": 0.4, "zh": 0.3}, "a")
+    )  # short, no language sure
+    assert not is_junk(
+        Utterance(0, 0.3, {"fr": 0.0, "zh": 0.72}, "是")
+    )  # short but sure
     assert not is_junk(Utterance(0, 0.2, {"fr": 0.99}, "oui"))
     assert not is_junk(Utterance(0, 1.0, {"fr": 0.6, "zh": 0.4}, "bon"))
 
@@ -91,12 +113,17 @@ def test_runs_merge_one_language_and_uncertain_utterances_join_their_run():
     ]
     runs = language_runs(utts)
     assert [(r.start, r.end, r.label) for r in runs] == [
-        (0.0, 1.9, "zh"), (2.0, 3.0, "fr"), (5.0, 6.0, "fr"),
+        (0.0, 1.9, "zh"),
+        (2.0, 3.0, "fr"),
+        (5.0, 6.0, "fr"),
     ]
 
 
 def test_runs_drop_junk_by_default():
-    utts = [Utterance(0, 1, {"zh": 1.0}, "a"), Utterance(1.1, 1.2, {"zh": 0.3, "fr": 0.3}, "x")]
+    utts = [
+        Utterance(0, 1, {"zh": 1.0}, "a"),
+        Utterance(1.1, 1.2, {"zh": 0.3, "fr": 0.3}, "x"),
+    ]
     assert [(r.start, r.end) for r in language_runs(utts)] == [(0, 1)]
 
 
@@ -114,7 +141,10 @@ def test_runs_label_by_the_decided_language_not_the_argmax():
 
 
 def test_runs_take_utterances_in_time_order():
-    utts = [Utterance(2.0, 3.0, {"fr": 1.0}, "b"), Utterance(0.0, 1.0, {"fr": 1.0}, "a")]
+    utts = [
+        Utterance(2.0, 3.0, {"fr": 1.0}, "b"),
+        Utterance(0.0, 1.0, {"fr": 1.0}, "a"),
+    ]
     assert [(r.start, r.end) for r in language_runs(utts)] == [(0.0, 3.0)]
 
 
@@ -127,7 +157,9 @@ def test_pairs_anchor_on_the_reliable_language_whatever_the_noisy_labels():
         Utterance(1.2, 2.0, {"zh": 0.0, "fr": 1.0}, "bonjour"),
         Utterance(2.2, 2.8, {"zh": 0.6, "fr": 0.4}, "xie"),
         Utterance(3.0, 3.9, {"zh": 0.01, "fr": 0.99}, "merci"),
-        Utterance(4.0, 4.5, {"zh": 0.05, "fr": 0.95}, "beaucoup"),  # within 0.6 s: same anchor
+        Utterance(
+            4.0, 4.5, {"zh": 0.05, "fr": 0.95}, "beaucoup"
+        ),  # within 0.6 s: same anchor
     ]
     pairs = anchored_pairs(utts, anchor="fr")
     assert pairs == [
@@ -151,7 +183,9 @@ def test_pairs_anchor_then_other_and_too_short_other_speech():
 
 def test_junk_keeps_hallucinations_out_of_anchors_but_not_out_of_the_other_side():
     utts = [
-        Utterance(0.0, 1.0, {"zh": 0.9, "fr": 0.1}, "uszusz"),  # hallucinated text, real speech
+        Utterance(
+            0.0, 1.0, {"zh": 0.9, "fr": 0.1}, "uszusz"
+        ),  # hallucinated text, real speech
         Utterance(1.2, 2.0, {"zh": 0.0, "fr": 1.0}, "bonjour"),
         Utterance(2.2, 2.5, {"zh": 0.0, "fr": 0.95}, "uszusz"),  # would-be anchor: junk
     ]
@@ -188,9 +222,106 @@ def test_anchors_do_not_merge_across_other_speech():
 
 
 def test_no_anchor_at_all_is_one_unpaired_run_of_speech():
-    utts = [Utterance(0.0, 1.0, {"zh": 0.9, "fr": 0.0}, "a"), Utterance(1.2, 2.0, {"zh": 0.9}, "b")]
-    assert anchored_pairs(utts, anchor="fr") == [LanguagePair(None, _seg(0.0, 2.0, "zh"))]
+    utts = [
+        Utterance(0.0, 1.0, {"zh": 0.9, "fr": 0.0}, "a"),
+        Utterance(1.2, 2.0, {"zh": 0.9}, "b"),
+    ]
+    assert anchored_pairs(utts, anchor="fr") == [
+        LanguagePair(None, _seg(0.0, 2.0, "zh"))
+    ]
     assert anchored_pairs([], anchor="fr") == []
+
+
+SWITCHING_PLAN = ("zh-fr", "zh-fr", "fr-zh", "fr-zh", "fr-zh", "zh-fr", "zh-fr")
+
+
+def _bilingual(plan=SWITCHING_PLAN, *, within=0.3, between=1.0, item=0.6):
+    """One pair per entry of ``plan``, read in that order ("zh-fr": phrase then
+    translation), each pair ``within`` apart and ``between`` from the next.
+    The default plan switches to fr-zh for a stretch (a list of numbers), with
+    each pair tighter than the pause between pairs. Returns the utterances and
+    the true (fr span, zh span) of each item."""
+    utts, truth, t = [], [], 0.0
+    for read in plan:
+        spans = {}
+        for lang in read.split("-"):
+            spans[lang] = (round(t, 3), round(t + item, 3))
+            probs = {"fr": 1.0, "zh": 0.0} if lang == "fr" else {"fr": 0.05, "zh": 0.9}
+            utts.append(Utterance(*spans[lang], probs, lang))
+            t += item + within
+        t += between - within
+        truth.append((spans["fr"], spans["zh"]))
+    return utts, truth
+
+
+def _as_items(pairs):
+    return [
+        ((p.anchor.start, p.anchor.end), (p.other.start, p.other.end))
+        for p in pairs
+        if p.anchor is not None and p.other is not None
+    ]
+
+
+def test_auto_order_follows_a_speaker_who_switches_order_mid_way():
+    """#221: a stretch read "translation, phrase" inside a lesson read "phrase,
+    translation". auto pairs every item; each fixed order mis-pairs a stretch
+    (the mutation check), and the chosen order is on each pair."""
+    utts, truth = _bilingual()
+    pairs = anchored_pairs(utts, anchor="fr", order="auto")
+    assert _as_items(pairs) == truth
+    assert len(pairs) == len(truth)  # nothing left unpaired
+    assert [p.order for p in pairs] == ["other-then-anchor"] * 2 + [
+        "anchor-then-other"
+    ] * 3 + ["other-then-anchor"] * 2
+    for fixed in ("other-then-anchor", "anchor-then-other"):
+        assert _as_items(anchored_pairs(utts, anchor="fr", order=fixed)) != truth
+
+
+def test_auto_order_on_a_consistent_recording_is_the_fixed_order():
+    """No switch in the speech, none in the pairs, even with no pause evidence:
+    switching would leave an anchor or a stretch of speech unpaired."""
+    for read, order in [("zh-fr", "other-then-anchor"), ("fr-zh", "anchor-then-other")]:
+        utts, truth = _bilingual((read,) * 5, within=0.6, between=0.6)
+        auto = anchored_pairs(utts, anchor="fr", order="auto")
+        assert auto == anchored_pairs(utts, anchor="fr", order=order)
+        assert _as_items(auto) == truth
+
+
+def test_auto_order_ties_go_to_other_then_anchor():
+    """zh fr zh, evenly spaced: either side could be the first fr's partner;
+    on equal cost auto reads it as a lesson does, phrase then translation."""
+    utts = [
+        Utterance(0.0, 1.0, {"zh": 0.9}, "a"),
+        Utterance(1.5, 2.5, {"fr": 1.0}, "b"),
+        Utterance(3.0, 4.0, {"zh": 0.9}, "c"),
+    ]
+    assert anchored_pairs(utts, anchor="fr", order="auto") == anchored_pairs(
+        utts, anchor="fr"
+    )
+    assert anchored_pairs([], anchor="fr", order="auto") == []
+    # times off the binary grid (0.1 s steps) tie too, not by float rounding
+    for zh1, fr, zh2 in [
+        ((0.0, 0.3), (0.6, 0.9), (1.2, 1.5)),
+        ((0.0, 0.6), (0.7, 1.3), (1.4, 2.0)),
+    ]:
+        utts = [
+            Utterance(*zh1, {"zh": 0.9}, "a"),
+            Utterance(*fr, {"fr": 1.0}, "b"),
+            Utterance(*zh2, {"zh": 0.9}, "c"),
+        ]
+        assert [p.order for p in anchored_pairs(utts, anchor="fr", order="auto")] == [
+            "other-then-anchor",
+            None,
+        ]
+
+
+def test_pair_order_is_read_from_the_spans():
+    fr, zh = _seg(1.0, 2.0, "fr"), _seg(0.0, 0.8, "zh")
+    assert LanguagePair(fr, zh).order == "other-then-anchor"
+    assert LanguagePair(fr, _seg(2.2, 3.0, "zh")).order == "anchor-then-other"
+    overlapping = LanguagePair(fr, _seg(0.0, 1.5, "zh"))  # auto can pair overlaps
+    assert overlapping.order == "other-then-anchor"
+    assert LanguagePair(fr).order is None and LanguagePair(None, zh).order is None
 
 
 def test_default_transcriber_uses_mlx_whisper_when_installed(monkeypatch):
@@ -206,12 +337,17 @@ def test_default_transcriber_uses_mlx_whisper_when_installed(monkeypatch):
     monkeypatch.setitem(sys.modules, "mlx_whisper", fake)
     real_find_spec = importlib.util.find_spec
     monkeypatch.setattr(
-        importlib.util, "find_spec",
-        lambda name, *a: object() if name == "mlx_whisper" else real_find_spec(name, *a),
+        importlib.util,
+        "find_spec",
+        lambda name, *a: (
+            object() if name == "mlx_whisper" else real_find_spec(name, *a)
+        ),
     )
     text = code_switch.default_transcriber()(np.zeros(SR), SR, "zh")
     assert text == " ni hao "
-    assert calls[0]["language"] == "zh" and calls[0]["condition_on_previous_text"] is False
+    assert (
+        calls[0]["language"] == "zh" and calls[0]["condition_on_previous_text"] is False
+    )
     assert calls[0]["path_or_hf_repo"] == code_switch.DFLT_WHISPER_MODEL
 
 
@@ -224,7 +360,8 @@ def test_default_transcriber_falls_back_to_scribed(monkeypatch):
 
     real_find_spec = importlib.util.find_spec
     monkeypatch.setattr(
-        importlib.util, "find_spec",
+        importlib.util,
+        "find_spec",
         lambda name, *a: None if name == "mlx_whisper" else real_find_spec(name, *a),
     )
     seen = []
@@ -241,7 +378,9 @@ def test_end_to_end_on_a_synthetic_lesson():
         samples, sr=SR, language_id=_pitch_language_id, transcribe=lambda *a: "t"
     )
     pairs = anchored_pairs(utts, anchor="fr")
-    assert len(pairs) == 2 and all(p.other is not None and p.other.label == "zh" for p in pairs)
+    assert len(pairs) == 2 and all(
+        p.other is not None and p.other.label == "zh" for p in pairs
+    )
 
 
 def _seg(start, end, label):
